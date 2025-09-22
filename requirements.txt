@@ -1,6 +1,7 @@
 Flask
 Flask-Login
 Flask-Bcrypt
-pymongo
+PyMongo
 qrcode[pil]
+python-dateutil
 gunicorn
