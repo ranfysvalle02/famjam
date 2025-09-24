@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import csv
 from datetime import datetime, timedelta, date
 from flask import Flask, render_template_string, request, redirect, url_for, flash, Response, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -10,6 +11,8 @@ from bson.objectid import ObjectId
 from bson import json_util, regex
 import qrcode
 from dateutil.relativedelta import relativedelta
+from collections import defaultdict
+import requests
 
 # load environment variables from a .env file if present
 from dotenv import load_dotenv
@@ -24,24 +27,41 @@ app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'a-super-secret-ke
 
 # --- Mongo setup ---
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
-BASE_URL = os.environ.get('BASE_URL', 'https://mchores.onrender.com')
+BASE_URL = os.environ.get('BASE_URL', 'https://famflow.onrender.com') # Updated for new branding
 client = MongoClient(MONGO_URI)
-db = client['mchores_app']
+db = client['mchores_app'] # Keeping internal DB name for stability
 
 users_collection = db['users']          # user documents
 events_collection = db['events']        # chores/habits
 rewards_collection = db['rewards']      # reward requests from child
 transactions_collection = db['transactions'] # logs each reward spend attempt
+moods_collection = db['moods']          # mood tracking entries
 
 # Recommended indexes
 users_collection.create_index([('email', ASCENDING)], unique=True, sparse=True)
 users_collection.create_index([('username', ASCENDING), ('family_id', ASCENDING)], unique=True, sparse=True)
 events_collection.create_index([('family_id', ASCENDING), ('due_date', ASCENDING)])
+moods_collection.create_index([('user_id', ASCENDING), ('date', ASCENDING), ('period', ASCENDING)], unique=True)
+moods_collection.create_index([('family_id', ASCENDING), ('date', ASCENDING)])
+
 
 bcrypt = Bcrypt(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+
+# --- MoodMatrix Configuration ---
+MOOD_CONFIG = {
+    'moods': [
+        {'emoji': '😖', 'desc': 'Upset', 'score': 1, 'color': '#ef4444'},
+        {'emoji': '😔', 'desc': 'Not Happy', 'score': 2, 'color': '#f97316'},
+        {'emoji': '😌', 'desc': 'Calm / Okay', 'score': 3, 'color': '#84cc16'},
+        {'emoji': '😎', 'desc': 'Very Happy', 'score': 4, 'color': '#22c55e'}
+    ],
+    'aiApiUrl': 'https://ranfysvalle02--orby-api-ai.modal.run/'
+}
+MOOD_EMOJI_TO_SCORE = {m['emoji']: m['score'] for m in MOOD_CONFIG['moods']}
 
 
 # --- Models ---
@@ -97,48 +117,74 @@ def render_full_template(content_template, **kwargs):
         **kwargs
     )
 
-# --- Main Layout Template (tsParticles background, Tailwind, etc.) ---
-# NOTE: The LAYOUT_TEMPLATE remains the same and is omitted here for brevity. It is included in the full code block below.
+# --- Main Layout Template (Animated Gradient BG, Tailwind, etc.) ---
 LAYOUT_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>mChores - Family Chore & Habit Management</title>
+  <title>FAMFLOW - Family Chore & Habit Management</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.13/index.global.min.js'></script>
-  <script src="https://cdn.jsdelivr.net/npm/tsparticles@2/tsparticles.bundle.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bitcount+Single+Ink:wght@100..900&display=swap" rel="stylesheet">
   <script>
-    document.addEventListener("DOMContentLoaded", function() {
-      tsParticles.load("tsparticles", {
-        fpsLimit: 60, background: { color: "transparent" }, particles: { number: { value: 50, density: { enable: true, value_area: 800 } }, color: { value: "#ec4899" }, shape: { type: "circle" }, opacity: { value: 0.7, random: true, anim: { enable: true, speed: 1, opacity_min: 0.2, sync: false } }, size: { value: 3, random: true, anim: { enable: true, speed: 3, size_min: 0.5, sync: false } }, move: { enable: true, speed: 1, random: true, out_mode: "out" }, line_linked: { enable: false } }, interactivity: { detectsOn: "canvas", events: { onhover: { enable: true, mode: "repulse" }, onclick: { enable: true, mode: "push" }, resize: true }, modes: { repulse: { distance: 100, duration: 0.4 }, push: { quantity: 4 } } }, retina_detect: true });
-    });
     tailwind.config = { theme: { extend: { colors: { primary: { '50': '#eff6ff','100': '#dbeafe','200': '#bfdbfe','300': '#93c5fd','400': '#60a5fa', '500': '#3b82f6','600': '#2563eb','700': '#1d4ed8','800': '#1e40af','900': '#1e3a8a' }, secondary: { '50': '#fdf2f8','100': '#fce7f3','200': '#fbcfe8','300': '#f9a8d4','400': '#f472b6', '500': '#ec4899','600': '#db2777','700': '#be185d','800': '#9d174d','900': '#831843' } } } } }
   </script>
-  <style> body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; } .gradient-text { background: linear-gradient(to right, #4f46e5, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; } #tsparticles { position: absolute; inset: 0; z-index: -10; } .fc .fc-button-primary { background-color: #2563eb; border-color: #2563eb; transition: background-color 0.2s; } .fc .fc-button-primary:hover { background-color: #1d4ed8; border-color: #1d4ed8; } .fc .fc-daygrid-day.fc-day-today { background-color: rgba(59, 130, 246, 0.08); } @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } } .fade-in { animation: fadeIn 0.5s ease-in-out forwards; } @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } } .modal-content { animation: scaleUp 0.3s cubic-bezier(0.165, 0.84, 0.44, 1) forwards; } .custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; } .tab-button.active { border-color: #2563eb; color: #2563eb; background-color: #eff6ff; } .tab-content { display: none; } .tab-content.active { display: block; } </style>
+  <style>
+    @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f3f4f6;
+        background: linear-gradient(-45deg, #f0f9ff, #fdf2f8, #f5f5f5, #ecfdf5);
+        background-size: 400% 400%;
+        animation: gradient 25s ease infinite;
+        min-height: 100vh;
+    }
+    .gradient-text { background: linear-gradient(to right, #4f46e5, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .font-brand {
+        font-family: "Bitcount Single Ink", system-ui;
+        font-weight: 800;
+        font-style: normal;
+    }
+    .fc .fc-button-primary { background-color: #2563eb; border-color: #2563eb; transition: background-color 0.2s; }
+    .fc .fc-button-primary:hover { background-color: #1d4ed8; border-color: #1d4ed8; }
+    .fc .fc-daygrid-day.fc-day-today { background-color: rgba(59, 130, 246, 0.08); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    .fade-in { animation: fadeIn 0.5s ease-in-out forwards; }
+    @keyframes scaleUp { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .modal-content { animation: scaleUp 0.3s cubic-bezier(0.165, 0.84, 0.44, 1) forwards; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    .tab-button.active { border-color: #2563eb; color: #2563eb; background-color: #eff6ff; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
 </head>
 <body class="text-gray-800 antialiased relative">
-  <div id="tsparticles"></div>
   <nav class="bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-50">
     <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
-        <div class="flex items-center space-x-8"> <a href="{{ url_for('index') }}" class="font-extrabold text-2xl gradient-text"> mChores </a> </div>
+        <div class="flex items-center space-x-8"> <a href="{{ url_for('index') }}" class="text-3xl gradient-text font-brand"> fam-flow</a> </div>
         <div class="hidden sm:flex items-center space-x-2">
           {% if current_user.is_authenticated %}
             <div class="hidden sm:flex items-center space-x-1 bg-gray-100 rounded-full p-1">
-              <a href="{{ url_for('family_dashboard') }}" class="px-3 py-1 text-sm font-medium rounded-full transition-colors {{ 'bg-white text-gray-800 shadow-sm' if request.endpoint == 'family_dashboard' else 'text-gray-600 hover:text-gray-900' }}"> Family Hub </a>
+              <a href="{{ url_for('family_dashboard') }}" class="px-3 py-1 text-sm font-medium rounded-full transition-colors {{ 'bg-white text-gray-800 shadow-sm' if 'family_dashboard' in request.endpoint else 'text-gray-600 hover:text-gray-900' }}"> Family Hub </a>
               <a href="{{ url_for('personal_dashboard') }}" class="px-3 py-1 text-sm font-medium rounded-full transition-colors {{ 'bg-white text-gray-800 shadow-sm' if request.endpoint == 'personal_dashboard' else 'text-gray-600 hover:text-gray-900' }}"> {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Tasks{% endif %} </a>
               <a href="{{ url_for('calendar_focus') }}" class="px-3 py-1 text-sm font-medium rounded-full transition-colors {{ 'bg-white text-gray-800 shadow-sm' if request.endpoint == 'calendar_focus' else 'text-gray-600 hover:text-gray-900' }}"> Calendar </a>
+              <a href="{{ url_for('mood_dashboard_personal') }}" class="px-3 py-1 text-sm font-medium rounded-full transition-colors {{ 'bg-white text-gray-800 shadow-sm' if 'mood_dashboard' in request.endpoint else 'text-gray-600 hover:text-gray-900' }}"> Mood Tracker </a>
             </div>
             <div class="flex items-center space-x-4 ml-4">
               <span class="hidden sm:block text-sm font-medium text-gray-700"> Hi, {{ current_user.username }}! </span>
-              {% if current_user.role == 'parent' %}
-              <a href="{{ url_for('invite') }}" class="hidden sm:block p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/> </svg>
-              </a>
-              {% endif %}
               <a href="{{ url_for('logout') }}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition shadow-sm"> Log Out </a>
             </div>
           {% else %}
@@ -155,7 +201,7 @@ LAYOUT_TEMPLATE = """
           <a href="{{ url_for('family_dashboard') }}" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"> Family Hub </a>
           <a href="{{ url_for('personal_dashboard') }}" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"> {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Tasks{% endif %} </a>
           <a href="{{ url_for('calendar_focus') }}" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"> Calendar </a>
-          {% if current_user.role == 'parent' %} <a href="{{ url_for('invite') }}" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"> Invite </a> {% endif %}
+          <a href="{{ url_for('mood_dashboard_personal') }}" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"> Mood Tracker </a>
           <a href="{{ url_for('logout') }}" class="block px-3 py-2 rounded-md text-sm font-medium text-blue-600 hover:bg-gray-100"> Log Out </a>
         {% else %}
           <a href="{{ url_for('login') }}" class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100"> Log In </a>
@@ -184,20 +230,329 @@ LAYOUT_TEMPLATE = """
 """
 
 # --- Subtemplates for various pages ---
+PERSONAL_MOOD_DASHBOARD_TEMPLATE = """
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
+        <div class="border-b border-gray-200 pb-5 mb-5">
+            <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-gray-900">My Mood Dashboard</h2>
+                <div class="flex items-center space-x-2">
+                     <a href="{{ url_for('mood_dashboard_personal') }}" class="px-3 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm">My Moods</a>
+                     <a href="{{ url_for('mood_dashboard_family') }}" class="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg">Family Moods</a>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-1 space-y-6">
+                <div>
+                    <label for="date-picker" class="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
+                    <input type="date" id="date-picker" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm">
+                </div>
+                <div>
+                    <fieldset id="period-toggle" class="flex">
+                        <legend class="sr-only">Period</legend>
+                        <label for="am-period" class="w-1/2 cursor-pointer text-center px-4 py-2 text-sm font-medium border border-gray-300 rounded-l-lg peer-checked:bg-blue-600 peer-checked:text-white">AM</label>
+                        <input type="radio" id="am-period" name="period" value="AM" class="sr-only peer">
+                        <label for="pm-period" class="w-1/2 cursor-pointer text-center px-4 py-2 text-sm font-medium border-t border-b border-r border-gray-300 rounded-r-lg peer-checked:bg-blue-600 peer-checked:text-white">PM</label>
+                        <input type="radio" id="pm-period" name="period" value="PM" class="sr-only peer">
+                    </fieldset>
+                </div>
+                <div>
+                    <p class="block text-sm font-medium text-gray-700 mb-2">How are you feeling?</p>
+                    <div id="emojis-container" class="grid grid-cols-4 gap-2">
+                        {% for mood in mood_config.moods %}
+                            <button class="text-4xl p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500" data-mood="{{ mood.emoji }}" aria-label="{{ mood.desc }}">{{ mood.emoji }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div>
+                    <label for="mood-note" class="block text-sm font-medium text-gray-700 mb-1">Add a note (optional)</label>
+                    <textarea id="mood-note" rows="4" class="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500" placeholder="What's on your mind?"></textarea>
+                </div>
+                 <div>
+                    <button id="consult-ai-btn" class="w-full flex items-center justify-center gap-2 py-3 px-4 font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary-500 transition-transform transform hover:scale-105 shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM13 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z" /></svg>
+                        Get AI Insights
+                    </button>
+                </div>
+            </div>
+            <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-bold mb-4 text-gray-800">My Mood Trend (Last 30 Days)</h3>
+                <div class="h-80"><canvas id="personalMoodChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="ai-dialog" class="fixed inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full z-50 hidden flex items-center justify-center p-4">
+    <div class="relative p-6 border w-full max-w-2xl shadow-2xl rounded-2xl bg-white modal-content">
+        <button id="close-ai-modal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
+        <h3 class="text-2xl font-bold mb-4 text-gray-900">AI Mood Analysis</h3>
+        <div id="ai-loading-state" class="text-center py-12">
+            <div role="status" class="flex flex-col items-center justify-center">
+                <svg aria-hidden="true" class="w-10 h-10 mb-4 text-gray-200 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/><path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0492C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5424 39.6781 93.9676 39.0409Z" fill="currentFill"/></svg>
+                <span class="text-lg text-gray-600">Analyzing your mood history...</span>
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+        <div id="ai-response-text" class="prose max-w-none text-gray-700 hidden"></div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- STATE ---
+    const state = {
+        selectedDate: new Date().toISOString().split('T')[0],
+        period: new Date().getHours() < 12 ? 'AM' : 'PM',
+        currentMood: null // To hold { mood_emoji: '😊', note: '...' }
+    };
+
+    // --- DOM ELEMENTS ---
+    const datePicker = document.getElementById('date-picker');
+    const periodToggle = document.getElementById('period-toggle');
+    const emojisContainer = document.getElementById('emojis-container');
+    const moodNote = document.getElementById('mood-note');
+    const consultAiBtn = document.getElementById('consult-ai-btn');
+    const aiDialog = document.getElementById('ai-dialog');
+    const closeAiModalBtn = document.getElementById('close-ai-modal');
+    const aiLoadingState = document.getElementById('ai-loading-state');
+    const aiResponseText = document.getElementById('ai-response-text');
+
+    // --- CHART ---
+    let personalMoodChart;
+    const initChart = () => {
+        const ctx = document.getElementById('personalMoodChart').getContext('2d');
+        personalMoodChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Mood Score', data: [], borderColor: '#3b82f6', borderWidth: 2, tension: 0.4, fill: false }] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 4.5, ticks: { stepSize: 1, callback: (val) => ['','Upset','Not Happy','Calm','Happy'][val] || '' } } } }
+        });
+        updateChart();
+    };
+
+    const updateChart = async () => {
+        const response = await fetch("{{ url_for('api_mood_personal') }}");
+        const data = await response.json();
+        if (personalMoodChart) {
+            personalMoodChart.data.labels = data.labels;
+            personalMoodChart.data.datasets[0].data = data.data;
+            personalMoodChart.update();
+        }
+    };
+
+    // --- DATA HANDLING ---
+    const fetchMoodForSelectedDate = async () => {
+        const url = new URL("{{ url_for('api_mood_personal') }}", window.location.origin);
+        url.searchParams.append('date', state.selectedDate);
+        url.searchParams.append('period', state.period);
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Mood not found');
+            const moodData = await response.json();
+            state.currentMood = moodData;
+        } catch (error) {
+            state.currentMood = null;
+        }
+        renderCurrentMoodEntry();
+    };
+
+    const saveMoodEntry = async () => {
+        if (!state.currentMood || !state.currentMood.mood_emoji) return; // Don't save if no emoji
+        try {
+            await fetch("{{ url_for('api_mood_log') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: state.selectedDate,
+                    period: state.period,
+                    emoji: state.currentMood.mood_emoji,
+                    note: state.currentMood.note || ''
+                })
+            });
+            updateChart(); // Refresh chart after saving
+        } catch (error) {
+            console.error("Failed to save mood:", error);
+        }
+    };
+
+    // --- UI RENDERING ---
+    const render = () => {
+        datePicker.value = state.selectedDate;
+        document.querySelector(`input[name="period"][value="${state.period}"]`).checked = true;
+        fetchMoodForSelectedDate();
+    };
+
+    const renderCurrentMoodEntry = () => {
+        moodNote.value = state.currentMood?.note || '';
+        emojisContainer.querySelectorAll('button').forEach(btn => {
+            btn.classList.toggle('bg-blue-200', btn.dataset.mood === state.currentMood?.mood_emoji);
+            btn.classList.toggle('ring-2', btn.dataset.mood === state.currentMood?.mood_emoji);
+        });
+    };
+    
+    // --- EVENT HANDLERS ---
+    const handleDateChange = () => {
+        state.selectedDate = datePicker.value;
+        state.period = periodToggle.querySelector('input:checked').value;
+        fetchMoodForSelectedDate();
+    };
+
+    const handleMoodUpdate = (key, value) => {
+        if (!state.currentMood) state.currentMood = {};
+        state.currentMood[key] = value;
+        renderCurrentMoodEntry();
+        saveMoodEntry();
+    };
+
+    const consultAI = async () => {
+        aiDialog.classList.remove('hidden');
+        aiLoadingState.style.display = 'flex';
+        aiResponseText.style.display = 'none';
+        aiResponseText.innerHTML = '';
+        
+        try {
+            const response = await fetch("{{ url_for('api_consult_ai') }}", { method: 'POST' });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `API Error: ${response.statusText}`);
+            }
+            const data = await response.json();
+            // Basic markdown-to-html
+            let html = data.ai_response || "Sorry, I couldn't generate insights right now.";
+            html = html.replace(/\\n/g, '<br>');
+            html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
+            aiResponseText.innerHTML = html;
+
+        } catch (error) {
+            console.error('AI consultation failed:', error);
+            aiResponseText.innerHTML = `<p class="text-red-600">An error occurred: ${error.message}.</p>`;
+        } finally {
+            aiLoadingState.style.display = 'none';
+            aiResponseText.style.display = 'block';
+        }
+    };
+
+    // --- INITIALIZATION ---
+    datePicker.addEventListener('change', handleDateChange);
+    periodToggle.addEventListener('change', handleDateChange);
+    moodNote.addEventListener('input', (e) => handleMoodUpdate('note', e.target.value));
+    emojisContainer.addEventListener('click', (e) => {
+        const button = e.target.closest('button[data-mood]');
+        if (button) handleMoodUpdate('mood_emoji', button.dataset.mood);
+    });
+
+    consultAiBtn.addEventListener('click', consultAI);
+    closeAiModalBtn.addEventListener('click', () => aiDialog.classList.add('hidden'));
+
+    initChart();
+    render();
+});
+</script>
+{% endblock %}
+"""
+
+FAMILY_MOOD_DASHBOARD_TEMPLATE = """
+{% block content %}
+<div class="space-y-8">
+    <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
+        <div class="border-b border-gray-200 pb-5 mb-5">
+             <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-gray-900">Family Mood Dashboard</h2>
+                <div class="flex items-center space-x-2">
+                    <a href="{{ url_for('mood_dashboard_personal') }}" class="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg">My Moods</a>
+                    <a href="{{ url_for('mood_dashboard_family') }}" class="px-3 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm">Family Moods</a>
+                </div>
+            </div>
+            <p class="mt-2 text-sm text-gray-500">Anonymized overview of the family's mood trends from the last 30 days.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg">
+                <h3 class="text-lg font-bold mb-4 text-gray-800">Family Average Mood Trend</h3>
+                <div class="h-80"><canvas id="familyAverageMoodChart"></canvas></div>
+            </div>
+            <div class="lg:col-span-1 bg-gray-50 p-4 rounded-lg flex flex-col items-center">
+                <h3 class="text-lg font-bold mb-4 text-gray-800">Overall Mood Distribution</h3>
+                <div class="w-full max-w-xs h-80"><canvas id="familyMoodDistributionChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    const response = await fetch("{{ url_for('api_mood_family') }}");
+    const familyData = await response.json();
+
+    // --- Average Trend Chart ---
+    const avgCtx = document.getElementById('familyAverageMoodChart').getContext('2d');
+    new Chart(avgCtx, {
+        type: 'line',
+        data: {
+            labels: familyData.daily_average.labels,
+            datasets: [{
+                label: 'Average Mood Score',
+                data: familyData.daily_average.data,
+                borderColor: '#ec4899',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 4.5,
+                    ticks: { stepSize: 1, callback: (val) => ['','Upset','Not Happy','Calm','Happy'][val] || '' }
+                }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // --- Distribution Pie Chart ---
+    const distCtx = document.getElementById('familyMoodDistributionChart').getContext('2d');
+    new Chart(distCtx, {
+        type: 'pie',
+        data: {
+            labels: familyData.distribution.labels,
+            datasets: [{
+                label: 'Moods Logged',
+                data: familyData.distribution.data,
+                backgroundColor: familyData.distribution.colors,
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}
+"""
 
 LOGIN_TEMPLATE = """
 {% block content %}
-<div class="flex items-center justify-center min-h-[calc(100vh-250px)]"> <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl"> <div class="text-center"> <h1 class="text-4xl font-extrabold gradient-text">Welcome Back</h1> <p class="mt-2 text-gray-600">Log in to manage your family's tasks.</p> </div> <form method="POST" action="{{ url_for('login') }}" class="space-y-6"> <div> <label for="email_or_username" class="block text-sm font-medium text-gray-700"> Email or Username </label> <input type="text" name="email_or_username" id="email_or_username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="password" class="block text-sm font-medium text-gray-700"> Password </label> <input type="password" name="password" id="password" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Log In </button> </form> <p class="text-center text-sm text-gray-600 mt-2"> Don't have an account? <a href="{{ url_for('register_parent') }}" class="font-medium text-blue-600 hover:text-blue-500"> Register as a Parent </a> </p> </div> </div>
+<div class="flex items-center justify-center min-h-[calc(100vh-250px)]"> <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl"> <div class="text-center"> <h1 class="text-4xl font-extrabold gradient-text font-brand">Welcome Back</h1> <p class="mt-2 text-gray-600">Log in to manage your family's tasks.</p> </div> <form method="POST" action="{{ url_for('login') }}" class="space-y-6"> <div> <label for="email_or_username" class="block text-sm font-medium text-gray-700"> Email or Username </label> <input type="text" name="email_or_username" id="email_or_username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="password" class="block text-sm font-medium text-gray-700"> Password </label> <input type="password" name="password" id="password" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Log In </button> </form> <p class="text-center text-sm text-gray-600 mt-2"> Don't have an account? <a href="{{ url_for('register_parent') }}" class="font-medium text-blue-600 hover:text-blue-500"> Register as a Parent </a> </p> </div> </div>
 {% endblock %}
 """
 
 REGISTER_PARENT_TEMPLATE = """
 {% block content %}
-<div class="flex items-center justify-center min-h-[calc(100vh-250px)]"> <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl"> <div class="text-center"> <h1 class="text-4xl font-extrabold gradient-text">Create Your Family Hub</h1> <p class="mt-2 text-gray-600">Start by creating a parent account.</p> </div> <form method="POST" action="{{ url_for('register_parent') }}" class="space-y-6"> <div> <label for="username" class="block text-sm font-medium text-gray-700"> Your Name / Username </label> <input type="text" name="username" id="username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="email" class="block text-sm font-medium text-gray-700"> Email Address </label> <input type="email" name="email" id="email" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="password" class="block text-sm font-medium text-gray-700"> Password </label> <input type="password" name="password" id="password" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Create Account </button> </form> <p class="text-center text-sm text-gray-600 mt-2"> Already have an account? <a href="{{ url_for('login') }}" class="font-medium text-blue-600 hover:text-blue-500"> Log In </a> </p> </div> </div>
+<div class="flex items-center justify-center min-h-[calc(100vh-250px)]"> <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl"> <div class="text-center"> <h1 class="text-4xl font-extrabold gradient-text font-brand">Create Your Family Hub</h1> <p class="mt-2 text-gray-600">Start by creating a parent account.</p> </div> <form method="POST" action="{{ url_for('register_parent') }}" class="space-y-6"> <div> <label for="username" class="block text-sm font-medium text-gray-700"> Your Name / Username </label> <input type="text" name="username" id="username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="email" class="block text-sm font-medium text-gray-700"> Email Address </label> <input type="email" name="email" id="email" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="password" class="block text-sm font-medium text-gray-700"> Password </label> <input type="password" name="password" id="password" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Create Account </button> </form> <p class="text-center text-sm text-gray-600 mt-2"> Already have an account? <a href="{{ url_for('login') }}" class="font-medium text-blue-600 hover:text-blue-500"> Log In </a> </p> </div> </div>
 {% endblock %}
 """
 
-# >>>>> NEW TEMPLATE ADDED HERE <<<<<
 JOIN_FAMILY_TEMPLATE = """
 {% block content %}
 <div class="flex items-center justify-center min-h-[calc(100vh-250px)]">
@@ -207,7 +562,7 @@ JOIN_FAMILY_TEMPLATE = """
         <path stroke-linecap="round" stroke-linejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.085a2 2 0 00-1.736.97l-1.908 4.293M7 20l-1.5-1.5a2 2 0 010-2.828l3-3a2 2 0 012.828 0l1.5 1.5M7 20h2" />
       </svg>
     </div>
-    <h1 class="text-3xl font-extrabold gradient-text">You're Invited!</h1>
+    <h1 class="text-3xl font-extrabold gradient-text font-brand">You're Invited!</h1>
     <p class="text-gray-600 text-lg">
       You have been invited to join the family hub for <br> <strong class="text-xl text-gray-800">{{ parent_name }}</strong>.
     </p>
@@ -225,39 +580,604 @@ JOIN_FAMILY_TEMPLATE = """
 
 REGISTER_CHILD_TEMPLATE = """
 {% block content %}
-<div class="flex items-center justify-center min-h-[calc(100vh-250px)]"> <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl"> <div class="text-center"> <h1 class="text-4xl font-extrabold gradient-text">Join Your Family!</h1> <p class="mt-2 text-gray-600">Create a username and password to get started.</p> </div> <form method="POST" action="{{ url_for('register_child', invite_code=invite_code) }}" class="space-y-6"> <div> <label for="username" class="block text-sm font-medium text-gray-700"> Username </label> <input type="text" name="username" id="username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="password" class="block text-sm font-medium text-gray-700"> Password </label> <input type="password" name="password" id="password" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Join Family </button> </form> </div> </div>
+<div class="flex items-center justify-center min-h-[calc(100vh-250px)]"> <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-2xl shadow-xl"> <div class="text-center"> <h1 class="text-4xl font-extrabold gradient-text font-brand">Join Your Family!</h1> <p class="mt-2 text-gray-600">Create a username and password to get started.</p> </div> <form method="POST" action="{{ url_for('register_child', invite_code=invite_code) }}" class="space-y-6"> <div> <label for="username" class="block text-sm font-medium text-gray-700"> Username </label> <input type="text" name="username" id="username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <div> <label for="password" class="block text-sm font-medium text-gray-700"> Password </label> <input type="password" name="password" id="password" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"> </div> <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Join Family </button> </form> </div> </div>
 {% endblock %}
 """
 
 DASHBOARD_PARENT_TEMPLATE = """
 {% block content %}
-<div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl"> <div class="border-b border-gray-200 mb-6"> <nav class="-mb-px flex space-x-6" id="tabs"> <button onclick="switchTab(event, 'createTask')" class="tab-button active py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Create Task </button> <button onclick="switchTab(event, 'pendingTasks')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Pending Tasks </button> <button onclick="switchTab(event, 'rewardRequests')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Reward Requests </button> <button onclick="switchTab(event, 'spendHistory')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Spend History </button> </nav> </div> <div> <div id="createTask" class="tab-content active"> <h3 class="text-2xl font-bold mb-6 text-gray-900">Easily Assign a Chore or Habit</h3> <form method="POST" action="{{ url_for('create_event') }}"> <div class="grid grid-cols-1 md:grid-cols-2 gap-6"> <div class="md:col-span-2"> <label for="name" class="block text-sm font-medium text-gray-700"> Task / Habit Name </label> <input type="text" name="name" placeholder="e.g. Clean your room" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required> </div> <div class="md:col-span-2"> <label for="description" class="block text-sm font-medium text-gray-700"> Description (Optional) </label> <textarea name="description" rows="3" placeholder="e.g. Tidy surfaces, vacuum, dust..." class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"></textarea> </div> <div> <label for="type" class="block text-sm font-medium text-gray-700"> Type </label> <select name="type" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"> <option value="chore">Chore (One-time or repeating)</option> <option value="habit">Habit (Daily checks for a streak)</option> </select> </div> <div> <label for="points" class="block text-sm font-medium text-gray-700"> Points Value </label> <input type="number" name="points" min="1" placeholder="e.g. 50" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required> </div> <div> <label for="assigned_to" class="block text-sm font-medium text-gray-700"> Assign To </label> <select name="assigned_to" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required> <option value="">Select a child...</option> {% for member in family_members if member.role == 'child' %} <option value="{{ member._id }}">{{ member.username }}</option> {% endfor %} </select> </div> <div> <label for="due_date" class="block text-sm font-medium text-gray-700"> Start Date </label> <input type="date" name="due_date" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required> </div> </div> <button type="submit" class="w-full md:w-auto mt-8 py-3 px-8 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Add Task </button> </form> </div> <div id="pendingTasks" class="tab-content"> <h3 class="text-2xl font-bold mb-6 text-gray-900">Review Submitted Tasks</h3> <div class="space-y-4"> {% for event in events %} {% if event.status == 'completed' %} <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"> <div class="flex items-center space-x-4"> <span class="p-2.5 rounded-full {{ 'bg-pink-100' if event.type == 'habit' else 'bg-purple-100' }}"> <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 {{ 'text-pink-600' if event.type == 'habit' else 'text-purple-600' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="{{ 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364 l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' if event.type == 'habit' else 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286 -6.857L5 12l5.714-2.143L13 3z' }}" /> </svg> </span> <div> <p class="font-semibold text-gray-800">{{ event.name }}</p> <p class="text-sm text-gray-500"> Submitted by <span class="font-medium">{{ member_map[event.assigned_to] }}</span> &middot; Worth <span class="font-medium">{{ event.points }} pts</span> </p> </div> </div> <a href="{{ url_for('approve_event', event_id=event._id) }}" class="flex items-center space-x-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-105"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"> <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/> </svg> <span>Approve</span> </a> </div> {% endif %} {% else %} <p class="text-center py-8 text-gray-500"> No tasks are currently pending approval. Great job, team! </p> {% endfor %} </div> </div> <div id="rewardRequests" class="tab-content"> <h3 class="text-2xl font-bold mb-6 text-gray-900">Review Reward Requests</h3> <p class="text-sm text-gray-600 mb-4"> If a reward is not suitable, reject to refund the child's points. Otherwise, approve to confirm the spend. </p> <div class="space-y-4"> {% for reward in reward_requests %} <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"> <div class="flex items-center space-x-4"> <span class="p-2.5 rounded-full bg-yellow-100"> <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/> </svg> </span> <div> <p class="font-semibold text-gray-800">{{ reward.name }}</p> <p class="text-sm text-gray-500"> Requested by <span class="font-medium">{{ reward.requested_by_username }}</span> &middot; <span class="font-medium text-yellow-700">{{ reward.points_cost }} pts</span> </p> </div> </div> <div class="flex space-x-2"> <a href="{{ url_for('handle_reward', reward_id=reward._id, action='approve') }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/> </svg> </a> <a href="{{ url_for('handle_reward', reward_id=reward._id, action='reject') }}" class="p-2 text-white bg-red-500 rounded-full hover:bg-red-600 transition-transform transform hover:scale-110"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/> </svg> </a> </div> </div> {% else %} <p class="text-center py-8 text-gray-500"> No pending reward requests. </p> {% endfor %} </div> </div> <div id="spendHistory" class="tab-content"> <h3 class="text-2xl font-bold mb-6 text-gray-900">All Reward Spend Transactions</h3> <div class="space-y-4"> {% if spend_history %} {% for tx in spend_history %} <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between hover:shadow-md transition-shadow"> <div> <p class="font-semibold text-gray-800"> {{ tx.child_username }} spent <span class="text-blue-600 font-bold">{{ tx.points_spent }} pts</span> on "{{ tx.reward_name }}" </p> <p class="text-sm text-gray-500"> Status: {{ tx.status|capitalize }} &middot; {{ tx.spent_at_pretty }} </p> </div> </div> {% endfor %} {% else %} <p class="text-center py-8 text-gray-500"> No spend history recorded yet. </p> {% endif %} </div> </div> </div> </div> <script> function switchTab(event, tabID) { document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active')); document.getElementById(tabID).classList.add('active'); event.currentTarget.classList.add('active'); } </script>
+<div id="edit-child-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full z-50 hidden flex items-center justify-center p-4">
+    <div class="relative p-6 border w-full max-w-md shadow-2xl rounded-2xl bg-white modal-content">
+        <button onclick="closeModal('edit-child-modal')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl">&times;</button>
+        <h3 class="text-2xl font-bold mb-4 text-gray-900">Edit Child</h3>
+        <form id="edit-child-form" method="POST" class="space-y-4">
+            <input type="hidden" id="edit-child-id" name="child_id">
+            <div>
+                <label for="edit-username" class="block text-sm font-medium text-gray-700">Username</label>
+                <input type="text" id="edit-username" name="username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg">
+            </div>
+            <div>
+                <label for="edit-password" class="block text-sm font-medium text-gray-700">New Password (optional)</label>
+                <input type="password" id="edit-password" name="password" placeholder="Leave blank to keep current" class="mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg">
+            </div>
+            <div class="flex justify-end pt-4">
+                <button type="button" onclick="closeModal('edit-child-modal')" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 mr-2">Cancel</button>
+                <button type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-6" id="tabs">
+            <button onclick="switchTab(event, 'createTask')" class="tab-button active py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Create Task </button>
+            <button onclick="switchTab(event, 'pendingTasks')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Pending Tasks </button>
+            <button onclick="switchTab(event, 'rewardRequests')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Reward Requests </button>
+            <button onclick="switchTab(event, 'spendHistory')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Spend History </button>
+            <button onclick="switchTab(event, 'manageFamily')" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300"> Manage Family </button>
+        </nav>
+    </div>
+    <div>
+        <div id="createTask" class="tab-content active">
+            <h3 class="text-2xl font-bold mb-6 text-gray-900">Easily Assign a Chore or Habit</h3>
+            <form method="POST" action="{{ url_for('create_event') }}">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="md:col-span-2">
+                        <label for="name" class="block text-sm font-medium text-gray-700"> Task / Habit Name </label>
+                        <input type="text" name="name" placeholder="e.g. Clean your room" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label for="description" class="block text-sm font-medium text-gray-700"> Description (Optional) </label>
+                        <textarea name="description" rows="3" placeholder="e.g. Tidy surfaces, vacuum, dust..." class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+                    <div>
+                        <label for="type" class="block text-sm font-medium text-gray-700"> Type </label>
+                        <select name="type" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            <option value="chore">Chore (One-time or repeating)</option>
+                            <option value="habit">Habit (Daily checks for a streak)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="points" class="block text-sm font-medium text-gray-700"> Points Value </label>
+                        <input type="number" name="points" min="1" placeholder="e.g. 50" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                    <div>
+                        <label for="assigned_to" class="block text-sm font-medium text-gray-700"> Assign To </label>
+                        <select name="assigned_to" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+                            <option value="">Select a child...</option>
+                            {% for member in family_members if member.role == 'child' %}
+                            <option value="{{ member._id }}">{{ member.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="due_date" class="block text-sm font-medium text-gray-700"> Start Date </label>
+                        <input type="date" name="due_date" class="mt-1 block w-full px-4 py-3 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+                    </div>
+                </div>
+                <button type="submit" class="w-full md:w-auto mt-8 py-3 px-8 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg"> Add Task </button>
+            </form>
+        </div>
+        <div id="pendingTasks" class="tab-content">
+            <h3 class="text-2xl font-bold mb-6 text-gray-900">Review Submitted Tasks</h3>
+            <div class="space-y-4">
+                {% for event in events %}
+                {% if event.status == 'completed' %}
+                <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                    <div class="flex items-center space-x-4">
+                        <span class="p-2.5 rounded-full {{ 'bg-pink-100' if event.type == 'habit' else 'bg-purple-100' }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 {{ 'text-pink-600' if event.type == 'habit' else 'text-purple-600' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="{{ 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364 l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' if event.type == 'habit' else 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286 -6.857L5 12l5.714-2.143L13 3z' }}" />
+                            </svg>
+                        </span>
+                        <div>
+                            <p class="font-semibold text-gray-800">{{ event.name }}</p>
+                            <p class="text-sm text-gray-500"> Submitted by <span class="font-medium">{{ member_map[event.assigned_to] }}</span> &middot; Worth <span class="font-medium">{{ event.points }} pts</span> </p>
+                        </div>
+                    </div>
+                    <a href="{{ url_for('approve_event', event_id=event._id) }}" class="flex items-center space-x-2 px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-105">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span>Approve</span>
+                    </a>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-center py-8 text-gray-500"> No tasks are currently pending approval. Great job, team! </p>
+                {% endfor %}
+            </div>
+        </div>
+        <div id="rewardRequests" class="tab-content">
+            <h3 class="text-2xl font-bold mb-6 text-gray-900">Review Reward Requests</h3>
+            <p class="text-sm text-gray-600 mb-4"> If a reward is not suitable, reject to refund the child's points. Otherwise, approve to confirm the spend. </p>
+            <div class="space-y-4">
+                {% for reward in reward_requests %}
+                <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
+                    <div class="flex items-center space-x-4">
+                        <span class="p-2.5 rounded-full bg-yellow-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </span>
+                        <div>
+                            <p class="font-semibold text-gray-800">{{ reward.name }}</p>
+                            <p class="text-sm text-gray-500"> Requested by <span class="font-medium">{{ reward.requested_by_username }}</span> &middot; <span class="font-medium text-yellow-700">{{ reward.points_cost }} pts</span> </p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <a href="{{ url_for('handle_reward', reward_id=reward._id, action='approve') }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </a>
+                        <a href="{{ url_for('handle_reward', reward_id=reward._id, action='reject') }}" class="p-2 text-white bg-red-500 rounded-full hover:bg-red-600 transition-transform transform hover:scale-110">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-center py-8 text-gray-500"> No pending reward requests. </p>
+                {% endfor %}
+            </div>
+        </div>
+        <div id="spendHistory" class="tab-content">
+            <h3 class="text-2xl font-bold mb-6 text-gray-900">All Reward Spend Transactions</h3>
+            <div class="space-y-4">
+                {% if spend_history %}
+                {% for tx in spend_history %}
+                <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <p class="font-semibold text-gray-800"> {{ tx.child_username }} spent <span class="text-blue-600 font-bold">{{ tx.points_spent }} pts</span> on "{{ tx.reward_name }}" </p>
+                        <p class="text-sm text-gray-500"> Status: {{ tx.status|capitalize }} &middot; {{ tx.spent_at_pretty }} </p>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-center py-8 text-gray-500"> No spend history recorded yet. </p>
+                {% endif %}
+            </div>
+        </div>
+        <div id="manageFamily" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                 <h3 class="text-2xl font-bold text-gray-900">Manage Family Members</h3>
+                 <a href="{{ url_for('invite') }}" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-transform transform hover:scale-105">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" /></svg>
+                    <span>Invite Child</span>
+                 </a>
+            </div>
+            <div class="space-y-4">
+                {% for member in family_members if member.role == 'child' %}
+                <div class="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center font-bold text-blue-700 text-lg">{{ member.username[0]|upper }}</div>
+                        <div>
+                            <p class="font-semibold text-gray-800">{{ member.username }}</p>
+                            <p class="text-sm text-gray-500">Points: {{ member.points }}</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="openEditModal('{{ member._id }}', '{{ member.username }}')" class="p-2 text-gray-500 bg-gray-200 rounded-full hover:bg-gray-300 hover:text-gray-700 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <a href="{{ url_for('remove_child', child_id=member._id) }}" onclick="return confirm('Are you sure you want to remove {{ member.username }}? This will delete their account and all their tasks.')" class="p-2 text-red-500 bg-red-100 rounded-full hover:bg-red-200 transition">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                 <p class="text-center py-8 text-gray-500">No children have been added yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    function switchTab(event, tabID) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabID).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+    function openEditModal(childId, username) {
+        document.getElementById('edit-child-id').value = childId;
+        document.getElementById('edit-username').value = username;
+        document.getElementById('edit-password').value = '';
+        document.getElementById('edit-child-form').action = `/child/edit/${childId}`;
+        document.getElementById('edit-child-modal').classList.remove('hidden');
+    }
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.add('hidden');
+    }
+</script>
 {% endblock %}
 """
 
 DASHBOARD_CHILD_TEMPLATE = """
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-8"> <div class="lg:col-span-2 space-y-8"> <div class="bg-white p-6 rounded-2xl shadow-xl"> <h2 class="text-2xl font-bold mb-4 flex items-center gap-3"> <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-pink-500" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828 -6.829a4 4 0 010-5.656z" clip-rule="evenodd"/> </svg> My Daily Habits </h2> <div class="space-y-4"> {% set habits = events|selectattr("type","equalto","habit")|list %} {% if habits %} {% for habit in habits %} <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-md transition-shadow"> <div class="flex-1"> <h4 class="font-bold text-lg text-gray-800">{{ habit.name }}</h4> <p class="text-sm text-gray-600 mt-1 pr-4">{{ habit.description }}</p> <div class="flex items-center gap-4 mt-3 text-sm"> <span class="font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">+{{ habit.points }} pts</span> <span class="font-semibold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full flex items-center gap-1"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23 -.614.558-.822.934l-6.75 12.25a1 1 0 001.64.905l1.852-1.069a1 1 0 011.23.372l3.22 4.705a1 1 0 001.64-.905l-1.852 -1.069a1 1 0 01-.001-1.422l6.75-12.25a1 1 0 00-.385-1.45z" clip-rule="evenodd"/> </svg> Streak: {{ habit.streak|default(0) }} days </span> </div> </div> <div class="mt-4 sm:mt-0 w-full sm:w-auto"> {% if habit.can_checkin %} <a href="{{ url_for('checkin_habit', event_id=habit._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition-transform transform hover:scale-105 shadow-md"> Check-in Today </a> {% else %} <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-green-800 bg-green-100 rounded-lg"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/> </svg> Completed Today! </span> {% endif %} </div> </div> {% endfor %} {% else %} <p class="text-center py-6 text-gray-500"> You have no habits assigned yet. </p> {% endif %} </div> </div> <div class="bg-white p-6 rounded-2xl shadow-xl"> <h2 class="text-2xl font-bold mb-4 flex items-center gap-3"> <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-purple-500" viewBox="0 0 20 20" fill="currentColor"> <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/> </svg> My Assigned Chores </h2> <div class="space-y-4"> {% set chores = events|selectattr("type","equalto","chore")|list %} {% if chores %} {% for chore in chores %} <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-md transition-shadow"> <div class="flex-1"> <h4 class="font-bold text-lg text-gray-800">{{ chore.name }}</h4> <p class="text-sm text-gray-600 mt-1 pr-4">{{ chore.description }}</p> <div class="flex items-center gap-4 mt-3 text-sm"> <span class="font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">+{{ chore.points }} pts</span> <span class="font-semibold text-gray-600 flex items-center gap-1.5"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/> </svg> Due: {{ chore.due_date.strftime('%b %d, %Y') }} </span> </div> </div> <div class="mt-4 sm:mt-0 w-full sm:w-auto"> {% if chore.status == 'assigned' %} <a href="{{ url_for('complete_event', event_id=chore._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-transform transform hover:scale-105 shadow-md"> Mark as Done </a> {% elif chore.status == 'completed' %} <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-indigo-800 bg-indigo-100 rounded-lg"> Awaiting Approval </span> {% elif chore.status == 'approved' %} <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-green-800 bg-green-100 rounded-lg"> Approved! </span> {% endif %} </div> </div> {% endfor %} {% else %} <p class="text-center py-6 text-gray-500"> You have no chores assigned. Great job! </p> {% endif %} </div> </div> </div> <div class="lg:col-span-1 space-y-8"> <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-6 rounded-2xl shadow-xl text-center"> <p class="text-lg font-medium opacity-80">My Available Points</p> <p class="text-6xl font-extrabold my-2 tracking-tight"> {{ current_user.points }} </p> <p class="opacity-80"> Lifetime Earned: {{ current_user.lifetime_points }} </p> </div> <div class="bg-white p-6 rounded-2xl shadow-xl"> <h3 class="text-xl font-bold mb-4">Request a Reward</h3> <form method="POST" action="{{ url_for('request_reward') }}" class="space-y-4"> <div> <label for="name" class="block text-sm font-medium text-gray-700"> Reward </label> <input type="text" name="name" required placeholder="e.g., 1 hour of TV" class="mt-1 block w-full px-4 py-2.5 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/> </div> <div> <label for="points_cost" class="block text-sm font-medium text-gray-700"> Points Cost </label> <input type="number" name="points_cost" min="1" required placeholder="e.g. 100" class="mt-1 block w-full px-4 py-2.5 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/> </div> <button type="submit" class="w-full py-2.5 px-4 font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition-transform transform hover:scale-105 shadow-md"> Request Reward </button> </form> <hr class="my-6"> <h3 class="text-xl font-bold mb-4">Reward History</h3> <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2"> {% for reward in rewards|sort(attribute='_id', reverse=true) %} <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"> <div> <p class="text-sm font-semibold pr-2"> {{ reward.name }} ({{ reward.points_cost }} pts) </p> {% if reward.resolved_at_pretty %} <p class="text-xs text-gray-500"> Resolved {{ reward.resolved_at_pretty }} </p> {% endif %} </div> <span class="flex-shrink-0 px-2.5 py-0.5 text-xs font-medium rounded-full {{ {'requested':'bg-yellow-100 text-yellow-800', 'approved':'bg-green-100 text-green-800', 'rejected':'bg-red-100 text-red-800'}[reward.status] }}"> {{ reward.status|capitalize }} </span> </div> {% else %} <p class="text-sm text-center py-4 text-gray-500"> You haven't requested any rewards yet. </p> {% endfor %} </div> </div> </div> </div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2 space-y-8">
+        <div class="bg-white p-6 rounded-2xl shadow-xl">
+            <h2 class="text-2xl font-bold mb-4 flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/>
+                </svg> My Daily Habits </h2>
+            <div class="space-y-4">
+                {% set habits = events|selectattr("type","equalto","habit")|list %}
+                {% if habits %}
+                {% for habit in habits %}
+                <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-md transition-shadow">
+                    <div class="flex-1">
+                        <h4 class="font-bold text-lg text-gray-800">{{ habit.name }}</h4>
+                        <p class="text-sm text-gray-600 mt-1 pr-4">{{ habit.description }}</p>
+                        <div class="flex items-center gap-4 mt-3 text-sm"> <span class="font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">+{{ habit.points }} pts</span> <span class="font-semibold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full flex items-center gap-1"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23 -.614.558-.822.934l-6.75 12.25a1 1 0 001.64.905l1.852-1.069a1 1 0 011.23.372l3.22 4.705a1 1 0 001.64-.905l-1.852-1.069a1 1 0 01-.001-1.422l6.75-12.25a1 1 0 00-.385-1.45z" clip-rule="evenodd"/> </svg> Streak: {{ habit.streak|default(0) }} days </span> </div>
+                    </div>
+                    <div class="mt-4 sm:mt-0 w-full sm:w-auto"> {% if habit.can_checkin %} <a href="{{ url_for('checkin_habit', event_id=habit._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition-transform transform hover:scale-105 shadow-md"> Check-in Today </a> {% else %} <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-green-800 bg-green-100 rounded-lg"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/> </svg> Completed Today! </span> {% endif %} </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-center py-6 text-gray-500"> You have no habits assigned yet. </p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl shadow-xl">
+            <h2 class="text-2xl font-bold mb-4 flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-purple-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                </svg> My Assigned Chores </h2>
+            <div class="space-y-4">
+                {% set chores = events|selectattr("type","equalto","chore")|list %}
+                {% if chores %}
+                {% for chore in chores %}
+                <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center hover:shadow-md transition-shadow">
+                    <div class="flex-1">
+                        <h4 class="font-bold text-lg text-gray-800">{{ chore.name }}</h4>
+                        <p class="text-sm text-gray-600 mt-1 pr-4">{{ chore.description }}</p>
+                        <div class="flex items-center gap-4 mt-3 text-sm"> <span class="font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">+{{ chore.points }} pts</span> <span class="font-semibold text-gray-600 flex items-center gap-1.5"> <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/> </svg> Due: {{ chore.due_date.strftime('%b %d, %Y') }} </span> </div>
+                    </div>
+                    <div class="mt-4 sm:mt-0 w-full sm:w-auto"> {% if chore.status == 'assigned' %} <a href="{{ url_for('complete_event', event_id=chore._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-transform transform hover:scale-105 shadow-md"> Mark as Done </a> {% elif chore.status == 'completed' %} <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-indigo-800 bg-indigo-100 rounded-lg"> Awaiting Approval </span> {% elif chore.status == 'approved' %} <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-green-800 bg-green-100 rounded-lg"> Approved! </span> {% endif %} </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-center py-6 text-gray-500"> You have no chores assigned. Great job! </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="lg:col-span-1 space-y-8">
+        <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-6 rounded-2xl shadow-xl text-center">
+            <p class="text-lg font-medium opacity-80">My Available Points</p>
+            <p class="text-6xl font-extrabold my-2 tracking-tight"> {{ current_user.points }} </p>
+            <p class="opacity-80"> Lifetime Earned: {{ current_user.lifetime_points }} </p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl shadow-xl">
+            <h3 class="text-xl font-bold mb-4">Request a Reward</h3>
+            <form method="POST" action="{{ url_for('request_reward') }}" class="space-y-4">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700"> Reward </label>
+                    <input type="text" name="name" required placeholder="e.g., 1 hour of TV" class="mt-1 block w-full px-4 py-2.5 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+                </div>
+                <div>
+                    <label for="points_cost" class="block text-sm font-medium text-gray-700"> Points Cost </label>
+                    <input type="number" name="points_cost" min="1" required placeholder="e.g. 100" class="mt-1 block w-full px-4 py-2.5 bg-gray-50 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+                </div>
+                <button type="submit" class="w-full py-2.5 px-4 font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition-transform transform hover:scale-105 shadow-md"> Request Reward </button>
+            </form>
+            <hr class="my-6">
+            <h3 class="text-xl font-bold mb-4">Reward History</h3>
+            <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                {% for reward in rewards|sort(attribute='_id', reverse=true) %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="text-sm font-semibold pr-2"> {{ reward.name }} ({{ reward.points_cost }} pts) </p>
+                        {% if reward.resolved_at_pretty %}
+                        <p class="text-xs text-gray-500"> Resolved {{ reward.resolved_at_pretty }} </p>
+                        {% endif %}
+                    </div>
+                    <span class="flex-shrink-0 px-2.5 py-0.5 text-xs font-medium rounded-full {{ {'requested':'bg-yellow-100 text-yellow-800', 'approved':'bg-green-100 text-green-800', 'rejected':'bg-red-100 text-red-800'}[reward.status] }}"> {{ reward.status|capitalize }} </span>
+                </div>
+                {% else %}
+                <p class="text-sm text-center py-4 text-gray-500"> You haven't requested any rewards yet. </p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 """
 
 INVITE_TEMPLATE = """
 {% block content %}
-<div class="bg-white p-8 sm:p-12 rounded-2xl shadow-xl text-center max-w-lg mx-auto"> <div class="mx-auto bg-blue-100 h-16 w-16 rounded-full flex items-center justify-center"> <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356 -1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0 -.656.126-1.283.356 -1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/> </svg> </div> <h2 class="text-3xl font-extrabold mt-4">Invite Your Family</h2> <p class="text-gray-600 mt-2 mb-8"> Share this code or QR code so your child can join your family hub. </p> <div class="mb-8"> <label class="text-sm font-medium text-gray-700"> Your Unique Invite Code </label> <div id="invite-box" class="relative mt-2 flex items-center justify-center p-4 bg-gray-100 rounded-lg max-w-sm mx-auto"> <code id="invite-code-text" class="text-xl sm:text-2xl font-mono text-gray-800 tracking-wider break-all"> {{ invite_code }} </code> <button id="copy-button" class="absolute right-3 p-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors" title="Copy to clipboard"> <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /> </svg> <svg id="check-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /> </svg> </button> </div> </div> <div> <label class="text-sm font-medium text-gray-700"> Or Scan with a Phone Camera </label> <img src="{{ url_for('qr_code') }}" alt="Invite QR Code" class="mx-auto border-4 mt-2 border-gray-200 p-2 rounded-lg bg-white"> </div> </div> <script> document.addEventListener('DOMContentLoaded', function() { const copyButton = document.getElementById('copy-button'); if (copyButton) { copyButton.addEventListener('click', function() { const codeText = document.getElementById('invite-code-text').innerText; navigator.clipboard.writeText(codeText).then(() => { document.getElementById('copy-icon').classList.add('hidden'); document.getElementById('check-icon').classList.remove('hidden'); setTimeout(() => { document.getElementById('copy-icon').classList.remove('hidden'); document.getElementById('check-icon').classList.add('hidden'); }, 2000); }).catch(err => { console.error('Failed to copy invite code: ', err); }); }); } }); </script>
+<div class="bg-white p-8 sm:p-12 rounded-2xl shadow-xl text-center max-w-lg mx-auto">
+    <div class="mx-auto bg-blue-100 h-16 w-16 rounded-full flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+    </div>
+    <h2 class="text-3xl font-extrabold mt-4">Invite Your Family</h2>
+    <p class="text-gray-600 mt-2 mb-8"> Share this code or QR code so your child can join your family hub. </p>
+    <div class="mb-8">
+        <label class="text-sm font-medium text-gray-700"> Your Unique Invite Code </label>
+        <div id="invite-box" class="relative mt-2 flex items-center justify-center p-4 bg-gray-100 rounded-lg max-w-sm mx-auto">
+            <code id="invite-code-text" class="text-xl sm:text-2xl font-mono text-gray-800 tracking-wider break-all"> {{ invite_code }} </code>
+            <button id="copy-button" class="absolute right-3 p-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors" title="Copy to clipboard">
+                <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <svg id="check-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div>
+        <label class="text-sm font-medium text-gray-700"> Or Scan with a Phone Camera </label>
+        <img src="{{ url_for('qr_code') }}" alt="Invite QR Code" class="mx-auto border-4 mt-2 border-gray-200 p-2 rounded-lg bg-white">
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const copyButton = document.getElementById('copy-button');
+        if (copyButton) {
+            copyButton.addEventListener('click', function() {
+                const codeText = document.getElementById('invite-code-text').innerText;
+                navigator.clipboard.writeText(codeText).then(() => {
+                    document.getElementById('copy-icon').classList.add('hidden');
+                    document.getElementById('check-icon').classList.remove('hidden');
+                    setTimeout(() => {
+                        document.getElementById('copy-icon').classList.remove('hidden');
+                        document.getElementById('check-icon').classList.add('hidden');
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy invite code: ', err);
+                });
+            });
+        }
+    });
+</script>
 {% endblock %}
 """
 
 FAMILY_DASHBOARD_TEMPLATE = """
 {% block content %}
-<div class="space-y-8"> <div class="grid grid-cols-1 md:grid-cols-3 gap-6"> <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center space-x-4 transition-transform transform hover:-translate-y-1"> <div class="bg-green-100 p-4 rounded-2xl"> <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/> </svg> </div> <div> <p class="text-sm text-gray-500">Tasks Completed This Week</p> <p class="text-3xl font-bold">{{ stats.completed_this_week }}</p> </div> </div> <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center space-x-4 transition-transform transform hover:-translate-y-1"> <div class="bg-yellow-100 p-4 rounded-2xl"> <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/> </svg> </div> <div> <p class="text-sm text-gray-500">Pending Approval</p> <p class="text-3xl font-bold">{{ stats.pending_approval }}</p> </div> </div> <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center space-x-4 transition-transform transform hover:-translate-y-1"> <div class="bg-blue-100 p-4 rounded-2xl"> <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976 -2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57 -1.838-.196-1.538-1.118l 1.518-4.674a1 1 0 00-.363-1.118l -3.976-2.888c-.783-.57 -.38-1.81.588-1.81 h4.914a1 1 0 00.951-.69l1.519 -4.674z"/> </svg> </div> <div> <p class="text-sm text-gray-500">Total Points Awarded</p> <p class="text-3xl font-bold">{{ stats.total_points_awarded }}</p> </div> </div> </div> <div class="grid grid-cols-1 lg:grid-cols-3 gap-8"> <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xl"> <h3 class="text-xl font-bold mb-4 text-gray-900">Weekly Task Completion</h3> <div class="h-80"> <canvas id="weeklyCompletionChart"></canvas> </div> </div> <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-xl"> <h3 class="text-xl font-bold mb-4 text-gray-900">Family Leaderboard 🏆</h3> <div class="space-y-4"> {% for member in family_members|sort(attribute='points', reverse=true) %} <div class="flex items-center justify-between p-3 rounded-lg {{ 'bg-yellow-100' if loop.index == 1 else 'bg-gray-50' }}"> <div class="flex items-center space-x-3"> <span class="text-lg font-bold w-6 text-center {{ 'text-yellow-600' if loop.index == 1 else 'text-gray-400' }}"> {{ loop.index }} </span> <div class="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center font-bold text-blue-700"> {{ member.username[0]|upper }} </div> <span class="font-medium">{{ member.username }}</span> </div> <span class="font-bold text-blue-600">{{ member.points }} pts</span> </div> {% else %} <p class="text-center text-gray-500 py-6"> Invite family members to start the leaderboard! </p> {% endfor %} </div> </div> </div> <div class="bg-white p-6 rounded-2xl shadow-xl"> <h3 class="text-xl font-bold mb-4 text-gray-900">Recent Activity</h3> <div class="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2"> {% for event in recent_events %} <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg"> <div class="flex items-center gap-3"> <span class="text-green-500"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/> </svg> </span> <p> <span class="font-semibold">{{ event.assigned_to_username }}</span> earned <span class="font-semibold text-green-700">{{ event.points }} points</span> for completing <span class="font-semibold">{{ event.name }}</span>. </p> </div> <p class="text-sm text-gray-500 whitespace-nowrap"> {{ event.approved_at_pretty }} </p> </div> {% else %} <p class="text-center text-gray-500 py-6"> No tasks have been approved yet. </p> {% endfor %} </div> </div> </div> <script> document.addEventListener('DOMContentLoaded', function() { const weeklyCtx = document.getElementById('weeklyCompletionChart').getContext('2d'); const weeklyData = {{ stats.weekly_completion_data | tojson }}; const gradient = weeklyCtx.createLinearGradient(0, 0, 0, 300); gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)'); gradient.addColorStop(1, 'rgba(59, 130, 246, 0)'); new Chart(weeklyCtx, { type: 'line', data: { labels: weeklyData.labels, datasets: [{ label: 'Tasks Completed', data: weeklyData.data, backgroundColor: gradient, borderColor: '#3b82f6', borderWidth: 2, pointBackgroundColor: '#3b82f6', pointRadius: 4, tension: 0.4, fill: true, }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 }, grid: { drawBorder: false } }, x: { grid: { display: false } } }, plugins: { legend: { display: false } } } }); }); </script>
+<div class="space-y-8">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center space-x-4 transition-transform transform hover:-translate-y-1">
+            <div class="bg-green-100 p-4 rounded-2xl">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Tasks Completed This Week</p>
+                <p class="text-3xl font-bold">{{ stats.completed_this_week }}</p>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center space-x-4 transition-transform transform hover:-translate-y-1">
+            <div class="bg-yellow-100 p-4 rounded-2xl">
+                <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Pending Approval</p>
+                <p class="text-3xl font-bold">{{ stats.pending_approval }}</p>
+            </div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center space-x-4 transition-transform transform hover:-translate-y-1">
+            <div class="bg-blue-100 p-4 rounded-2xl">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Total Points Awarded</p>
+                <p class="text-3xl font-bold">{{ stats.total_points_awarded }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-xl">
+            <h3 class="text-xl font-bold mb-4 text-gray-900">Weekly Task Completion</h3>
+            <div class="h-80">
+                <canvas id="weeklyCompletionChart"></canvas>
+            </div>
+        </div>
+        <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-xl">
+            <h3 class="text-xl font-bold mb-4 text-gray-900">Family Leaderboard 🏆</h3>
+            <div class="space-y-4">
+                {% for member in family_members|sort(attribute='points', reverse=true) %}
+                <div class="flex items-center justify-between p-3 rounded-lg {{ 'bg-yellow-100' if loop.index == 1 else 'bg-gray-50' }}">
+                    <div class="flex items-center space-x-3"> <span class="text-lg font-bold w-6 text-center {{ 'text-yellow-600' if loop.index == 1 else 'text-gray-400' }}"> {{ loop.index }} </span>
+                        <div class="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center font-bold text-blue-700"> {{ member.username[0]|upper }} </div> <span class="font-medium">{{ member.username }}</span> </div> <span class="font-bold text-blue-600">{{ member.points }} pts</span> </div>
+                {% else %}
+                <p class="text-center text-gray-500 py-6"> Invite family members to start the leaderboard! </p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="bg-white p-6 rounded-2xl shadow-xl">
+        <h3 class="text-xl font-bold mb-4 text-gray-900">Recent Activity</h3>
+        <div class="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+            {% for event in recent_events %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div class="flex items-center gap-3"> <span class="text-green-500"> <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/> </svg> </span>
+                    <p> <span class="font-semibold">{{ event.assigned_to_username }}</span> earned <span class="font-semibold text-green-700">{{ event.points }} points</span> for completing <span class="font-semibold">{{ event.name }}</span>. </p>
+                </div>
+                <p class="text-sm text-gray-500 whitespace-nowrap"> {{ event.approved_at_pretty }} </p>
+            </div>
+            {% else %}
+            <p class="text-center text-gray-500 py-6"> No tasks have been approved yet. </p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const weeklyCtx = document.getElementById('weeklyCompletionChart').getContext('2d');
+        const weeklyData = {{ stats.weekly_completion_data | tojson }};
+        const gradient = weeklyCtx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+        gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+        new Chart(weeklyCtx, {
+            type: 'line',
+            data: {
+                labels: weeklyData.labels,
+                datasets: [{
+                    label: 'Tasks Completed',
+                    data: weeklyData.data,
+                    backgroundColor: gradient,
+                    borderColor: '#3b82f6',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#3b82f6',
+                    pointRadius: 4,
+                    tension: 0.4,
+                    fill: true,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        },
+                        grid: {
+                            drawBorder: false
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    });
+</script>
 {% endblock %}
 """
 
 CALENDAR_FOCUS_TEMPLATE = """
 {% block content %}
-<div id="eventModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full z-50 hidden flex items-center justify-center"> <div class="relative p-6 border w-full max-w-lg shadow-2xl rounded-2xl bg-white modal-content mx-4"> <button id="closeModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl"> &times; </button> <div class="flex items-center gap-4 pb-4 border-b"> <div id="modal-icon" class="w-12 h-12 rounded-lg flex items-center justify-center"></div> <div> <h3 id="modal-title" class="text-2xl font-bold"></h3> <div id="modal-assignee" class="text-sm text-gray-600"></div> </div> </div> <div class="mt-4"> <p class="text-gray-700" id="modal-description"></p> <div class="flex items-center justify-between mt-6 p-4 bg-gray-50 rounded-lg"> <div class="flex items-center gap-2"> <span id="modal-status-badge"></span> </div> <div class="text-lg font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full"> <span id="modal-points"></span> pts </div> </div> </div> </div> </div> <div class="bg-white p-4 sm:p-6 rounded-2xl shadow-xl"> <div class="md:flex justify-between items-center mb-6"> <h2 class="text-2xl font-bold mb-4 md:mb-0 text-gray-900">Family Calendar</h2> <div class="grid grid-cols-1 sm:grid-cols-2 md:flex items-center gap-4"> <input type="text" id="filter-search" placeholder="Search by name..." class="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"> <select id="filter-member" class="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm"> <option value="">All Members</option> {% for member in family_members if member.role == 'child' %} <option value="{{ member._id }}">{{ member.username }}</option> {% endfor %} </select> <select id="filter-type" class="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm"> <option value="">All Types</option> <option value="chore">Chores</option> <option value="habit">Habits</option> </select> <button id="apply-filters" class="w-full sm:col-span-2 md:w-auto px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"> Apply Filters </button> </div> </div> <div id='calendar' class="text-sm md:text-base"></div> </div> <script> document.addEventListener('DOMContentLoaded', function() { const modal = document.getElementById('eventModal'); const closeModalBtn = document.getElementById('closeModal'); const applyFiltersBtn = document.getElementById('apply-filters'); const calendarEl = document.getElementById('calendar'); closeModalBtn.onclick = () => modal.classList.add('hidden'); window.onclick = (e) => { if(e.target == modal) modal.classList.add('hidden'); }; const getEventSourceUrl = () => { const params = new URLSearchParams({ search: document.getElementById('filter-search').value, member: document.getElementById('filter-member').value, type: document.getElementById('filter-type').value }); return `/api/events?${params.toString()}`; }; const calendar = new FullCalendar.Calendar(calendarEl, { initialView: 'dayGridMonth', headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' }, events: getEventSourceUrl(), eventClick: function(info) { const eProps = info.event.extendedProps; document.getElementById('modal-title').innerText = info.event.title; document.getElementById('modal-description').innerText = eProps.description || 'No description provided.'; document.getElementById('modal-points').innerText = eProps.points; document.getElementById('modal-assignee').innerHTML = '<span class="font-semibold">Assigned to:</span> ' + eProps.assignee_name; const statusColors = { 'assigned': 'bg-yellow-100 text-yellow-800', 'completed': 'bg-indigo-100 text-indigo-800', 'approved': 'bg-green-100 text-green-800' }; const sText = eProps.status.charAt(0).toUpperCase() + eProps.status.slice(1); document.getElementById('modal-status-badge').innerHTML = `<span class="px-3 py-1 text-sm font-medium rounded-full ${ statusColors[eProps.status] || 'bg-gray-100' }">${sText}</span>`; const icon = document.getElementById('modal-icon'); if(eProps.type === 'habit') { icon.className = 'w-12 h-12 rounded-lg flex items-center justify-center bg-pink-100'; icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-pink-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>'; } else { icon.className = 'w-12 h-12 rounded-lg flex items-center justify-center bg-purple-100'; icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>'; } modal.classList.remove('hidden'); }, height: 'auto', eventDidMount: (info) => { let iconEl = document.createElement('i'); iconEl.style.cssText = 'font-style: normal; margin-right: 5px;'; iconEl.innerText = info.event.extendedProps.type === 'habit' ? '💖' : '⭐'; info.el.querySelector('.fc-event-title').prepend(iconEl); } }); calendar.render(); applyFiltersBtn.addEventListener('click', () => { calendar.removeAllEventSources(); calendar.addEventSource(getEventSourceUrl()); }); }); </script>
+<div id="eventModal" class="fixed inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full z-50 hidden flex items-center justify-center">
+    <div class="relative p-6 border w-full max-w-lg shadow-2xl rounded-2xl bg-white modal-content mx-4">
+        <button id="closeModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-3xl"> &times; </button>
+        <div class="flex items-center gap-4 pb-4 border-b">
+            <div id="modal-icon" class="w-12 h-12 rounded-lg flex items-center justify-center"></div>
+            <div>
+                <h3 id="modal-title" class="text-2xl font-bold"></h3>
+                <div id="modal-assignee" class="text-sm text-gray-600"></div>
+            </div>
+        </div>
+        <div class="mt-4">
+            <p class="text-gray-700" id="modal-description"></p>
+            <div class="flex items-center justify-between mt-6 p-4 bg-gray-50 rounded-lg">
+                <div class="flex items-center gap-2"> <span id="modal-status-badge"></span> </div>
+                <div class="text-lg font-bold text-green-600 bg-green-100 px-3 py-1 rounded-full"> <span id="modal-points"></span> pts </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="bg-white p-4 sm:p-6 rounded-2xl shadow-xl">
+    <div class="md:flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold mb-4 md:mb-0 text-gray-900">Family Calendar</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:flex items-center gap-4">
+            <input type="text" id="filter-search" placeholder="Search by name..." class="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            <select id="filter-member" class="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm">
+                <option value="">All Members</option>
+                {% for member in family_members if member.role == 'child' %}
+                <option value="{{ member._id }}">{{ member.username }}</option>
+                {% endfor %}
+            </select>
+            <select id="filter-type" class="w-full md:w-auto px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg shadow-sm">
+                <option value="">All Types</option>
+                <option value="chore">Chores</option>
+                <option value="habit">Habits</option>
+            </select>
+            <button id="apply-filters" class="w-full sm:col-span-2 md:w-auto px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"> Apply Filters </button>
+        </div>
+    </div>
+    <div id='calendar' class="text-sm md:text-base"></div>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('eventModal');
+        const closeModalBtn = document.getElementById('closeModal');
+        const applyFiltersBtn = document.getElementById('apply-filters');
+        const calendarEl = document.getElementById('calendar');
+        closeModalBtn.onclick = () => modal.classList.add('hidden');
+        window.onclick = (e) => {
+            if (e.target == modal) modal.classList.add('hidden');
+        };
+        const getEventSourceUrl = () => {
+            const params = new URLSearchParams({
+                search: document.getElementById('filter-search').value,
+                member: document.getElementById('filter-member').value,
+                type: document.getElementById('filter-type').value
+            });
+            return `/api/events?${params.toString()}`;
+        };
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,listWeek'
+            },
+            events: getEventSourceUrl(),
+            eventClick: function(info) {
+                const eProps = info.event.extendedProps;
+                document.getElementById('modal-title').innerText = info.event.title;
+                document.getElementById('modal-description').innerText = eProps.description || 'No description provided.';
+                document.getElementById('modal-points').innerText = eProps.points;
+                document.getElementById('modal-assignee').innerHTML = '<span class="font-semibold">Assigned to:</span> ' + eProps.assignee_name;
+                const statusColors = {
+                    'assigned': 'bg-yellow-100 text-yellow-800',
+                    'completed': 'bg-indigo-100 text-indigo-800',
+                    'approved': 'bg-green-100 text-green-800'
+                };
+                const sText = eProps.status.charAt(0).toUpperCase() + eProps.status.slice(1);
+                document.getElementById('modal-status-badge').innerHTML = `<span class="px-3 py-1 text-sm font-medium rounded-full ${ statusColors[eProps.status] || 'bg-gray-100' }">${sText}</span>`;
+                const icon = document.getElementById('modal-icon');
+                if (eProps.type === 'habit') {
+                    icon.className = 'w-12 h-12 rounded-lg flex items-center justify-center bg-pink-100';
+                    icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-pink-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>';
+                } else {
+                    icon.className = 'w-12 h-12 rounded-lg flex items-center justify-center bg-purple-100';
+                    icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>';
+                }
+                modal.classList.remove('hidden');
+            },
+            height: 'auto',
+            eventDidMount: (info) => {
+                let iconEl = document.createElement('i');
+                iconEl.style.cssText = 'font-style: normal; margin-right: 5px;';
+                iconEl.innerText = info.event.extendedProps.type === 'habit' ? '💖' : '⭐';
+                info.el.querySelector('.fc-event-title').prepend(iconEl);
+            }
+        });
+        calendar.render();
+        applyFiltersBtn.addEventListener('click', () => {
+            calendar.removeAllEventSources();
+            calendar.addEventSource(getEventSourceUrl());
+        });
+    });
+</script>
 {% endblock %}
 """
+
 
 # --- Flask Routes ---
 
@@ -270,7 +1190,6 @@ def index():
 @app.route('/dashboard')
 @login_required
 def personal_dashboard():
-    # ... (code is identical to the provided correct version, omitted for brevity)
     if current_user.role == 'parent':
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
@@ -287,7 +1206,7 @@ def personal_dashboard():
             elif delta.seconds > 3600: t['spent_at_pretty'] = f"{delta.seconds // 3600}h ago"
             else: t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
         return render_full_template(DASHBOARD_PARENT_TEMPLATE, family_members=family_members, events=events, reward_requests=reward_requests, member_map=member_map, spend_history=spend_tx)
-    else:
+    else: # Child dashboard
         today = datetime.utcnow().date()
         events_cursor = events_collection.find({ 'assigned_to': current_user.id, 'status': {'$in': ['assigned','completed','approved']} }).sort('due_date', ASCENDING)
         child_events = []
@@ -308,11 +1227,9 @@ def personal_dashboard():
                     reward['resolved_at_pretty'] = f"{minutes_ago}m ago"
         return render_full_template(DASHBOARD_CHILD_TEMPLATE, events=child_events, rewards=child_rewards, now=now)
 
-
 @app.route('/family-dashboard')
 @login_required
 def family_dashboard():
-    # ... (code is identical to the provided correct version, omitted for brevity)
     fam_id = current_user.family_id
     family_members = list(users_collection.find({'family_id': fam_id}))
     member_map = {str(m['_id']): m['username'] for m in family_members}
@@ -350,6 +1267,19 @@ def calendar_focus():
     family_members = list(users_collection.find({'family_id': current_user.family_id}))
     return render_full_template(CALENDAR_FOCUS_TEMPLATE, family_members=family_members)
 
+# --- NEW: Mood Routes ---
+@app.route('/mood-dashboard/personal')
+@login_required
+def mood_dashboard_personal():
+    return render_full_template(PERSONAL_MOOD_DASHBOARD_TEMPLATE, mood_config=MOOD_CONFIG)
+
+@app.route('/mood-dashboard/family')
+@login_required
+def mood_dashboard_family():
+    return render_full_template(FAMILY_MOOD_DASHBOARD_TEMPLATE)
+
+
+# --- Authentication ---
 @app.route('/login', methods=['GET','POST'])
 def login():
     if current_user.is_authenticated:
@@ -370,13 +1300,8 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# >>>>> NEW ROUTE ADDED HERE <<<<<
 @app.route('/join/<invite_code>')
 def join_family(invite_code):
-    """
-    Landing page after scanning a QR code. Confirms the family
-    and directs the user to the registration page.
-    """
     try:
         parent = users_collection.find_one({'_id': ObjectId(invite_code), 'role': 'parent'})
         if not parent:
@@ -385,17 +1310,11 @@ def join_family(invite_code):
     except:
         flash('Invalid invite code format.', 'error')
         return redirect(url_for('login'))
-
     parent_name = parent.get('username', 'your parent')
-    return render_full_template(
-        JOIN_FAMILY_TEMPLATE,
-        parent_name=parent_name,
-        invite_code=invite_code
-    )
+    return render_full_template(JOIN_FAMILY_TEMPLATE, parent_name=parent_name, invite_code=invite_code)
 
 @app.route('/register/parent', methods=['GET','POST'])
 def register_parent():
-    """A new parent registration => new family hub."""
     if request.method == 'POST':
         email = request.form['email']
         username = request.form['username']
@@ -412,7 +1331,6 @@ def register_parent():
 
 @app.route('/register/child/<invite_code>', methods=['GET','POST'])
 def register_child(invite_code):
-    """Used by child to join the parent's family; code = parent's _id."""
     try:
         parent = users_collection.find_one({'_id': ObjectId(invite_code)})
         if not parent or parent.get('role')!='parent':
@@ -436,34 +1354,86 @@ def register_child(invite_code):
 @app.route('/invite')
 @login_required
 def invite():
-    """Parent invites child using this code or QR."""
     if current_user.role != 'parent':
         return redirect(url_for('family_dashboard'))
     return render_full_template(INVITE_TEMPLATE, invite_code=current_user.id)
 
-# >>>>> ROUTE MODIFIED HERE <<<<<
 @app.route('/qr_code')
 @login_required
 def qr_code():
-    """QR code for the new child invitation landing page."""
     if current_user.role != 'parent':
         return Response(status=403)
-    
-    # The URL now points to the new '/join' route
     invite_url = f"{BASE_URL}{url_for('join_family', invite_code=current_user.id)}"
-    
     img = qrcode.make(invite_url, border=2)
     buf = io.BytesIO()
     img.save(buf)
     buf.seek(0)
     return Response(buf, mimetype='image/png')
 
-# --- Event (Chore/Habit) Management ---
 
+# --- Family Management ---
+@app.route('/child/edit/<child_id>', methods=['POST'])
+@login_required
+def edit_child(child_id):
+    if current_user.role != 'parent':
+        flash('You do not have permission to do this.', 'error')
+        return redirect(url_for('family_dashboard'))
+    
+    child = users_collection.find_one({'_id': ObjectId(child_id), 'family_id': current_user.family_id})
+    if not child:
+        flash('Child not found in your family.', 'error')
+        return redirect(url_for('personal_dashboard'))
+
+    update_data = {}
+    new_username = request.form.get('username')
+    new_password = request.form.get('password')
+
+    if new_username and new_username != child.get('username'):
+        # Check if new username is taken by another child in the same family
+        if users_collection.find_one({'username': new_username, 'family_id': current_user.family_id, '_id': {'$ne': ObjectId(child_id)}}):
+            flash('That username is already taken in your family.', 'error')
+            return redirect(url_for('personal_dashboard'))
+        update_data['username'] = new_username
+
+    if new_password:
+        update_data['password_hash'] = bcrypt.generate_password_hash(new_password).decode('utf-8')
+
+    if update_data:
+        users_collection.update_one({'_id': ObjectId(child_id)}, {'$set': update_data})
+        flash('Child information updated successfully.', 'success')
+
+    return redirect(url_for('personal_dashboard'))
+
+
+@app.route('/child/remove/<child_id>')
+@login_required
+def remove_child(child_id):
+    if current_user.role != 'parent':
+        flash('You do not have permission to do this.', 'error')
+        return redirect(url_for('family_dashboard'))
+
+    # Ensure the child belongs to the parent's family before deleting
+    child = users_collection.find_one({'_id': ObjectId(child_id), 'family_id': current_user.family_id, 'role': 'child'})
+    
+    if child:
+        # Delete the child user
+        users_collection.delete_one({'_id': ObjectId(child_id)})
+        # Delete associated data
+        events_collection.delete_many({'assigned_to': child_id})
+        rewards_collection.delete_many({'requested_by_id': child_id})
+        transactions_collection.delete_many({'child_id': child_id})
+        moods_collection.delete_many({'user_id': ObjectId(child_id)})
+        flash(f"{child.get('username')} has been removed from the family.", 'success')
+    else:
+        flash('Could not find the specified child in your family.', 'error')
+
+    return redirect(url_for('personal_dashboard'))
+
+
+# --- Event (Chore/Habit) Management ---
 @app.route('/event/create', methods=['POST'])
 @login_required
 def create_event():
-    # ... (code is identical, omitted for brevity)
     if current_user.role == 'parent':
         d = datetime.strptime(request.form['due_date'], '%Y-%m-%d')
         t = request.form['type']
@@ -478,17 +1448,14 @@ def create_event():
 @app.route('/event/complete/<event_id>')
 @login_required
 def complete_event(event_id):
-    # ... (code is identical, omitted for brevity)
     if current_user.role == 'child':
         events_collection.update_one( {'_id': ObjectId(event_id), 'assigned_to': current_user.id, 'type': 'chore'}, {'$set': {'status': 'completed'}} )
         flash('Chore marked as complete! Awaiting approval.', 'success')
     return redirect(url_for('personal_dashboard'))
 
-
 @app.route('/event/habit/checkin/<event_id>')
 @login_required
 def checkin_habit(event_id):
-    # ... (code is identical, omitted for brevity)
     if current_user.role == 'child':
         habit = events_collection.find_one({ '_id': ObjectId(event_id), 'assigned_to': current_user.id })
         if not habit: return redirect(url_for('personal_dashboard'))
@@ -505,11 +1472,9 @@ def checkin_habit(event_id):
         flash(f"Habit checked in! You earned {habit['points']} points. Streak is now {new_streak}.", 'success')
     return redirect(url_for('personal_dashboard'))
 
-
 @app.route('/event/approve/<event_id>')
 @login_required
 def approve_event(event_id):
-    # ... (code is identical, omitted for brevity)
     if current_user.role == 'parent':
         e = events_collection.find_one_and_update( {'_id': ObjectId(event_id), 'family_id': current_user.family_id}, {'$set': {'status': 'approved', 'approved_at': datetime.utcnow()}} )
         if e and e.get('assigned_to'):
@@ -518,12 +1483,10 @@ def approve_event(event_id):
     return redirect(url_for('personal_dashboard'))
 
 
-# --- Reward System (Child-Spending) ---
-
+# --- Reward System ---
 @app.route('/reward/request', methods=['POST'])
 @login_required
 def request_reward():
-    # ... (code is identical, omitted for brevity)
     if current_user.role == 'child':
         cost = int(request.form['points_cost'])
         user = users_collection.find_one({'_id': ObjectId(current_user.id)})
@@ -536,41 +1499,28 @@ def request_reward():
         flash('Reward requested! Points have been deducted; waiting on parent approval.', 'success')
     return redirect(url_for('personal_dashboard'))
 
-
 @app.route('/reward/handle/<reward_id>/<action>')
 @login_required
 def handle_reward(reward_id, action):
-    # ... (code is identical, omitted for brevity)
     if current_user.role == 'parent':
         reward = rewards_collection.find_one({ '_id': ObjectId(reward_id), 'family_id': current_user.family_id })
-        if not reward:
-            flash("Reward not found.", 'error')
-            return redirect(url_for('personal_dashboard'))
-        tx = transactions_collection.find_one({'reward_id': reward['_id']})
-        if not tx:
-            flash("Transaction not found for this reward.", 'error')
-            return redirect(url_for('personal_dashboard'))
-        child = users_collection.find_one({'_id': ObjectId(reward['requested_by_id'])})
-        if not child:
-            flash("Child account not found.", 'error')
-            return redirect(url_for('personal_dashboard'))
+        if not reward: return redirect(url_for('personal_dashboard'))
         if action == 'approve':
             rewards_collection.update_one( {'_id': reward['_id']}, {'$set': { 'status': 'approved', 'resolved_at': datetime.utcnow() }} )
             transactions_collection.update_one( {'reward_id': reward['_id']}, {'$set': { 'status': 'approved', 'resolved_at': datetime.utcnow() }} )
-            flash("Reward approved! Points remain deducted.", 'success')
+            flash("Reward approved!", 'success')
         elif action == 'reject':
-            users_collection.update_one( {'_id': child['_id']}, {'$inc': {'points': reward['points_cost']}} )
+            users_collection.update_one( {'_id': ObjectId(reward['requested_by_id'])}, {'$inc': {'points': reward['points_cost']}} )
             rewards_collection.update_one( {'_id': reward['_id']}, {'$set': { 'status': 'rejected', 'resolved_at': datetime.utcnow() }} )
             transactions_collection.update_one( {'reward_id': reward['_id']}, {'$set': { 'status': 'rejected', 'resolved_at': datetime.utcnow() }} )
-            flash("Reward rejected. Child's points were refunded.", 'success')
+            flash("Reward rejected. Points were refunded.", 'success')
     return redirect(url_for('personal_dashboard'))
 
 
-# --- FullCalendar API ---
+# --- API Routes ---
 @app.route('/api/events')
 @login_required
 def api_events():
-    """JSON data used by /calendar-focus."""
     fam_id = current_user.family_id
     fam_members = list(users_collection.find({'family_id': fam_id}))
     member_map = {str(m['_id']): m['username'] for m in fam_members}
@@ -584,6 +1534,168 @@ def api_events():
     for e in cursor:
         calendar_events.append({ 'title': e['name'], 'start': e['due_date'].isoformat(), 'allDay': True, 'color': type_colors.get(e['type'],'#6b7280'), 'extendedProps': { 'type': e.get('type'), 'description': e.get('description','No description.'), 'points': e.get('points'), 'status': e.get('status'), 'assignee_name': member_map.get(e.get('assigned_to'), 'N/A') } })
     return jsonify(calendar_events)
+
+
+@app.route('/api/mood/log', methods=['POST'])
+@login_required
+def api_mood_log():
+    data = request.json
+    try:
+        entry_date = datetime.strptime(data['date'], '%Y-%m-%d')
+        period = data['period']
+        mood_emoji = data['emoji']
+        note = data.get('note', '')
+        mood_score = MOOD_EMOJI_TO_SCORE.get(mood_emoji)
+
+        if not all([entry_date, period, mood_emoji, mood_score is not None]):
+            return jsonify({'status': 'error', 'message': 'Missing data'}), 400
+
+        moods_collection.update_one(
+            {'user_id': ObjectId(current_user.id), 'date': entry_date, 'period': period},
+            {'$set': {
+                'mood_emoji': mood_emoji,
+                'mood_score': mood_score,
+                'note': note,
+                'updated_at': datetime.utcnow()
+            },
+             '$setOnInsert': {
+                'family_id': ObjectId(current_user.family_id),
+                'created_at': datetime.utcnow()
+            }},
+            upsert=True
+        )
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/mood/personal')
+@login_required
+def api_mood_personal():
+    # If specific date is requested, return that entry
+    if 'date' in request.args and 'period' in request.args:
+        try:
+            entry_date = datetime.strptime(request.args['date'], '%Y-%m-%d')
+            period = request.args['period']
+            entry = moods_collection.find_one({'user_id': ObjectId(current_user.id), 'date': entry_date, 'period': period})
+            if entry:
+                return jsonify(entry)
+            else:
+                return jsonify({'error': 'Not found'}), 404
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+
+    # Otherwise, return data for the chart
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    mood_entries = list(moods_collection.find({
+        'user_id': ObjectId(current_user.id),
+        'date': {'$gte': thirty_days_ago}
+    }).sort('date', ASCENDING))
+
+    labels = [f"{e['date'].strftime('%b %d')} {e['period']}" for e in mood_entries]
+    data = [e['mood_score'] for e in mood_entries]
+    return jsonify({'labels': labels, 'data': data})
+
+@app.route('/api/mood/family')
+@login_required
+def api_mood_family():
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    
+    # --- Daily Average Aggregation ---
+    pipeline_avg = [
+        {'$match': {'family_id': ObjectId(current_user.family_id), 'date': {'$gte': thirty_days_ago}}},
+        {'$group': {'_id': '$date', 'avgScore': {'$avg': '$mood_score'}}},
+        {'$sort': {'_id': 1}}
+    ]
+    daily_avg_data = list(moods_collection.aggregate(pipeline_avg))
+    
+    # --- Distribution Aggregation ---
+    pipeline_dist = [
+        {'$match': {'family_id': ObjectId(current_user.family_id), 'date': {'$gte': thirty_days_ago}}},
+        {'$group': {'_id': '$mood_emoji', 'count': {'$sum': 1}}},
+        {'$sort': {'count': -1}}
+    ]
+    dist_data = list(moods_collection.aggregate(pipeline_dist))
+    
+    # Process for charts
+    mood_map = {m['emoji']: m for m in MOOD_CONFIG['moods']}
+    
+    return jsonify({
+        'daily_average': {
+            'labels': [d['_id'].strftime('%b %d') for d in daily_avg_data],
+            'data': [round(d['avgScore'], 2) for d in daily_avg_data]
+        },
+        'distribution': {
+            'labels': [f"{d['_id']} ({mood_map.get(d['_id'], {}).get('desc', '')})" for d in dist_data],
+            'data': [d['count'] for d in dist_data],
+            'colors': [mood_map.get(d['_id'], {}).get('color', '#cccccc') for d in dist_data]
+        }
+    })
+
+@app.route('/api/consult-ai', methods=['POST'])
+@login_required
+def api_consult_ai():
+    """Prepares mood data and sends it to the AI API."""
+    history = list(moods_collection.find(
+        {'user_id': ObjectId(current_user.id)},
+        {'date': 1, 'period': 1, 'mood_emoji': 1, 'note': 1, '_id': 0}
+    ).sort('date', ASCENDING))
+
+    if len(history) < 2:
+        return jsonify({'error': "Not enough data. Please log at least two moods to get insights."}), 400
+
+    # Convert to CSV in memory
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=['date', 'period', 'mood', 'note'])
+    writer.writeheader()
+    for row in history:
+        # Remap keys for consistency with JS class
+        writer.writerow({
+            'date': row['date'].strftime('%Y-%m-%d'),
+            'period': row['period'],
+            'mood': row['mood_emoji'],
+            'note': row.get('note', '')
+        })
+    csv_content = output.getvalue()
+
+    payload = {
+        "context": [{ "text": f"Analyze the following mood data in CSV format:\n{csv_content}", "url": "user-mood-insights" }],
+        "user_input": "Provide a brief, supportive analysis of my mood patterns based on this data, grounded in CBT principles. Format your response with markdown for readability, using double asterisks for bolding."
+    }
+
+    try:
+        import requests
+        response = requests.post(MOOD_CONFIG['aiApiUrl'], json=payload, timeout=45)
+        response.raise_for_status()
+        data = response.json()
+        return jsonify({'ai_response': data.get('ai_response', 'No response from AI.')})
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f"Failed to connect to AI service: {e}"}), 503
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/generic-ai', methods=['POST'])
+@login_required
+def generic_ai_call():
+    """Generic AI call with user-provided text and mood history."""
+    user_context = request.json.get('text', '').strip()
+    user_input = request.json.get('user_input', '').strip()
+    if not user_context or not user_input:
+        return jsonify({'error': 'Both "text" and "user_input" fields are required.'}), 400
+    payload = {
+        "context": user_context,
+        "user_input": user_input
+    }
+    try:
+        import requests
+        response = requests.post(MOOD_CONFIG['aiApiUrl'], json=payload, timeout=45)
+        response.raise_for_status()
+        data = response.json()
+        return jsonify({'ai_response': data.get('ai_response', 'No response from AI.')})
+    except requests.exceptions.RequestException as e:
+        return jsonify({'error': f"Failed to connect to AI service: {e}"}), 503
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 # --- Run App ---
 if __name__ == '__main__':
