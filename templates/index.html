@@ -265,26 +265,26 @@
             <div class="hidden sm:flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-full p-1">
               <a href="{{ url_for('family_dashboard') }}"
                  class="px-3 py-1 text-sm font-medium rounded-full transition-colors
-                         {% if 'family_dashboard' in request.endpoint %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
-                         {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+                       {% if 'family_dashboard' in request.endpoint %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+                       {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
                 Family Hub
               </a>
               <a href="{{ url_for('personal_dashboard') }}"
                  class="px-3 py-1 text-sm font-medium rounded-full transition-colors
-                         {% if request.endpoint=='personal_dashboard' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
-                         {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+                       {% if request.endpoint=='personal_dashboard' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+                       {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
                 {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Tasks{% endif %}
               </a>
               <a href="{{ url_for('calendar_focus') }}"
                  class="px-3 py-1 text-sm font-medium rounded-full transition-colors
-                         {% if request.endpoint=='calendar_focus' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
-                         {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+                       {% if request.endpoint=='calendar_focus' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+                       {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
                 Calendar
               </a>
               <a href="{{ url_for('mood_dashboard_personal') }}"
                  class="px-3 py-1 text-sm font-medium rounded-full transition-colors
-                         {% if 'mood_dashboard' in request.endpoint %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
-                         {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+                       {% if 'mood_dashboard' in request.endpoint %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+                       {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
                 Mood Tracker
               </a>
             </div>
@@ -294,7 +294,7 @@
               </span>
               <a href="{{ url_for('logout') }}"
                  class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700
-                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition shadow-sm">
+                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition shadow-sm">
                 Log Out
               </a>
             </div>
@@ -321,8 +321,8 @@
           </button>
 
           <button id="mobile-menu-button"
-                  class="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white
-                         focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
+                   class="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white
+                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition">
             <svg class="h-6 w-6" stroke="currentColor" fill="none"
                  viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
@@ -336,38 +336,38 @@
         {% if current_user.is_authenticated %}
           <a href="{{ url_for('family_dashboard') }}"
              class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200
-                    hover:bg-gray-100 dark:hover:bg-gray-700">
+                   hover:bg-gray-100 dark:hover:bg-gray-700">
             Family Hub
           </a>
           <a href="{{ url_for('personal_dashboard') }}"
              class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200
-                    hover:bg-gray-100 dark:hover:bg-gray-700">
+                   hover:bg-gray-100 dark:hover:bg-gray-700">
             {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Tasks{% endif %}
           </a>
           <a href="{{ url_for('calendar_focus') }}"
              class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200
-                    hover:bg-gray-100 dark:hover:bg-gray-700">
+                   hover:bg-gray-100 dark:hover:bg-gray-700">
             Calendar
           </a>
           <a href="{{ url_for('mood_dashboard_personal') }}"
              class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200
-                    hover:bg-gray-100 dark:hover:bg-gray-700">
+                   hover:bg-gray-100 dark:hover:bg-gray-700">
             Mood Tracker
           </a>
           <a href="{{ url_for('logout') }}"
              class="block px-3 py-2 rounded-md text-sm font-medium text-blue-600
-                    hover:bg-gray-100 dark:hover:bg-gray-700">
+                   hover:bg-gray-100 dark:hover:bg-gray-700">
             Log Out
           </a>
         {% else %}
           <a href="{{ url_for('login') }}"
              class="block px-3 py-2 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200
-                    hover:bg-gray-100 dark:hover:bg-gray-700">
+                   hover:bg-gray-100 dark:hover:bg-gray-700">
             Log In
           </a>
           <a href="{{ url_for('register_parent') }}"
              class="block px-3 py-2 rounded-md text-sm font-medium text-white bg-blue-600
-                    hover:bg-blue-700">
+                   hover:bg-blue-700">
             Register
           </a>
         {% endif %}
@@ -498,12 +498,12 @@
                  class="h-8 w-8 text-blue-600 dark:text-blue-300"
                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0
-                       0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7
-                       20m7-10V5a2 2 0 00-2-2h-.085a2 2 0
-                       00-1.736.97l-1.908 4.293M7
-                       20l-1.5-1.5a2 2 0 010-2.828l3-3a2
-                       2 0 012.828 0l1.5 1.5M7
-                       20h2" stroke-linecap="round" stroke-linejoin="round"/>
+                         0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7
+                         20m7-10V5a2 2 0 00-2-2h-.085a2 2 0
+                         00-1.736.97l-1.908 4.293M7
+                         20l-1.5-1.5a2 2 0 010-2.828l3-3a2
+                         2 0 012.828 0l1.5 1.5M7
+                         20h2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
           <h1 class="text-3xl font-extrabold gradient-text font-brand">You're Invited!</h1>
@@ -570,33 +570,33 @@
                stroke-linecap="round" stroke-linejoin="round"
                viewBox="0 0 24 24">
             <path d="M17 20h5v-2a3 3 0
-                     00-5.356-1.857M17
-                     20H7m10 0v-2c0-.656-.126-1.283-.356-1.857
-                     M7 20H2v-2a3 3 0
-                     015.356-1.857M7
-                     20v-2c0-.656.126-1.283.356-1.857m0
-                     0a5.002 5.002 0
-                     019.288 0M15
-                     7a3 3 0
-                     11-6 0
-                     3 3
-                     0
-                     016
-                     0zm6
-                     3a2 2 0
-                     11-4
-                     0
-                     2
-                     2
-                     0
-                     014
-                     0zM7
-                     10a2 2 0
-                     11-4 0
-                     2
-                     2 0
-                     014
-                     0z"/>
+                         00-5.356-1.857M17
+                         20H7m10 0v-2c0-.656-.126-1.283-.356-1.857
+                         M7 20H2v-2a3 3 0
+                         015.356-1.857M7
+                         20v-2c0-.656.126-1.283.356-1.857m0
+                         0a5.002 5.002 0
+                         019.288 0M15
+                         7a3 3 0
+                         11-6 0
+                         3 3
+                         0
+                         016
+                         0zm6
+                         3a2 2 0
+                         11-4
+                         0
+                         2
+                         2
+                         0
+                         014
+                         0zM7
+                         10a2 2 0
+                         11-4 0
+                         2
+                         2 0
+                         014
+                         0z"/>
           </svg>
         </div>
         <h2 class="text-3xl font-extrabold mt-4 text-gray-900 dark:text-gray-100">
@@ -779,8 +779,8 @@
                     </label>
                     <select name="type"
                             class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-600
-                                   dark:text-gray-100 border-gray-300 dark:border-gray-500 rounded-lg
-                                   focus:ring-blue-500 focus:border-blue-500">
+                                  dark:text-gray-100 border-gray-300 dark:border-gray-500 rounded-lg
+                                  focus:ring-blue-500 focus:border-blue-500">
                       <option value="chore">Chore (One-time or repeating)</option>
                       <option value="habit">Habit (Daily checks for a streak)</option>
                     </select>
@@ -803,8 +803,8 @@
                     </label>
                     <select name="assigned_to"
                             class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-600
-                                   dark:text-gray-100 border-gray-300 dark:border-gray-500 rounded-lg
-                                   focus:ring-blue-500 focus:border-blue-500"
+                                  dark:text-gray-100 border-gray-300 dark:border-gray-500 rounded-lg
+                                  focus:ring-blue-500 focus:border-blue-500"
                             required>
                       <option value="">Select a child...</option>
                       {% for member in family_members if member.role == 'child' %}
@@ -843,12 +843,12 @@
                 {% for event in events %}
                   {% if event.status == 'completed' %}
                   <div class="flex items-center justify-between p-4 bg-white dark:bg-gray-800
-                                 border border-gray-200 dark:border-gray-600 rounded-lg
-                                 hover:shadow-md transition-shadow">
+                                  border border-gray-200 dark:border-gray-600 rounded-lg
+                                  hover:shadow-md transition-shadow">
                     <div class="flex items-center space-x-4">
                       <span class="p-2.5 rounded-full
-                        {% if event.type == 'habit' %} bg-pink-100 dark:bg-pink-800
-                        {% else %} bg-purple-100 dark:bg-purple-800 {% endif %}">
+                          {% if event.type == 'habit' %} bg-pink-100 dark:bg-pink-800
+                          {% else %} bg-purple-100 dark:bg-purple-800 {% endif %}">
                         <svg xmlns="http://www.w3.org/2000/svg"
                              class="h-6 w-6
                              {% if event.type == 'habit' %}
@@ -925,8 +925,8 @@
               <div class="space-y-4">
                 {% for reward in reward_requests %}
                 <div class="flex items-center justify-between p-4 bg-white dark:bg-gray-800
-                               border border-gray-200 dark:border-gray-600 rounded-lg
-                               hover:shadow-md transition-shadow">
+                                  border border-gray-200 dark:border-gray-600 rounded-lg
+                                  hover:shadow-md transition-shadow">
                   <div class="flex items-center space-x-4">
                     <span class="p-2.5 rounded-full bg-yellow-100 dark:bg-yellow-900">
                       <svg xmlns="http://www.w3.org/2000/svg"
@@ -993,7 +993,7 @@
                 {% if spend_history %}
                   {% for tx in spend_history %}
                   <div class="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600
-                               rounded-lg flex items-center justify-between hover:shadow-md transition-shadow">
+                              rounded-lg flex items-center justify-between hover:shadow-md transition-shadow">
                     <div>
                       <p class="font-semibold text-gray-800 dark:text-gray-100">
                         {{ tx.child_username }} spent
@@ -1025,7 +1025,16 @@
                 <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   Manage Family Members
                 </h3>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 flex-wrap">
+                  <button onclick="openFamJamModal()"
+                      class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white
+                             bg-secondary-500 rounded-lg hover:bg-secondary-600
+                             transition-transform transform hover:scale-105">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                      <span>Generate AI Plan</span>
+                  </button>
                   <a href="{{ url_for('invite') }}"
                      class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white
                             bg-blue-600 rounded-lg hover:bg-blue-700 transition-transform
@@ -1116,7 +1125,7 @@
                 {% for member in family_members if member.role == 'child' %}
                   {% set child_found = true %}
                   <div class="flex items-center justify-between p-4 bg-white dark:bg-gray-800
-                                border border-gray-200 dark:border-gray-600 rounded-lg">
+                              border border-gray-200 dark:border-gray-600 rounded-lg">
                     <div class="flex items-center space-x-4">
                       <div class="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-900
                                   flex items-center justify-center font-bold
@@ -1142,22 +1151,22 @@
                              viewBox="0 0 20 20"
                              fill="currentColor">
                           <path d="M17.414 2.586a2
-                                   2 0
-                                   00-2.828 0L7
-                                   10.172V13h2.828l7.586-7.586a2
-                                   2 0
-                                   000-2.828z"/>
+                                  2 0
+                                  00-2.828 0L7
+                                  10.172V13h2.828l7.586-7.586a2
+                                  2 0
+                                  000-2.828z"/>
                           <path fill-rule="evenodd"
                                 d="M2
-                                   6a2 2 0
-                                   012-2h4a1 1 0
-                                   010 2H4v10h10v-4a1
-                                   1 0
-                                   112
-                                   0v4a2 2 0
-                                   01-2
-                                   2H4a2 2 0
-                                   01-2-2V6z"
+                                  6a2 2 0
+                                  012-2h4a1 1 0
+                                  010 2H4v10h10v-4a1
+                                  1 0
+                                  112
+                                  0v4a2 2 0
+                                  01-2
+                                  2H4a2 2 0
+                                  01-2-2V6z"
                                 clip-rule="evenodd"/>
                         </svg>
                       </button>
@@ -1171,28 +1180,28 @@
                              fill="currentColor">
                           <path fill-rule="evenodd"
                                 d="M9 2a1 1 0 00-.894.553L7.382
-                                   4H4a1 1 0
-                                   000
-                                   2v10a2 2 0
-                                   002
-                                   2h8a2 2 0
-                                   002-2V6a1 1
-                                   0
-                                   100-2h-3.382l-.724-1.447A1
-                                   1
-                                   0
-                                   0011
-                                   2H9zM7
-                                   8a1 1 0
-                                   012
-                                   0v6a1 1 0
-                                   11-2
-                                   0V8zm4
-                                   0a1 1 0
-                                   012
-                                   0v6a1 1 0
-                                   11-2
-                                   0V8z"
+                                  4H4a1 1 0
+                                  000
+                                  2v10a2 2 0
+                                  002
+                                  2h8a2 2 0
+                                  002-2V6a1 1
+                                  0
+                                  100-2h-3.382l-.724-1.447A1
+                                  1
+                                  0
+                                  0011
+                                  2H9zM7
+                                  8a1 1 0
+                                  012
+                                  0v6a1 1 0
+                                  11-2
+                                  0V8zm4
+                                  0a1 1 0
+                                  012
+                                  0v6a1 1 0
+                                  11-2
+                                  0V8z"
                                 clip-rule="evenodd"/>
                         </svg>
                       </a>
@@ -1278,6 +1287,62 @@
           </div>
         </div>
       </div>
+      
+      <div id="famjam-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 dark:bg-black dark:bg-opacity-80 z-50 hidden flex items-center justify-center p-4">
+          <div class="relative p-6 border w-full max-w-2xl shadow-2xl rounded-2xl bg-white dark:bg-gray-800 dark:text-gray-100 modal-content">
+              <button onclick="closeModal('famjam-modal')" class="absolute top-4 right-4 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 text-3xl">&times;</button>
+      
+              <div id="famjam-loading">
+                  <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Generating Your FamJam Plan...</h3>
+                  <div class="flex justify-center items-center py-10">
+                      <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500"></div>
+                  </div>
+                  <p class="text-center text-gray-600 dark:text-gray-300">Our AI is crafting a balanced quarterly chore plan for your family. Please wait a moment.</p>
+              </div>
+      
+              <div id="famjam-review" class="hidden">
+                  <h3 class="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">AI-Suggested Quarterly Plan</h3>
+                  <p class="text-gray-600 dark:text-gray-300 mb-4">Here is a suggested plan. Review the chores below. If you're happy with it, click "Accept" to automatically schedule them for the next 90 days.</p>
+                  <div id="famjam-plan-content" class="max-h-80 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-3">
+                      </div>
+                  <div class="flex justify-end pt-6 gap-3">
+                      <button onclick="closeModal('famjam-modal')" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500">Cancel</button>
+                      <button onclick="openFamJamModal()" class="px-4 py-2 text-sm font-medium text-white bg-yellow-500 rounded-lg hover:bg-yellow-600">Regenerate</button>
+                      <button id="famjam-accept-btn" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600">Accept Plan & Schedule</button>
+                  </div>
+              </div>
+              
+              <div id="famjam-applying" class="hidden">
+                  <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Applying Your Plan...</h3>
+                  <div class="flex justify-center items-center py-10">
+                      <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-green-500"></div>
+                  </div>
+                  <p class="text-center text-gray-600 dark:text-gray-300">Scheduling chores for the next 90 days. This might take a second.</p>
+              </div>
+      
+              <div id="famjam-success" class="hidden text-center">
+                  <div class="mx-auto bg-green-100 dark:bg-green-900 h-16 w-16 rounded-full flex items-center justify-center mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-600 dark:text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                  </div>
+                  <h3 class="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">Success!</h3>
+                  <p id="famjam-success-message" class="text-gray-600 dark:text-gray-300 mb-6"></p>
+                  <button onclick="closeModal('famjam-modal')" class="px-6 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Done</button>
+              </div>
+              
+              <div id="famjam-error" class="hidden text-center">
+                   <div class="mx-auto bg-red-100 dark:bg-red-900 h-16 w-16 rounded-full flex items-center justify-center mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-600 dark:text-red-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                  </div>
+                  <h3 class="text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">An Error Occurred</h3>
+                  <p id="famjam-error-message" class="text-red-500 dark:text-red-400 mb-6"></p>
+                  <button onclick="closeModal('famjam-modal')" class="px-6 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500">Close</button>
+              </div>
+          </div>
+      </div>
 
       {% elif page == 'dashboard_child' %}
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1320,17 +1385,17 @@
                              viewBox="0 0 20 20">
                           <path fill-rule="evenodd"
                                 d="M12.395 2.553a1 1
-                                   0 00-1.45-.385c-.345.23
-                                   -.614.558-.822.934l-6.75
-                                   12.25a1 1 0
-                                   001.64.905l1.852
-                                   -1.069a1 1 0
-                                   011.23.372l3.22
-                                   4.705a1 1 0
-                                   001.64-.905l-1.852
-                                   -1.069a1 1 0
-                                   01-.001-1.422l6.75
-                                   -12.25a1 1 0 00-.385-1.45z"
+                                  0 00-1.45-.385c-.345.23
+                                  -.614.558-.822.934l-6.75
+                                  12.25a1 1 0
+                                  001.64.905l1.852
+                                  -1.069a1 1 0
+                                  011.23.372l3.22
+                                  4.705a1 1 0
+                                  001.64-.905l-1.852
+                                  -1.069a1 1 0
+                                  01-.001-1.422l6.75
+                                  -12.25a1 1 0 00-.385-1.45z"
                                 clip-rule="evenodd"/>
                         </svg>
                         Streak: {{ habit.streak|default(0) }} days
@@ -1429,9 +1494,9 @@
               {% if chores %}
                 {% for chore in chores %}
                 <div class="p-4 bg-gray-50 dark:bg-gray-700 border
-                            border-gray-200 dark:border-gray-600
-                            rounded-lg flex flex-col sm:flex-row justify-between items-start
-                            sm:items-center hover:shadow-md transition-shadow">
+                             border-gray-200 dark:border-gray-600
+                             rounded-lg flex flex-col sm:flex-row justify-between items-start
+                             sm:items-center hover:shadow-md transition-shadow">
                   <div class="flex-1">
                     <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100">{{ chore.name }}</h4>
                     <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 pr-4">{{ chore.description }}</p>
@@ -1447,25 +1512,25 @@
                              viewBox="0 0 20 20">
                           <path fill-rule="evenodd"
                                 d="M6 2a1 1 0
-                                   00-1
-                                   1v1H4a2 2 0
-                                   00-2
-                                   2v10
-                                   a2 2 0
-                                   002
-                                   2h12a2
-                                   2 0
-                                   002-2v-6a1 1
-                                   0
-                                   00-1-1h-1v-1a1
-                                   1 0
-                                   10-2 0v1H7
-                                   V3a1 1 0
-                                   00-1-1zM6
-                                   7a1 1 0
-                                   000
-                                   2h8a1 1 0
-                                   100-2H6z"
+                                  00-1
+                                  1v1H4a2 2 0
+                                  00-2
+                                  2v10
+                                  a2 2 0
+                                  002
+                                  2h12a2
+                                  2 0
+                                  002-2v-6a1 1
+                                  0
+                                  00-1-1h-1v-1a1
+                                  1 0
+                                  10-2 0v1H7
+                                  V3a1 1 0
+                                  00-1-1zM6
+                                  7a1 1 0
+                                  000
+                                  2h8a1 1 0
+                                  100-2H6z"
                                 clip-rule="evenodd"/>
                         </svg>
                         Due: {{ chore.due_date.strftime('%b %d, %Y') }}
@@ -1506,7 +1571,7 @@
         </div>
         <div class="lg:col-span-1 space-y-8">
           <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white p-6
-                       rounded-2xl shadow-xl text-center">
+                        rounded-2xl shadow-xl text-center">
             <p class="text-lg font-medium opacity-80">My Available Points</p>
             <p class="text-6xl font-extrabold my-2 tracking-tight">{{ current_user.points }}</p>
             <p class="opacity-80"> Lifetime Earned: {{ current_user.lifetime_points }}</p>
@@ -1677,8 +1742,8 @@
                     {{ loop.index }}
                   </span>
                   <div class="w-8 h-8 rounded-full bg-blue-200 dark:bg-blue-900
-                                flex items-center justify-center font-bold text-blue-700
-                                dark:text-blue-300">
+                              flex items-center justify-center font-bold text-blue-700
+                              dark:text-blue-300">
                     {{ member.username[0]|upper }}
                   </div>
                   <span class="font-medium text-gray-800 dark:text-gray-100">
@@ -1770,7 +1835,7 @@
                 <span id="modal-status-badge"></span>
               </div>
               <div class="text-lg font-bold text-green-600 dark:text-green-300
-                           bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
+                             bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
                 <span id="modal-points"></span> pts
               </div>
             </div>
@@ -2131,6 +2196,113 @@
       });
     }
     {% endif %}
+    
+    // --- FamJam Plan ---
+    {% if page == 'dashboard_parent' %}
+    let famJamPlanData = null; 
+
+    function setFamJamModalState(state) {
+        const states = ['loading', 'review', 'applying', 'success', 'error'];
+        states.forEach(s => {
+            document.getElementById(`famjam-${s}`).classList.add('hidden');
+        });
+        if (state) {
+            document.getElementById(`famjam-${state}`).classList.remove('hidden');
+        }
+    }
+
+    async function openFamJamModal() {
+        document.getElementById('famjam-modal').classList.remove('hidden');
+        setFamJamModalState('loading');
+
+        try {
+            const response = await fetch("{{ url_for('suggest_famjam_plan') }}", {
+                method: 'POST'
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to generate plan.');
+            }
+
+            famJamPlanData = data; 
+            displayFamJamPlan(data);
+        } catch (err) {
+            document.getElementById('famjam-error-message').textContent = err.message;
+            setFamJamModalState('error');
+        }
+    }
+
+    function displayFamJamPlan(plan) {
+        const contentDiv = document.getElementById('famjam-plan-content');
+        contentDiv.innerHTML = ''; 
+
+        if (plan.suggested_chores && plan.suggested_chores.length > 0) {
+            plan.suggested_chores.forEach(chore => {
+                const choreEl = document.createElement('div');
+                choreEl.className = 'p-3 bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600';
+                choreEl.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-gray-800 dark:text-gray-100">${chore.name}</p>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">${chore.description || ''}</p>
+                        </div>
+                        <div class="text-right ml-4 flex-shrink-0">
+                            <span class="font-bold text-green-600 dark:text-green-300">${chore.points} pts</span>
+                            <span class="block text-xs text-gray-500 dark:text-gray-400 capitalize">${chore.recurrence}</span>
+                        </div>
+                    </div>
+                `;
+                contentDiv.appendChild(choreEl);
+            });
+        } else {
+            contentDiv.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-300">The AI did not suggest any chores. You can try regenerating.</p>';
+        }
+        setFamJamModalState('review');
+    }
+
+    async function applyFamJamPlan() {
+        if (!famJamPlanData) {
+            alert('No plan data to apply.');
+            return;
+        }
+        setFamJamModalState('applying');
+
+        try {
+            const response = await fetch("{{ url_for('apply_famjam_plan') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(famJamPlanData)
+            });
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to apply the plan.');
+            }
+            
+            document.getElementById('famjam-success-message').textContent = data.message;
+            setFamJamModalState('success');
+            setTimeout(() => { 
+               closeModal('famjam-modal');
+               window.location.reload(); 
+            }, 3000);
+
+        } catch (err) {
+            document.getElementById('famjam-error-message').textContent = err.message;
+            setFamJamModalState('error');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const acceptBtn = document.getElementById('famjam-accept-btn');
+        if (acceptBtn) {
+            acceptBtn.addEventListener('click', applyFamJamPlan);
+        }
+    });
+    {% endif %}
+
 
     // --- MOOD TRACKER SCRIPT ---
     {% if page in ['mood_dashboard_personal', 'mood_dashboard_family'] %}
