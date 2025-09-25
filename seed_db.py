@@ -1,15 +1,17 @@
 # seed_db.py
 # This enhanced script populates the MongoDB database with dynamic, realistic sample data.
-# It sets up a sample family and generates 30 days of historical data for chores,
-# habits, rewards, and mood entries to fully populate all dashboards.
+# It sets up a sample family, generates an active 90-day FamJam plan,
+# and creates a rich history for chores, habits, rewards, and moods to fully populate all dashboards.
 #
 # Usage: python seed_db.py
 
 import os
 import random
+import itertools
 from pymongo import MongoClient
 from flask_bcrypt import Bcrypt
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from bson.objectid import ObjectId
 from dotenv import load_dotenv
 
@@ -26,15 +28,17 @@ bcrypt = Bcrypt(DummyApp())
 # --- Database Connection ---
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
 DB_NAME = 'mchores_app'  # The database name used in the main application
-NUM_DAYS_HISTORY = 30 # Generate data for the last 30 days
+NUM_DAYS_HISTORY = 30 # Generate data for the last 30 days for some records
 
 # Mood configuration, mirroring the main app for consistency
-MOOD_OPTIONS = [
-    {'emoji': '😖', 'desc': 'Upset', 'score': 1},
-    {'emoji': '😔', 'desc': 'Not Happy', 'score': 2},
-    {'emoji': '😌', 'desc': 'Calm / Okay', 'score': 3},
-    {'emoji': '😎', 'desc': 'Very Happy', 'score': 4}
-]
+MOOD_CONFIG = {
+    'moods': [
+        {'emoji': '😖', 'desc': 'Upset',      'score': 1, 'color': '#ef4444'},
+        {'emoji': '😔', 'desc': 'Not Happy',  'score': 2, 'color': '#f97316'},
+        {'emoji': '😌', 'desc': 'Calm / Okay','score': 3, 'color': '#84cc16'},
+        {'emoji': '😎', 'desc': 'Very Happy', 'score': 4, 'color': '#22c55e'}
+    ]
+}
 
 # --- Database Setup ---
 try:
@@ -44,7 +48,8 @@ try:
     events_collection = db['events']
     rewards_collection = db['rewards']
     transactions_collection = db['transactions']
-    moods_collection = db['moods'] # New collection for MoodMatrix
+    moods_collection = db['moods']
+    famjam_plans_collection = db['famjam_plans']
     # Test connection
     client.server_info()
     print(f"MongoDB connection successful to '{MONGO_URI}'.")
@@ -61,6 +66,7 @@ def clear_collections():
     rewards_collection.delete_many({})
     transactions_collection.delete_many({})
     moods_collection.delete_many({})
+    famjam_plans_collection.delete_many({})
     print("Collections cleared.")
 
 def create_family_members():
@@ -103,67 +109,118 @@ def create_family_members():
 
     return parent_id_str, child_ids
 
-def create_chores_and_habits(parent_id, child_ids):
-    """Generates a history of chores and habits for the children."""
-    print("\n--- Generating Chores & Habits ---")
+def create_famjam_plan_and_events(parent_id, child_ids):
+    """Creates an active FamJam plan and generates all associated chore events for a 90-day period."""
+    print("\n--- Generating FamJam Plan & Chore History ---")
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Create a plan that started 45 days ago to have a good mix of past and future events
+    start_date = today - timedelta(days=45)
+    end_date = start_date + timedelta(days=90)
+
+    sample_plan_data = {
+        "plan_name": f"Family Goals - Q{ (start_date.month - 1) // 3 + 1 } {start_date.year}",
+        "suggested_chores": [
+            {"name": "Morning Kitchen Reset", "description": "Unload dishwasher, wipe counters.", "points": 15, "type": "chore", "recurrence": "daily"},
+            {"name": "Evening Pet Care", "description": "Feed the pets and check their water.", "points": 10, "type": "chore", "recurrence": "daily"},
+            {"name": "Weekly Room Tidy", "description": "Full clean of bedroom: dust, vacuum, organize.", "points": 50, "type": "chore", "recurrence": "weekly"},
+            {"name": "Recycling & Trash Duty", "description": "Take all bins out for collection day.", "points": 25, "type": "chore", "recurrence": "weekly"},
+            {"name": "Garden Weeding", "description": "Spend 20 minutes pulling weeds.", "points": 30, "type": "chore", "recurrence": "weekly"},
+        ]
+    }
+
+    # Insert an active plan
+    famjam_plans_collection.insert_one({
+        'plan_data': sample_plan_data, 'family_id': parent_id, 'status': 'active',
+        'start_date': start_date, 'end_date': end_date, 'created_at': start_date - timedelta(days=1),
+        'applied_at': start_date
+    })
+    
+    # Insert an archived plan for historical context
+    last_quarter_start = start_date - relativedelta(months=3)
+    famjam_plans_collection.insert_one({
+        'plan_data': {"plan_name": "Old Plan", "suggested_chores": []}, 'family_id': parent_id, 'status': 'archived',
+        'start_date': last_quarter_start, 'end_date': start_date - timedelta(days=1), 'created_at': last_quarter_start - timedelta(days=1),
+    })
+
+    # --- Generate events based on the active plan ---
+    child_cycler = itertools.cycle(child_ids)
+    events_to_insert = []
+
+    for chore_template in sample_plan_data["suggested_chores"]:
+        recurrence = chore_template.get('recurrence', '').lower()
+        if recurrence == 'daily': delta = timedelta(days=1)
+        elif recurrence == 'weekly': delta = timedelta(weeks=1)
+        else: continue
+
+        current_due_date = start_date
+        while current_due_date < end_date:
+            assigned_child_id = next(child_cycler)
+            status = 'assigned'
+            approved_at = None
+
+            # For past events, randomly mark them as approved or completed
+            if current_due_date < today:
+                status_roll = random.random()
+                if status_roll < 0.85: # 85% are approved
+                    status = 'approved'
+                    approved_at = current_due_date + timedelta(hours=random.randint(4, 28))
+                else: # 15% are completed but pending
+                    status = 'completed'
+            
+            doc = {
+                **chore_template, 'description': chore_template.get('description'),
+                'family_id': parent_id, 'status': status, 'created_at': current_due_date - timedelta(days=1),
+                'assigned_to': assigned_child_id, 'due_date': current_due_date, 'source': 'FamJamPlan', 'source_type': 'generated',
+                'approved_at': approved_at
+            }
+            events_to_insert.append(doc)
+            current_due_date += delta
+    
+    if events_to_insert:
+        events_collection.insert_many(events_to_insert)
+        print(f"Inserted {len(events_to_insert)} FamJam Plan-based chore events.")
+
+def create_ad_hoc_events(parent_id, child_ids):
+    """Generates a history of ad-hoc (non-plan) chores and habits."""
+    print("\n--- Generating Ad-hoc Chores & Habits ---")
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     events_to_insert = []
     
-    sample_chores = [
-        {'name': 'Tidy Up Bedroom', 'desc': 'Make the bed, put away clothes and toys.', 'points': 25},
-        {'name': 'Water the Plants', 'desc': 'Give water to all the indoor plants.', 'points': 20},
-        {'name': 'Take Out Recycling', 'desc': 'Empty all recycling bins into the main container.', 'points': 15},
-        {'name': 'Feed the Dog', 'desc': 'Fill the dog\'s food and water bowls.', 'points': 10},
-        {'name': 'Set the Dinner Table', 'desc': 'Put out plates, cutlery, and glasses for dinner.', 'points': 10}
-    ]
-    
     sample_habits = [
-        {'name': 'Practice Piano', 'desc': 'Complete a 15-minute practice session.', 'points': 10},
-        {'name': 'Read for 20 minutes', 'desc': 'Read a book, not a screen!', 'points': 15}
+        {'name': 'Practice Piano', 'description': 'Complete a 15-minute practice session.', 'points': 10},
+        {'name': 'Read for 20 minutes', 'description': 'Read a book, not a screen!', 'points': 15}
     ]
 
     # Create habits that have been active for a while
     for habit_template in sample_habits:
         child_id = random.choice(child_ids)
-        start_date = today - timedelta(days=random.randint(20, 30))
-        last_completed = today - timedelta(days=random.randint(1, 3))
+        start_date = today - timedelta(days=random.randint(25, 40))
+        # Make last completed date realistic based on streak
+        streak = random.randint(3, 10)
+        last_completed = today - timedelta(days=random.choice([1, 2])) # Completed recently to keep streak alive
+        
         events_to_insert.append({
-            **habit_template, 'description': habit_template['desc'], 'type': 'habit', 'family_id': parent_id,
-            'status': 'assigned', 'assigned_to': child_id, 'created_at': start_date,
-            'due_date': start_date, 'streak': random.randint(0, 5), 'last_completed': last_completed
+            **habit_template, 'type': 'habit', 'family_id': parent_id, 'status': 'assigned',
+            'assigned_to': child_id, 'created_at': start_date, 'due_date': start_date,
+            'streak': streak, 'last_completed': last_completed
         })
-
-    # Create a history of chores over the last month
-    for day in range(NUM_DAYS_HISTORY):
-        # Add 1-2 chores per day to make it look active
-        for _ in range(random.randint(1, 2)):
-            chore = random.choice(sample_chores)
-            child_id = random.choice(child_ids)
-            created_date = today - timedelta(days=day + random.randint(1,3))
-            due_date = today - timedelta(days=day)
-            
-            # Randomly determine the status to create a mix of data
-            status_roll = random.random()
-            if status_roll < 0.6: # 60% are approved
-                status = 'approved'
-                approved_at = due_date + timedelta(hours=random.randint(4, 28))
-            elif status_roll < 0.85: # 25% are completed (pending)
-                status = 'completed'
-                approved_at = None
-            else: # 15% are still assigned
-                status = 'assigned'
-                approved_at = None
-
-            events_to_insert.append({
-                'name': chore['name'], 'description': chore['desc'], 'points': chore['points'],
-                'type': 'chore', 'family_id': parent_id, 'status': status,
-                'assigned_to': child_id, 'created_at': created_date, 'due_date': due_date,
-                'approved_at': approved_at
-            })
+    
+    # Create a few one-off chores
+    for _ in range(10):
+        chore = {'name': 'Special Task: Organize Garage Shelf', 'description': 'Help clear and organize one shelf.', 'points': 40}
+        child_id = random.choice(child_ids)
+        due_date = today - timedelta(days=random.randint(1, NUM_DAYS_HISTORY))
+        events_to_insert.append({
+            **chore, 'type': 'chore', 'family_id': parent_id, 'status': 'approved',
+            'assigned_to': child_id, 'created_at': due_date - timedelta(days=1),
+            'due_date': due_date, 'approved_at': due_date + timedelta(hours=8)
+        })
 
     if events_to_insert:
         events_collection.insert_many(events_to_insert)
-        print(f"Inserted {len(events_to_insert)} sample events.")
+        print(f"Inserted {len(events_to_insert)} ad-hoc events (habits and one-off chores).")
+
 
 def create_rewards_and_transactions(parent_id, child_ids_map):
     """Generates a history of reward requests and transactions."""
@@ -176,10 +233,12 @@ def create_rewards_and_transactions(parent_id, child_ids_map):
         {'name': 'One Hour of Video Games', 'cost': 100},
         {'name': 'New Book', 'cost': 200},
         {'name': 'Movie Night Choice', 'cost': 150},
-        {'name': 'Ice Cream Outing', 'cost': 250}
+        {'name': 'Ice Cream Outing', 'cost': 250},
+        {'name': 'Sleepover with a Friend', 'cost': 300},
+        {'name': 'Stay Up 30 Mins Later', 'cost': 75}
     ]
 
-    for _ in range(5): # Create 5 historical reward transactions
+    for _ in range(8): # Create 8 historical reward transactions
         reward = random.choice(sample_rewards)
         child_id = random.choice(list(child_ids_map.keys()))
         child_username = child_ids_map[child_id]
@@ -190,7 +249,10 @@ def create_rewards_and_transactions(parent_id, child_ids_map):
         else: status = 'requested'
         
         spent_at = today - timedelta(days=random.randint(1, 28), hours=random.randint(1, 23))
-        resolved_at = spent_at + timedelta(days=1) if status != 'requested' else None
+        resolved_at = spent_at + timedelta(hours=random.randint(4, 24)) if status != 'requested' else None
+        
+        # The transaction status should mirror the final reward status
+        transaction_status = 'pending' if status == 'requested' else status
 
         reward_id = ObjectId()
         rewards_to_create.append({
@@ -201,7 +263,7 @@ def create_rewards_and_transactions(parent_id, child_ids_map):
         transactions_to_create.append({
             'reward_id': reward_id, 'family_id': parent_id, 'child_id': child_id,
             'child_username': child_username, 'reward_name': reward['name'],
-            'points_spent': reward['cost'], 'status': 'pending' if status == 'requested' else status,
+            'points_spent': reward['cost'], 'status': transaction_status,
             'spent_at': spent_at, 'resolved_at': resolved_at
         })
     
@@ -216,16 +278,18 @@ def create_mood_entries(parent_id, child_ids):
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     moods_to_insert = []
     
+    mood_options = MOOD_CONFIG['moods']
+
     for child_id in child_ids:
         for day in range(NUM_DAYS_HISTORY):
             current_date = today - timedelta(days=day)
-            for period in ['AM', 'PM']:
+            for period in ['Morning', 'Afternoon', 'Evening']:
                 # Simulate that users don't log their mood every single time
                 if random.random() < 0.8: # 80% chance to log a mood for a given period
-                    mood = random.choice(MOOD_OPTIONS)
+                    mood = random.choice(mood_options)
                     moods_to_insert.append({
                         'user_id': ObjectId(child_id),
-                        'family_id': ObjectId(parent_id),
+                        'family_id': ObjectId(parent_id), # Note: family_id is an ObjectId in this collection
                         'date': current_date,
                         'period': period,
                         'mood_emoji': mood['emoji'],
@@ -257,8 +321,16 @@ def seed_database():
     child_docs = list(users_collection.find({'_id': {'$in': [ObjectId(cid) for cid in child_ids]}}))
     child_ids_map = {str(doc['_id']): doc['username'] for doc in child_docs}
     
-    create_chores_and_habits(parent_id, child_ids)
+    # Generate the structured, recurring chores from a plan
+    create_famjam_plan_and_events(parent_id, child_ids)
+    
+    # Add supplemental habits and one-off chores
+    create_ad_hoc_events(parent_id, child_ids)
+
+    # Add rewards and transactions history
     create_rewards_and_transactions(parent_id, child_ids_map)
+    
+    # Add mood history
     create_mood_entries(parent_id, child_ids)
 
     print("\n--- Database seeding complete! ---")

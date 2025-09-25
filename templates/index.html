@@ -92,7 +92,9 @@
     .fc .fc-button-primary {
       background-color: #2563eb; border-color: #2563eb; transition: background-color 0.2s;
     }
-    .fc .fc-button-primary:hover { background-color: #1d4ed8; border-color: #1d4ed8; }
+    .fc .fc-button-primary:hover {
+      background-color: #1d4ed8; border-color: #1d4ed8;
+    }
     .fc .fc-daygrid-day.fc-day-today { background-color: rgba(59, 130, 246, 0.08); }
 
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
@@ -102,39 +104,101 @@
     .modal-content { animation: scaleUp 0.3s cubic-bezier(0.165, 0.84, 0.44, 1) forwards; }
 
     /* custom scrollbars */
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-    .dark .custom-scrollbar::-webkit-scrollbar-track { background: #2d3748; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
-    .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #4a5568; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-    .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #718096; }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 10px;
+    }
+    .dark .custom-scrollbar::-webkit-scrollbar-track {
+      background: #2d3748;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 10px;
+    }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #4a5568;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #9ca3af;
+    }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #718096;
+    }
 
     /* micro hover-lift */
-    .hover-lift:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .hover-lift:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
 
     /* background particles */
-    #particle-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: -1; }
-    .particle { position: absolute; border-radius: 50%; animation: floatUp 25s linear infinite; }
-    @keyframes floatUp { 0% { transform: translateY(0); } 100% { transform: translateY(-200vh); } }
+    #particle-container {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: -1;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      animation: floatUp 25s linear infinite;
+    }
+    @keyframes floatUp {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-200vh); }
+    }
 
-    .mood-grid-cell { transition: transform 0.2s, box-shadow 0.2s; }
-    .mood-grid-cell.selected { transform: scale(1.1); box-shadow: 0 0 0 3px #3b82f6; z-index: 10; }
-    .prose-styles h1, .prose-styles h2, .prose-styles p, .prose-styles ul, .prose-styles strong { color: inherit; }
+    .mood-grid-cell {
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .mood-grid-cell.selected {
+      transform: scale(1.1);
+      box-shadow: 0 0 0 3px #3b82f6;
+      z-index: 10;
+    }
+    .prose-styles h1, .prose-styles h2, .prose-styles p, .prose-styles ul, .prose-styles strong {
+      color: inherit;
+    }
 
     /* FAB Flow Animation */
-    @keyframes fabFlow { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); } 70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
-    .fab-flow { animation: fabFlow 2s infinite; }
-    
+    @keyframes fabFlow {
+      0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+      70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+    }
+    .fab-flow {
+      animation: fabFlow 2s infinite;
+    }
+
     /* Staggered Content Animation for Side Modal */
-    @keyframes slideInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-    .side-modal.is-open .modal-content-item { animation: slideInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+    @keyframes slideInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .side-modal.is-open .modal-content-item {
+      animation: slideInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+    }
 
     /* Side Modal Transitions */
-    .side-modal [data-modal-overlay] { opacity: 0; transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-    .side-modal.is-open [data-modal-overlay] { opacity: 1; }
-    .side-modal [data-modal-panel] { transition: transform 0.6s cubic-bezier(0.68, -0.6, 0.32, 1.6); }
-    .side-modal.is-open [data-modal-panel] { transform: translateX(0) !important; }
+    .side-modal [data-modal-overlay] {
+      opacity: 0;
+      transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .side-modal.is-open [data-modal-overlay] {
+      opacity: 1;
+    }
+    .side-modal [data-modal-panel] {
+      transition: transform 0.6s cubic-bezier(0.68, -0.6, 0.32, 1.6);
+    }
+    .side-modal.is-open [data-modal-panel] {
+      transform: translateX(0) !important;
+    }
   </style>
 </head>
 
@@ -148,16 +212,16 @@
           <a href="{{ url_for('index') }}" class="flex items-center space-x-2 text-3xl font-brand">
             <svg id="logo-animated" class="w-8 h-8" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
               <style>
- @keyframes rotate_outer { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
- @keyframes rotate_inner { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
- @keyframes dash_flow { 0% { stroke-dashoffset: 1000; } 100% { stroke-dashoffset: 0; } }
- @keyframes color_shift { 0% { stop-color: #818cf8; } 33% { stop-color: #60a5fa; } 66% { stop-color: #34d399; } 100% { stop-color: #818cf8; } }
- @keyframes color_shift2 { 0% { stop-color: #f472b6; } 33% { stop-color: #c084fc; } 66% { stop-color: #fb923c; } 100% { stop-color: #f472b6; } }
- .logo-group-outer { animation: rotate_outer 12s linear infinite; transform-origin: center; }
- .logo-group-inner { animation: rotate_inner 10s linear infinite; transform-origin: center; }
- .logo-path { stroke-dasharray: 500; animation: dash_flow 8s ease-in-out infinite alternate; }
- #stop1 { animation: color_shift 6s linear infinite; }
- #stop2 { animation: color_shift2 6s linear infinite; }
+@keyframes rotate_outer { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes rotate_inner { 0% { transform: rotate(0deg); } 100% { transform: rotate(-360deg); } }
+@keyframes dash_flow { 0% { stroke-dashoffset: 1000; } 100% { stroke-dashoffset: 0; } }
+@keyframes color_shift { 0% { stop-color: #818cf8; } 33% { stop-color: #60a5fa; } 66% { stop-color: #34d399; } 100% { stop-color: #818cf8; } }
+@keyframes color_shift2 { 0% { stop-color: #f472b6; } 33% { stop-color: #c084fc; } 66% { stop-color: #fb923c; } 100% { stop-color: #f472b6; } }
+.logo-group-outer { animation: rotate_outer 12s linear infinite; transform-origin: center; }
+.logo-group-inner { animation: rotate_inner 10s linear infinite; transform-origin: center; }
+.logo-path { stroke-dasharray: 500; animation: dash_flow 8s ease-in-out infinite alternate; }
+#stop1 { animation: color_shift 6s linear infinite; }
+#stop2 { animation: color_shift2 6s linear infinite; }
               </style>
               <defs>
                 <linearGradient id="fluidGradient" gradientTransform="rotate(45)">
@@ -185,7 +249,7 @@
             <span class="gradient-text">fam-flow</span>
           </a>
         </div>
-        
+
         <div class="hidden sm:flex items-center space-x-2">
           {% if current_user.is_authenticated %}
             <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-full p-1">
@@ -203,7 +267,7 @@
             <a href="{{ url_for('register_parent') }}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 transition shadow-sm">Register</a>
           {% endif %}
         </div>
-        
+
         <div class="flex items-center space-x-3">
           <button id="darkModeToggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition">
             <span id="themeIcon" class="text-gray-600 dark:text-gray-300 text-sm font-semibold"></span>
@@ -248,8 +312,11 @@
       {% if messages %}
         {% for category, message in messages %}
           <div class="p-4 mb-6 text-sm rounded-lg shadow-md
-            {% if category == 'error' %} bg-red-100 text-red-800 border border-red-200 dark:bg-red-200 dark:text-red-900
-            {% else %} bg-green-100 text-green-800 border border-green-200 dark:bg-green-200 dark:text-green-900 {% endif %}"
+            {% if category == 'error' %}
+              bg-red-100 text-red-800 border border-red-200 dark:bg-red-200 dark:text-red-900
+            {% else %}
+              bg-green-100 text-green-800 border border-green-200 dark:bg-green-200 dark:text-green-900
+            {% endif %}"
             role="alert">
             <span class="font-medium">{{ message }}</span>
           </div>
@@ -408,35 +475,34 @@
                     </select>
                   </div>
                   <div>
-                    <label for="due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Start Date</label>
+                    <label for="due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Due Date</label>
                     <input type="date" name="due_date" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required/>
                   </div>
                 </div>
                 <button type="submit" class="w-full md:w-auto mt-8 py-3 px-8 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg">Add Task</button>
               </form>
             </div>
-            
-            {% if active_qbr_plan %}
+
+            {% if active_famjam_plan %}
             <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-4">
                 <div class="flex justify-between items-start">
                     <div>
                         <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Active FamJam Plan</h3>
-                        <p class="text-lg font-semibold text-secondary-600 dark:text-secondary-400">{{ active_qbr_plan.plan_data.plan_name }}</p>
+                        <p class="text-lg font-semibold text-secondary-600 dark:text-secondary-400">{{ active_famjam_plan.plan_data.plan_name }}</p>
                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                            Ends in {{ active_qbr_plan.days_left }} days on {{ active_qbr_plan.end_date.strftime('%b %d, %Y') }}
+                            Ends in {{ active_famjam_plan.days_left }} days on {{ active_famjam_plan.end_date.strftime('%b %d, %Y') }}
                         </p>
                     </div>
                     <a href="{{ url_for('manage_plan') }}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 transition">Manage Plan</a>
                 </div>
                 <div>
                     <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
-                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ active_qbr_plan.progress_percent }}%"></div>
+                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ active_famjam_plan.progress_percent }}%"></div>
                     </div>
-                    <p class="text-right text-xs mt-1 text-gray-500 dark:text-gray-400">{{ active_qbr_plan.progress_percent|round|int }}% complete</p>
+                    <p class="text-right text-xs mt-1 text-gray-500 dark:text-gray-400">{{ active_famjam_plan.progress_percent|round|int }}% complete</p>
                 </div>
             </div>
             {% endif %}
-
           </div>
 
           <div class="lg:col-span-1 space-y-8">
@@ -505,9 +571,13 @@
                         <p class="text-xs text-gray-500 dark:text-gray-300">on "{{ tx.reward_name }}" &middot; {{ tx.spent_at_pretty }}</p>
                       </div>
                       <span class="text-xs font-medium px-2 py-0.5 rounded-full
-                        {% if tx.status == 'approved' %} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300
-                        {% elif tx.status == 'rejected' %} bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300
-                        {% else %} bg-yellow-100 text-yellow-800 dark:text-yellow-300 {% endif %}">
+                        {% if tx.status == 'approved' %}
+                          bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300
+                        {% elif tx.status == 'rejected' %}
+                          bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300
+                        {% else %}
+                          bg-yellow-100 text-yellow-800 dark:text-yellow-300
+                        {% endif %}">
                         {{ tx.status|capitalize }}
                       </span>
                     </div>
@@ -519,7 +589,7 @@
               </div>
           </div>
       </div>
-      
+
       {% elif page == 'dashboard_child' %}
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div class="lg:col-span-2 space-y-8">
@@ -589,7 +659,7 @@
                       <span class="font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-full">+{{ chore.points }} pts</span>
                       <span class="font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2v-6a1 1 0 00-1-1h-1v-1a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zM6 7a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                          <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-6a1 1 0 00-1-1h-1v-1a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zM6 7a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
                         </svg>
                         Due: {{ chore.due_date.strftime('%b %d, %Y') }}
                       </span>
@@ -814,7 +884,7 @@
         <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl hover-lift">
             <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">My Mood History (Last 30 Days)</h3>
             <div class="h-80">
-              <canvas id="personalMoodChart"></canvas>
+                <canvas id="personalMoodChart"></canvas>
             </div>
         </div>
         <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl hover-lift text-center">
@@ -843,13 +913,13 @@
             <div class="lg:col-span-3 bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl hover-lift">
                 <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Family Daily Average Mood (Last 30 Days)</h3>
                 <div class="h-80">
-                  <canvas id="familyDailyAverageChart"></canvas>
+                    <canvas id="familyDailyAverageChart"></canvas>
                 </div>
             </div>
             <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl hover-lift">
                 <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Mood Distribution</h3>
                 <div class="h-80 flex items-center justify-center">
-                  <canvas id="familyDistributionChart"></canvas>
+                    <canvas id="familyDistributionChart"></canvas>
                 </div>
             </div>
         </div>
@@ -904,15 +974,22 @@
             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {% for task in tasks %}
               <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{{ task.name }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {{ task.name }}
+                    {% if task.source_type == 'manual' %}
+                        <span title="Manually Added to Plan" class="ml-2 text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded-full">
+                            Added
+                        </span>
+                    {% endif %}
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ task.assigned_to_username }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ task.due_date.strftime('%a, %b %d') }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ task.points }}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    {% if task.status == 'approved' %} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
-                    {% elif task.status == 'completed' %} bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
-                    {% else %} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 {% endif %}">
+                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                       {% if task.status == 'approved' %} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                      {% elif task.status == 'completed' %} bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                      {% else %} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 {% endif %}">
                     {{ task.status|capitalize }}
                   </span>
                 </td>
@@ -940,7 +1017,7 @@
         <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
       </svg>
     </button>
-    
+
     <div id="manageFamilyModal" class="side-modal fixed inset-0 z-[70] hidden">
       <div data-modal-overlay onclick="closeModal('manageFamilyModal')" class="absolute inset-0 bg-gray-900/60 dark:bg-black/80"></div>
       <div data-modal-panel data-side="right" class="panel-transition absolute top-0 right-0 h-full w-full max-w-2xl bg-white dark:bg-gray-800 shadow-2xl transform translate-x-full flex flex-col">
@@ -961,7 +1038,7 @@
                 </svg>
               </span>
               <div>
-                <p class="font-semibold text-gray-800 dark:text-gray-100">Generate QBR Plan (FamJam!)</p>
+                <p class="font-semibold text-gray-800 dark:text-gray-100">Generate FamJam Plan</p>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Create a quarterly chore plan.</p>
               </div>
             </button>
@@ -1015,7 +1092,7 @@
         </div>
       </div>
     </div>
-    
+
     <div id="edit-child-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 dark:bg-black dark:bg-opacity-80 z-[80] hidden flex items-center justify-center p-4">
       <div class="relative p-6 border w-full max-w-md shadow-2xl rounded-2xl bg-white dark:bg-gray-800 dark:text-gray-100 modal-content">
         <button onclick="closeModal('edit-child-modal')" class="absolute top-4 right-4 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 text-3xl">&times;</button>
@@ -1080,32 +1157,57 @@
     <div id="famjam-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 dark:bg-black dark:bg-opacity-80 z-[80] hidden flex items-center justify-center p-4">
       <div class="relative p-6 border w-full max-w-2xl shadow-2xl rounded-2xl bg-white dark:bg-gray-800 dark:text-gray-100 modal-content">
         <button onclick="closeModal('famjam-modal')" class="absolute top-4 right-4 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 text-3xl">&times;</button>
-        <div id="famjam-loading">
-          <h3 class="text-2xl font-bold mb-4">Generating Your FamJam (QBR) Plan...</h3>
+
+        <div id="famjam-start">
+            <h3 class="text-2xl font-bold mb-2">Generate a FamJam Plan</h3>
+            <p class="text-gray-600 dark:text-gray-300 mb-4">
+                Describe a goal for your family's next 90-day chore plan. The AI will generate a set of recurring chores tailored to your objective.
+            </p>
+            <div>
+                <label for="famjam-goal-input" class="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                    Our Family Goal
+                </label>
+                <textarea id="famjam-goal-input" rows="3" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition" placeholder="e.g., improve morning routines, keep common areas tidy, or general teamwork and responsibility"></textarea>
+            </div>
+            <div class="flex justify-end pt-6 gap-3">
+                <button onclick="closeModal('famjam-modal')" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500">
+                    Cancel
+                </button>
+                <button onclick="generateFamJamPlan()" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                    Generate Plan
+                </button>
+            </div>
+        </div>
+
+        <div id="famjam-loading" class="hidden">
+          <h3 class="text-2xl font-bold mb-4">Generating Your FamJam Plan...</h3>
           <div class="flex justify-center items-center py-10">
             <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500"></div>
           </div>
           <p class="text-center text-gray-600 dark:text-gray-300">
-            Our AI is crafting a balanced quarterly (QBR) chore plan. Please wait.
+            Our AI is crafting a balanced quarterly chore plan. Please wait.
           </p>
         </div>
+
         <div id="famjam-review" class="hidden">
-          <h3 class="text-2xl font-bold mb-2">AI-Suggested Quarterly (QBR) Plan</h3>
-          <p class="text-gray-600 dark:text-gray-300 mb-4">Review the chores below. Click "Accept" to schedule them for the next 90 days (the current quarter).</p>
+          <h3 class="text-2xl font-bold mb-2">AI-Suggested FamJam Plan</h3>
+          <p class="text-gray-600 dark:text-gray-300 mb-4">Review the chores below. Click "Accept" to schedule them for the next 90 days.</p>
           <div id="famjam-plan-content" class="max-h-80 overflow-y-auto custom-scrollbar bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-3"></div>
           <div class="flex justify-end pt-6 gap-3">
             <button onclick="closeModal('famjam-modal')" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500">Cancel</button>
-            <button onclick="openFamJamModal()" class="px-4 py-2 text-sm font-medium text-white bg-yellow-500 rounded-lg hover:bg-yellow-600">Regenerate</button>
+            <button onclick="setFamJamModalState('start')" class="px-4 py-2 text-sm font-medium text-white bg-yellow-500 rounded-lg hover:bg-yellow-600">Regenerate</button>
             <button id="famjam-accept-btn" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600">Accept Plan</button>
           </div>
         </div>
+
         <div id="famjam-applying" class="hidden">
-          <h3 class="text-2xl font-bold mb-4">Applying Your QBR Plan...</h3>
+          <h3 class="text-2xl font-bold mb-4">Applying Your FamJam Plan...</h3>
           <div class="flex justify-center items-center py-10">
             <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-green-500"></div>
           </div>
           <p class="text-center text-gray-600 dark:text-gray-300">Scheduling chores for the next 90 days...</p>
         </div>
+
         <div id="famjam-success" class="hidden text-center">
           <div class="mx-auto bg-green-100 dark:bg-green-900 h-16 w-16 rounded-full flex items-center justify-center mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1116,6 +1218,7 @@
           <p id="famjam-success-message" class="text-gray-600 dark:text-gray-300 mb-6"></p>
           <button onclick="closeModal('famjam-modal')" class="px-6 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Done</button>
         </div>
+
         <div id="famjam-error" class="hidden text-center">
           <div class="mx-auto bg-red-100 dark:bg-red-900 h-16 w-16 rounded-full flex items-center justify-center mb-4">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -1134,7 +1237,7 @@
     document.addEventListener("DOMContentLoaded", function() {
       const mobileMenuButton = document.getElementById("mobile-menu-button");
       if(mobileMenuButton) mobileMenuButton.addEventListener("click", () => openModal('mobileMenu'));
-      
+
       const container = document.getElementById('particle-container');
       const numParticles = 20;
       const pastelColors = ['rgba(255,182,193,0.5)','rgba(173,216,230,0.5)','rgba(240,230,140,0.5)','rgba(144,238,144,0.5)','rgba(221,160,221,0.5)'];
@@ -1168,27 +1271,26 @@
         themeIcon.innerText = "Dark";
       }
     });
-    
-    function openModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (!modal) return;
-        modal.classList.remove('hidden');
-        requestAnimationFrame(() => {
-            modal.classList.add('is-open');
-            const items = modal.querySelectorAll('.modal-content-item');
-            items.forEach((item, index) => {
-                item.style.animationDelay = `${150 + index * 100}ms`;
-            });
-        });
-    }
 
+    function openModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+          modal.classList.add('is-open');
+          const items = modal.querySelectorAll('.modal-content-item');
+          items.forEach((item, index) => {
+              item.style.animationDelay = `${150 + index * 100}ms`;
+          });
+      });
+    }
     function closeModal(modalId) {
-        const modal = document.getElementById(modalId);
-        if (!modal) return;
-        modal.classList.remove('is-open');
-        setTimeout(() => {
-            modal.classList.add('hidden');
-        }, 600);
+      const modal = document.getElementById(modalId);
+      if (!modal) return;
+      modal.classList.remove('is-open');
+      setTimeout(() => {
+          modal.classList.add('hidden');
+      }, 600);
     }
 
     function openEditModal(childId, username) {
@@ -1198,19 +1300,19 @@
       document.getElementById('edit-child-form').action = `/child/edit/${childId}`;
     }
 
-    // --- NEW JAVASCRIPT FUNCTION TO OPEN THE EDIT TASK MODAL ---
+    // --- JAVASCRIPT FUNCTION TO OPEN THE EDIT TASK MODAL ---
     function openEditTaskModal(taskJsonString) {
       const task = JSON.parse(taskJsonString);
       const form = document.getElementById('edit-task-form');
-      
+
       form.action = `/event/edit/${task._id}`;
-      
+
       document.getElementById('edit-task-name').value = task.name;
       document.getElementById('edit-task-description').value = task.description || '';
       document.getElementById('edit-task-points').value = task.points;
       document.getElementById('edit-task-due-date').value = task.due_date.substring(0, 10);
       document.getElementById('edit-task-assigned-to').value = task.assigned_to;
-      
+
       openModal('edit-task-modal');
     }
 
@@ -1263,6 +1365,7 @@
           document.getElementById('modal-description').innerText = eProps.description || 'No description provided.';
           document.getElementById('modal-points').innerText = eProps.points;
           document.getElementById('modal-assignee').innerHTML = '<span class="font-semibold">Assigned to:</span> ' + eProps.assignee_name;
+
           const statusColors = {
             assigned: 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-300',
             completed: 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-300',
@@ -1271,6 +1374,7 @@
           const sText = eProps.status.charAt(0).toUpperCase() + eProps.status.slice(1);
           document.getElementById('modal-status-badge').innerHTML =
             `<span class="px-3 py-1 text-sm font-medium rounded-full ${ statusColors[eProps.status] || 'bg-gray-100 dark:bg-gray-700' }">${sText}</span>`;
+
           const icon = document.getElementById('modal-icon');
           if (eProps.type === 'habit') {
             icon.className = 'w-12 h-12 rounded-lg flex items-center justify-center bg-pink-100 dark:bg-pink-900';
@@ -1279,6 +1383,7 @@
             icon.className = 'w-12 h-12 rounded-lg flex items-center justify-center bg-purple-100 dark:bg-purple-900';
             icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-purple-600 dark:text-purple-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>';
           }
+
           calendarModal.classList.remove('hidden');
         },
         height: 'auto',
@@ -1340,86 +1445,109 @@
       });
     }
     {% endif %}
-    
+
     {% if current_user.is_authenticated and current_user.role == 'parent' %}
-    let famJamPlanData = null; 
+    let famJamPlanData = null;
     function setFamJamModalState(state) {
-      const s=['loading','review','applying','success','error'];
-      s.forEach(i=>{
-        document.getElementById(`famjam-${i}`).classList.add('hidden');
+      const states = ['start', 'loading', 'review', 'applying', 'success', 'error'];
+      states.forEach(s => {
+        document.getElementById(`famjam-${s}`).classList.add('hidden');
       });
-      if(state){
+      if (state) {
         document.getElementById(`famjam-${state}`).classList.remove('hidden');
       }
     }
-    async function openFamJamModal() {
-      openModal('famjam-modal');
-      setFamJamModalState('loading');
-      try {
-        const r=await fetch("{{url_for('suggest_famjam_plan')}}",{method:'POST'});
-        const d=await r.json();
-        if(!r.ok){throw new Error(d.error||'Failed to generate plan.');}
-        famJamPlanData=d;
-        displayFamJamPlan(d);
-      } catch (e) {
-        document.getElementById('famjam-error-message').textContent=e.message;
-        setFamJamModalState('error');
-      }
+
+    function openFamJamModal() {
+        openModal('famjam-modal');
+        document.getElementById('famjam-goal-input').value = '';
+        document.getElementById('famjam-plan-content').innerHTML = '';
+        setFamJamModalState('start');
     }
-    function displayFamJamPlan(p) {
-      const c=document.getElementById('famjam-plan-content');
-      c.innerHTML='';
-      if(p.suggested_chores && p.suggested_chores.length>0){
-        p.suggested_chores.forEach(h=>{
-          const e=document.createElement('div');
-          e.className='p-3 bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600';
-          e.innerHTML=`
+
+    async function generateFamJamPlan() {
+        let goal = document.getElementById('famjam-goal-input').value.trim();
+        if (!goal) {
+            goal = 'general family teamwork and responsibility';
+        }
+        setFamJamModalState('loading');
+        try {
+            const response = await fetch('/api/famjam/suggest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ goal: goal })
+            });
+            const data = await response.json();
+            if (!response.ok) { throw new Error(data.error || 'Failed to generate plan.'); }
+            famJamPlanData = data;
+            displayFamJamPlan(data, goal);
+        } catch (e) {
+            document.getElementById('famjam-error-message').textContent = e.message;
+            setFamJamModalState('error');
+        }
+    }
+
+    function displayFamJamPlan(plan, goal) {
+      const container = document.getElementById('famjam-plan-content');
+      container.innerHTML = '';
+
+      const goalEl = document.createElement('div');
+      goalEl.className = 'mb-4 p-3 bg-blue-50 dark:bg-blue-900/50 border-l-4 border-blue-400 rounded-r-lg';
+      goalEl.innerHTML = `<p class="text-sm text-gray-600 dark:text-gray-300">Generated for goal:</p><p class="font-semibold text-blue-800 dark:text-blue-200">${goal}</p>`;
+      container.appendChild(goalEl);
+
+      if (plan.suggested_chores && plan.suggested_chores.length > 0) {
+        plan.suggested_chores.forEach(chore => {
+          const el = document.createElement('div');
+          el.className = 'p-3 bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600';
+          el.innerHTML = `
             <div class="flex justify-between items-start">
               <div>
-                <p class="font-bold text-gray-800 dark:text-gray-100">${h.name}</p>
-                <p class="text-sm text-gray-500 dark:text-gray-400">${h.description||''}</p>
+                <p class="font-bold text-gray-800 dark:text-gray-100">${chore.name}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${chore.description || ''}</p>
               </div>
               <div class="text-right ml-4 flex-shrink-0">
-                <span class="font-bold text-green-600 dark:text-green-300">${h.points} pts</span>
-                <span class="block text-xs text-gray-500 dark:text-gray-400 capitalize">${h.recurrence}</span>
+                <span class="font-bold text-green-600 dark:text-green-300">${chore.points} pts</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400 capitalize">${chore.recurrence}</span>
               </div>
-            </div>
-          `;
-          c.appendChild(e);
+            </div>`;
+          container.appendChild(el);
         });
       } else {
-        c.innerHTML='<p class="text-center text-gray-500 dark:text-gray-300">The AI did not suggest any chores. You can try regenerating.</p>';
+        container.innerHTML += '<p class="text-center text-gray-500 dark:text-gray-300">The AI did not suggest any chores. You can try regenerating.</p>';
       }
       setFamJamModalState('review');
     }
+
     async function applyFamJamPlan() {
-      if(!famJamPlanData){
+      if (!famJamPlanData) {
         alert('No plan data to apply.');
         return;
       }
       setFamJamModalState('applying');
       try {
-        const r=await fetch("{{url_for('apply_famjam_plan')}}",{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(famJamPlanData)
+        const r = await fetch("{{url_for('apply_famjam_plan')}}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(famJamPlanData)
         });
-        const d=await r.json();
-        if(!r.ok){throw new Error(d.error||'Failed to apply the plan.');}
-        document.getElementById('famjam-success-message').textContent=d.message;
+        const d = await r.json();
+        if (!r.ok) { throw new Error(d.error || 'Failed to apply the plan.'); }
+        document.getElementById('famjam-success-message').textContent = d.message;
         setFamJamModalState('success');
-        setTimeout(()=>{
+        setTimeout(() => {
           closeModal('famjam-modal');
           window.location.reload();
-        },3000);
+        }, 3000);
       } catch (e) {
-        document.getElementById('famjam-error-message').textContent=e.message;
+        document.getElementById('famjam-error-message').textContent = e.message;
         setFamJamModalState('error');
       }
     }
+
     document.addEventListener('DOMContentLoaded', () => {
-      const a=document.getElementById('famjam-accept-btn');
-      if(a){a.addEventListener('click', applyFamJamPlan);}
+      const acceptBtn = document.getElementById('famjam-accept-btn');
+      if (acceptBtn) { acceptBtn.addEventListener('click', applyFamJamPlan); }
     });
     {% endif %}
 
@@ -1437,6 +1565,7 @@
               formatDate=d=>d.toISOString().split('T')[0];
 
         moodDateInput.value=formatDate(new Date);
+
         const renderMoodGrid = () => {
           moodGrid.innerHTML='';
           const c=moodDateInput.value;
@@ -1456,6 +1585,7 @@
             fetchMoodForCell(e,c,p);
           });
         };
+
         const fetchMoodForCell = async (c,d,p) => {
           const r=await fetch(`/api/mood/personal?date=${d}&period=${p}`);
           if(r.ok){
@@ -1467,15 +1597,18 @@
             }
           }
         };
+
         moodGrid.addEventListener('click', async e => {
           const c=e.target.closest('.mood-grid-cell');
           if(!c)return;
+
           if(e.target.closest('.mood-selector button')){
             const t=e.target.closest('.mood-selector button');
             c.querySelectorAll('.mood-selector button')
              .forEach(b=>b.classList.remove('bg-blue-200','dark:bg-blue-800','ring-2','ring-blue-500'));
             t.classList.add('bg-blue-200','dark:bg-blue-800','ring-2','ring-blue-500');
           }
+
           if(e.target.classList.contains('save-mood-btn')){
             const s=c.querySelector('.mood-selector button.bg-blue-200');
             if(!s){
@@ -1502,6 +1635,7 @@
             }
           }
         });
+
         moodDateInput.addEventListener('change',renderMoodGrid);
 
         const updatePersonalMoodChart = async () => {
@@ -1526,7 +1660,11 @@
               responsive:true,
               maintainAspectRatio:false,
               scales:{
-                y:{beginAtZero:true,max:4,ticks:{stepSize:1}}
+                y:{
+                  beginAtZero:true,
+                  max:4,
+                  ticks:{stepSize:1}
+                }
               }
             }
           });
@@ -1554,6 +1692,7 @@
           const d=await r.json();
           if(familyDailyChart)familyDailyChart.destroy();
           if(familyDistChart)familyDistChart.destroy();
+
           const c=document.getElementById('familyDailyAverageChart').getContext('2d');
           familyDailyChart=new Chart(c,{
             type:'line',
@@ -1579,6 +1718,7 @@
               }
             }
           });
+
           const a=document.getElementById('familyDistributionChart').getContext('2d');
           familyDistChart=new Chart(a,{
             type:'doughnut',

@@ -41,7 +41,7 @@ events_collection = db['events']
 rewards_collection = db['rewards']
 transactions_collection = db['transactions']
 moods_collection = db['moods']
-famjam_plans_collection = db['famjam_plans']  # Stores QBR / FamJam plans
+famjam_plans_collection = db['famjam_plans']  # Stores FamJam plans
 
 # Recommended indexes
 users_collection.create_index([('email', ASCENDING)], unique=True, sparse=True)
@@ -226,7 +226,8 @@ def personal_dashboard():
     if current_user.role == 'parent':
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
-
+        for member in family_members:
+                member['_id'] = str(member['_id'])
         events = list(events_collection.find({
             'family_id': current_user.family_id,
             'status': {'$in': ['completed', 'approved']}
@@ -255,22 +256,22 @@ def personal_dashboard():
             else:
                 t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
 
-        active_qbr_plan = famjam_plans_collection.find_one({
+        active_famjam_plan = famjam_plans_collection.find_one({
             'family_id': current_user.family_id,
             'status': 'active'
         })
-        if active_qbr_plan:
+        if active_famjam_plan:
             today = datetime.utcnow()
-            start_date = active_qbr_plan['start_date']
-            end_date = active_qbr_plan['end_date']
+            start_date = active_famjam_plan['start_date']
+            end_date = active_famjam_plan['end_date']
             total_days = (end_date - start_date).days
             if total_days > 0:
                 days_passed = (today - start_date).days
-                active_qbr_plan['progress_percent'] = min(100, max(0, (days_passed / total_days) * 100))
+                active_famjam_plan['progress_percent'] = min(100, max(0, (days_passed / total_days) * 100))
             else:
-                active_qbr_plan['progress_percent'] = 100
+                active_famjam_plan['progress_percent'] = 100
 
-            active_qbr_plan['days_left'] = max(0, (end_date - today).days)
+            active_famjam_plan['days_left'] = max(0, (end_date - today).days)
 
         return render_template(
             'index.html',
@@ -280,7 +281,7 @@ def personal_dashboard():
             reward_requests=reward_requests,
             member_map=member_map,
             spend_history=spend_tx,
-            active_qbr_plan=active_qbr_plan
+            active_famjam_plan=active_famjam_plan
         )
 
     else: # Child dashboard
@@ -339,13 +340,15 @@ def manage_plan():
 
     query = {
         'family_id': current_user.family_id,
-        'source': 'QBRPlan',
+        'source': 'FamJamPlan',
         'due_date': {'$gte': active_plan['start_date'], '$lte': active_plan['end_date']}
     }
     
     tasks_cursor = events_collection.find(query).sort(sort_by, sort_order)
     
     family_members = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}))
+    for member in family_members:
+            member['_id'] = str(member['_id'])
     member_map = {str(m['_id']): m['username'] for m in family_members}
     
     tasks = []
@@ -369,6 +372,8 @@ def manage_plan():
 def family_dashboard():
     fam_id = current_user.family_id
     family_members = list(users_collection.find({'family_id': fam_id}))
+    for member in family_members:
+        member['_id'] = str(member['_id'])
     member_map = {str(m['_id']): m['username'] for m in family_members}
     events = list(events_collection.find({'family_id': fam_id}))
 
@@ -505,25 +510,38 @@ def remove_child(child_id):
 @login_required
 def create_event():
     if current_user.role == 'parent':
-        d = datetime.strptime(request.form['due_date'], '%Y-%m-%d')
-        t = request.form['type']
+        due_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d')
+        task_type = request.form['type']
+        
         doc = {
             'name': request.form['name'],
             'description': request.form['description'],
             'points': int(request.form['points']),
-            'type': t,
+            'type': task_type,
             'family_id': current_user.family_id,
             'status': 'assigned',
             'created_at': datetime.utcnow(),
             'assigned_to': request.form['assigned_to'],
-            'due_date': d
+            'due_date': due_date
         }
-        if t == 'habit':
+
+        # Check for an active FamJam plan and tag the task if it falls within the date range.
+        active_plan = famjam_plans_collection.find_one({
+            'family_id': current_user.family_id,
+            'status': 'active'
+        })
+
+        if active_plan and active_plan['start_date'] <= due_date <= active_plan['end_date']:
+            doc['source'] = 'FamJamPlan'
+            doc['source_type'] = 'manual'  # Differentiates from AI-generated tasks
+        
+        if task_type == 'habit':
             doc['streak'] = 0
             doc['last_completed'] = None
 
         events_collection.insert_one(doc)
-        flash(f"{t.capitalize()} created and assigned!", 'success')
+        flash(f"{task_type.capitalize()} created and assigned!", 'success')
+        
     return redirect(url_for('personal_dashboard'))
     
 # --- NEW ROUTE FOR EDITING A TASK ---
@@ -883,7 +901,10 @@ def api_consult_ai():
 @login_required
 def suggest_famjam_plan():
     if current_user.role != 'parent':
-        return jsonify({"error": "Only parents can generate QBR plans."}), 403
+        return jsonify({"error": "Only parents can generate FamJam plans."}), 403
+
+    data = request.get_json() or {}
+    goal = data.get('goal', 'general family teamwork and responsibility')
 
     children = list(users_collection.find(
         {'family_id': current_user.family_id, 'role': 'child'},
@@ -894,22 +915,27 @@ def suggest_famjam_plan():
 
     child_usernames = [c['username'] for c in children]
     past_chores = list(events_collection.find(
-        {'family_id': current_user.family_id, 'status': 'approved', 'type': 'chore'},
-        {'name': 1, 'points': 1, '_id': 0}
-    ).limit(20))
+        {'family_id': current_user.family_id, 'status': 'approved', 'type': {'$in': ['chore', 'habit']}},
+        {'name': 1, 'points': 1, 'type': 1, '_id': 0}
+    ).limit(30)) # Increased limit for more context
 
-    system_prompt = "You are a helpful assistant designed to create balanced, quarterly chore plans (QBR) for families. Your response must be a valid JSON object."
+    system_prompt = "You are a helpful assistant designed to create balanced, quarterly chore plans (FamJam Plans) for families. Your response must be a valid JSON object."
     today = datetime.utcnow()
     quarter = (today.month - 1) // 3 + 1
-    default_plan_name = f"Family QBR - Q{quarter} {today.year}"
+    default_plan_name = f"Family FamJam - Q{quarter} {today.year}"
 
+    # --- MODIFICATION: ENHANCED PROMPT FOR BALANCED SUGGESTIONS ---
     user_prompt = (
         f"Family context: This family has {len(child_usernames)} children named {', '.join(child_usernames)}. "
-        f"They use a points-based chore system. Here are examples of past chores: {json.dumps(past_chores)}. "
-        f"Please generate a 90-day (quarterly) chore plan with a mix of daily, weekly, or 'monthly' chores suitable for them. "
+        f"For the next 90 days, their primary goal is: '{goal}'.\n\n"
+        f"To help them, please generate a balanced and practical 90-day (quarterly) chore plan.\n"
+        f"1. **Incorporate the Goal:** A portion of the suggested chores should directly support their main goal.\n"
+        f"2. **Maintain the Household:** The plan must also include a variety of general, recurring chores essential for a well-run home. Use the family's history of completed chores as a guide for the types of tasks and point values they find effective.\n"
+        f"3. **Be Balanced:** Distribute a mix of personal responsibilities (like room cleaning), tasks for common areas (like the kitchen), and chores that promote teamwork. Suggest a variety of daily, weekly, and monthly recurrences.\n\n"
+        f"Here are examples of their past successful chores and habits: {json.dumps(past_chores)}.\n\n"
         f"Give the plan a creative, motivational name like '{default_plan_name}'. "
-        "Balance the workload fairly. For each chore, suggest a name, a brief description, a point value (5-50), and recurrence. "
-        "Ensure the JSON structure is: "
+        "For each chore, suggest a name, a brief description, a point value (5-50), and recurrence. "
+        "Ensure the final output is a single, valid JSON object with this structure: "
         "`{\"plan_name\": string, \"suggested_chores\": [{\"name\": string, \"description\": string, \"points\": integer, \"type\": \"chore\", \"recurrence\": \"daily\"|\"weekly\"|\"monthly\"}]}`"
     )
 
@@ -933,8 +959,9 @@ def suggest_famjam_plan():
 
         plan_document_id = famjam_plans_collection.insert_one({
             'plan_data': plan_json,
+            'goal': goal,
             'family_id': current_user.family_id,
-            'status': 'draft', 
+            'status': 'draft',
             'start_date': start_date,
             'end_date': end_date,
             'created_at': datetime.utcnow()
@@ -952,7 +979,7 @@ def suggest_famjam_plan():
 @login_required
 def apply_famjam_plan():
     if current_user.role != 'parent':
-        return jsonify({"error": "Only parents can apply QBR plans."}), 403
+        return jsonify({"error": "Only parents can apply FamJam plans."}), 403
 
     plan_data = request.json
     plan_id_str = plan_data.get('plan_id')
@@ -960,11 +987,13 @@ def apply_famjam_plan():
     if not plan_data or 'suggested_chores' not in plan_data or not plan_id_str:
         return jsonify({'error': 'Invalid plan format received.'}), 400
 
+    # Archive any currently active plans for this family
     famjam_plans_collection.update_many(
         {'family_id': current_user.family_id, 'status': 'active'},
         {'$set': {'status': 'archived'}}
     )
 
+    # Activate the new plan
     famjam_plans_collection.update_one(
         {'_id': ObjectId(plan_id_str), 'family_id': current_user.family_id},
         {'$set': {'status': 'active', 'applied_at': datetime.utcnow()}}
@@ -980,7 +1009,21 @@ def apply_famjam_plan():
     child_ids = [str(c['_id']) for c in children]
     child_cycler = itertools.cycle(child_ids)
 
+    # --- START: MODIFICATION TO HANDLE PLAN CHANGES ---
+    # Define "today" to ensure consistency for cleanup and creation
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # 1. Remove future, uncompleted, AI-generated tasks from any previous plans.
+    # This prevents tasks from an old, archived plan from remaining on the calendar.
+    events_collection.delete_many({
+        'family_id': current_user.family_id,
+        'source': 'FamJamPlan',          # Target only plan-generated tasks
+        'source_type': 'generated',     # Be specific to generated, not manual tasks
+        'status': 'assigned',           # Only remove tasks that are not yet completed
+        'due_date': {'$gte': today}     # Only affect tasks from today onwards
+    })
+    # --- END: MODIFICATION ---
+
     end_date = today + timedelta(days=90)
     new_events = []
 
@@ -998,6 +1041,9 @@ def apply_famjam_plan():
         current_due_date = today
         while current_due_date < end_date:
             assigned_child_id = next(child_cycler)
+            
+            # This check for existing events is still useful to prevent duplicates
+            # if the function is somehow run twice with the same plan.
             existing_event = events_collection.find_one({
                 'family_id': current_user.family_id,
                 'name': chore_template.get('name'),
@@ -1018,7 +1064,8 @@ def apply_famjam_plan():
                 'created_at': datetime.utcnow(),
                 'assigned_to': assigned_child_id,
                 'due_date': current_due_date,
-                'source': 'QBRPlan'
+                'source': 'FamJamPlan',
+                'source_type': 'generated'
             }
             new_events.append(doc)
             current_due_date += delta
@@ -1042,6 +1089,7 @@ def share_invite():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
+
 """
 gunicorn --workers 3 --bind 0.0.0.0:$PORT app:app
 gunicorn --workers 3 --bind 0.0.0.0:5001 app:app
