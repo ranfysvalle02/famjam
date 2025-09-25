@@ -435,6 +435,9 @@ def family_dashboard():
 @login_required
 def calendar_focus():
     family_members = list(users_collection.find({'family_id': current_user.family_id}))
+    # Add this loop to convert ObjectId to a string
+    for member in family_members:
+        member['_id'] = str(member['_id'])
     return render_template('index.html', page='calendar_focus', family_members=family_members)
 
 @app.route('/mood-dashboard/personal')
