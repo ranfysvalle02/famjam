@@ -920,18 +920,31 @@ def suggest_famjam_plan():
     past_chores = list(events_collection.find(
         {'family_id': current_user.family_id, 'status': 'approved', 'type': {'$in': ['chore', 'habit']}},
         {'name': 1, 'points': 1, 'type': 1, '_id': 0}
-    ).limit(30)) # Increased limit for more context
+    ).limit(30))
 
     system_prompt = "You are a helpful assistant designed to create balanced, quarterly chore plans (FamJam Plans) for families. Your response must be a valid JSON object."
     today = datetime.utcnow()
+
+    # --- NEW LOGIC: Calculate fixed calendar quarter dates ---
+    # Determine which quarter we are in (1, 2, 3, or 4)
     quarter = (today.month - 1) // 3 + 1
+    # Calculate the first month of that quarter (1 for Q1, 4 for Q2, etc.)
+    start_month = (quarter - 1) * 3 + 1
+    
+    # The plan's start date is the first day of the current quarter's first month
+    start_date = today.replace(month=start_month, day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # The plan's end date is the last day of the quarter (add 3 months, then subtract 1 day)
+    end_date = start_date + relativedelta(months=3) - timedelta(days=1)
+    # --- END NEW LOGIC ---
+
     default_plan_name = f"Family FamJam - Q{quarter} {today.year}"
 
-    # --- MODIFICATION: ENHANCED PROMPT FOR BALANCED SUGGESTIONS ---
+    # Updated prompt to give the AI the specific, fixed quarter dates for context
     user_prompt = (
         f"Family context: This family has {len(child_usernames)} children named {', '.join(child_usernames)}. "
-        f"For the next 90 days, their primary goal is: '{goal}'.\n\n"
-        f"To help them, please generate a balanced and practical 90-day (quarterly) chore plan.\n"
+        f"For the quarter running from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}, their primary goal is: '{goal}'.\n\n"
+        f"To help them, please generate a balanced and practical chore plan for this specific quarter.\n"
         f"1. **Incorporate the Goal:** A portion of the suggested chores should directly support their main goal.\n"
         f"2. **Maintain the Household:** The plan must also include a variety of general, recurring chores essential for a well-run home. Use the family's history of completed chores as a guide for the types of tasks and point values they find effective.\n"
         f"3. **Be Balanced:** Distribute a mix of personal responsibilities (like room cleaning), tasks for common areas (like the kitchen), and chores that promote teamwork. Suggest a variety of daily, weekly, and monthly recurrences.\n\n"
@@ -957,9 +970,7 @@ def suggest_famjam_plan():
         if 'plan_name' not in plan_json or not plan_json['plan_name']:
             plan_json['plan_name'] = default_plan_name
 
-        start_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = start_date + timedelta(days=90)
-
+        # The start_date and end_date are now correctly defined above with the fixed quarter logic
         plan_document_id = famjam_plans_collection.insert_one({
             'plan_data': plan_json,
             'goal': goal,
