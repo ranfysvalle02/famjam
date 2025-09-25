@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, date
 import itertools
 
 from flask import (
-    Flask, render_template, request, redirect, url_for, flash, Response, jsonify, send_file
+    Flask, render_template, request, redirect, url_for, flash, Response, jsonify
 )
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -19,24 +19,29 @@ import qrcode
 from dateutil.relativedelta import relativedelta
 from collections import defaultdict
 
-# load environment variables from a .env file if present
 from dotenv import load_dotenv
+from openai import OpenAI
+
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'a-super-secret-key-that-you-should-change')
 
+# --- OpenAI setup ---
+openai_client = OpenAI()
+
 # --- Mongo setup ---
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
-BASE_URL = os.environ.get('BASE_URL', 'https://famflow.onrender.com')  # Example base URL
+BASE_URL = os.environ.get('BASE_URL', 'https://famflow.onrender.com')
 client = MongoClient(MONGO_URI)
-db = client['mchores_app']  # internal DB name
+db = client['mchores_app']
 
 users_collection = db['users']
 events_collection = db['events']
 rewards_collection = db['rewards']
 transactions_collection = db['transactions']
 moods_collection = db['moods']
+famjam_plans_collection = db['famjam_plans']  # Stores QBR / FamJam plans
 
 # Recommended indexes
 users_collection.create_index([('email', ASCENDING)], unique=True, sparse=True)
@@ -44,6 +49,8 @@ users_collection.create_index([('username', ASCENDING), ('family_id', ASCENDING)
 events_collection.create_index([('family_id', ASCENDING), ('due_date', ASCENDING)])
 moods_collection.create_index([('user_id', ASCENDING), ('date', ASCENDING), ('period', ASCENDING)], unique=True)
 moods_collection.create_index([('family_id', ASCENDING), ('date', ASCENDING)])
+famjam_plans_collection.create_index([('family_id', ASCENDING), ('status', ASCENDING)])
+
 
 bcrypt = Bcrypt(app)
 login_manager = LoginManager()
@@ -57,18 +64,11 @@ MOOD_CONFIG = {
         {'emoji': '😔', 'desc': 'Not Happy',  'score': 2, 'color': '#f97316'},
         {'emoji': '😌', 'desc': 'Calm / Okay','score': 3, 'color': '#84cc16'},
         {'emoji': '😎', 'desc': 'Very Happy', 'score': 4, 'color': '#22c55e'}
-    ],
-    'aiApiUrl': 'https://ranfysvalle02--orby-api-ai.modal.run/'  # Example external AI API
+    ]
 }
 MOOD_EMOJI_TO_SCORE = {m['emoji']: m['score'] for m in MOOD_CONFIG['moods']}
 
-# --- Models ---
 class User(UserMixin):
-    """
-    Each user has:
-      - points: current available points
-      - lifetime_points: total points ever earned (never decreased)
-    """
     def __init__(self, user_data):
         self.id = str(user_data['_id'])
         self.email = user_data.get('email')
@@ -93,9 +93,7 @@ class User(UserMixin):
 def load_user(user_id):
     return User.get(user_id)
 
-
 class MongoJsonEncoder(json.JSONEncoder):
-    """Makes Flask able to return ObjectId, datetime, etc. in JSON."""
     def default(self, obj):
         if isinstance(obj, (ObjectId, datetime, date)):
             return str(obj)
@@ -103,15 +101,11 @@ class MongoJsonEncoder(json.JSONEncoder):
 
 app.json_encoder = MongoJsonEncoder
 
-
-# --- Routes ---
 @app.route('/')
 def index():
-    """ If logged in, go to the family dashboard; otherwise, go to login. """
     if current_user.is_authenticated:
         return redirect(url_for('family_dashboard'))
     return redirect(url_for('login'))
-
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -127,17 +121,14 @@ def login():
             flash('Invalid credentials. Please try again.', 'error')
     return render_template('index.html', page='login')
 
-
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('login'))
 
-
 @app.route('/join/<invite_code>')
 def join_family(invite_code):
-    """ Child can join the parent's family via this link. """
     try:
         parent = users_collection.find_one({'_id': ObjectId(invite_code), 'role': 'parent'})
         if not parent:
@@ -148,7 +139,6 @@ def join_family(invite_code):
         return redirect(url_for('login'))
     parent_name = parent.get('username', 'your parent')
     return render_template('index.html', page='join_family', parent_name=parent_name, invite_code=invite_code)
-
 
 @app.route('/register/parent', methods=['GET', 'POST'])
 def register_parent():
@@ -171,7 +161,6 @@ def register_parent():
             'points': 0
         }).inserted_id
 
-        # For a parent, we set their family_id = their own _id
         users_collection.update_one({'_id': new_id}, {'$set': {'family_id': str(new_id)}})
 
         flash('Parent account created! Please log in.', 'success')
@@ -179,10 +168,8 @@ def register_parent():
 
     return render_template('index.html', page='register_parent')
 
-
 @app.route('/register/child/<invite_code>', methods=['GET', 'POST'])
 def register_child(invite_code):
-    """ Child registration route if they have an invite_code (parent's _id). """
     try:
         parent = users_collection.find_one({'_id': ObjectId(invite_code)})
         if not parent or parent.get('role') != 'parent':
@@ -196,7 +183,6 @@ def register_child(invite_code):
         username = request.form['username']
         password = request.form['password']
 
-        # Ensure username is unique among that family's children
         if users_collection.find_one({'username': username, 'family_id': invite_code}):
             flash('Username already taken in this family.', 'error')
             return redirect(url_for('register_child', invite_code=invite_code))
@@ -215,20 +201,16 @@ def register_child(invite_code):
 
     return render_template('index.html', page='register_child', invite_code=invite_code)
 
-
 @app.route('/invite')
 @login_required
 def invite():
-    """ Parent can visit this route to see their unique invite code + QR. """
     if current_user.role != 'parent':
         return redirect(url_for('family_dashboard'))
     return render_template('index.html', page='invite', invite_code=current_user.id)
 
-
 @app.route('/qr_code')
 @login_required
 def qr_code():
-    """ Generate a QR image for the invite link. """
     if current_user.role != 'parent':
         return Response(status=403)
     invite_url = f"{BASE_URL}{url_for('join_family', invite_code=current_user.id)}"
@@ -238,11 +220,9 @@ def qr_code():
     buf.seek(0)
     return Response(buf, mimetype='image/png')
 
-
 @app.route('/dashboard')
 @login_required
 def personal_dashboard():
-    """ Goes to either the parent's dashboard or child's dashboard. """
     if current_user.role == 'parent':
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
@@ -275,6 +255,23 @@ def personal_dashboard():
             else:
                 t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
 
+        active_qbr_plan = famjam_plans_collection.find_one({
+            'family_id': current_user.family_id,
+            'status': 'active'
+        })
+        if active_qbr_plan:
+            today = datetime.utcnow()
+            start_date = active_qbr_plan['start_date']
+            end_date = active_qbr_plan['end_date']
+            total_days = (end_date - start_date).days
+            if total_days > 0:
+                days_passed = (today - start_date).days
+                active_qbr_plan['progress_percent'] = min(100, max(0, (days_passed / total_days) * 100))
+            else:
+                active_qbr_plan['progress_percent'] = 100
+
+            active_qbr_plan['days_left'] = max(0, (end_date - today).days)
+
         return render_template(
             'index.html',
             page='dashboard_parent',
@@ -282,10 +279,11 @@ def personal_dashboard():
             events=events,
             reward_requests=reward_requests,
             member_map=member_map,
-            spend_history=spend_tx
+            spend_history=spend_tx,
+            active_qbr_plan=active_qbr_plan
         )
 
-    else:  # Child
+    else: # Child dashboard
         today = datetime.utcnow().date()
         events_cursor = events_collection.find({
             'assigned_to': current_user.id,
@@ -317,11 +315,58 @@ def personal_dashboard():
 
         return render_template('index.html', page='dashboard_child', events=child_events, rewards=child_rewards)
 
+# --- NEW ROUTE FOR MANAGING PLAN TASKS ---
+@app.route('/manage-plan')
+@login_required
+def manage_plan():
+    if current_user.role != 'parent':
+        flash("You don't have permission to view this page.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    active_plan = famjam_plans_collection.find_one({
+        'family_id': current_user.family_id,
+        'status': 'active'
+    })
+
+    if not active_plan:
+        flash("There is no active FamJam plan to manage.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    # Sorting logic
+    sort_by = request.args.get('sort_by', 'due_date')
+    order = request.args.get('order', 'asc')
+    sort_order = ASCENDING if order == 'asc' else DESCENDING
+
+    query = {
+        'family_id': current_user.family_id,
+        'source': 'QBRPlan',
+        'due_date': {'$gte': active_plan['start_date'], '$lte': active_plan['end_date']}
+    }
+    
+    tasks_cursor = events_collection.find(query).sort(sort_by, sort_order)
+    
+    family_members = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}))
+    member_map = {str(m['_id']): m['username'] for m in family_members}
+    
+    tasks = []
+    for task in tasks_cursor:
+        task['assigned_to_username'] = member_map.get(str(task.get('assigned_to')), 'N/A')
+        # Serialize task for JS modal
+        task['json_string'] = json.dumps(task, cls=MongoJsonEncoder)
+        tasks.append(task)
+        
+    return render_template(
+        'index.html',
+        page='manage_plan',
+        plan=active_plan,
+        tasks=tasks,
+        family_members=family_members, # For the edit modal dropdown
+        current_sort={'by': sort_by, 'order': order}
+    )
 
 @app.route('/family-dashboard')
 @login_required
 def family_dashboard():
-    """ Family-wide summary dashboard. """
     fam_id = current_user.family_id
     family_members = list(users_collection.find({'family_id': fam_id}))
     member_map = {str(m['_id']): m['username'] for m in family_members}
@@ -338,7 +383,6 @@ def family_dashboard():
 
     today = datetime.utcnow()
     one_week_ago = today - timedelta(days=7)
-    # We'll store day-of-week counts
     day_counts = {(today - timedelta(days=i)).strftime('%a'): 0 for i in range(7)}
 
     for e in events:
@@ -351,7 +395,6 @@ def family_dashboard():
                 if day_label in day_counts:
                     day_counts[day_label] += 1
 
-    # Build the chart data from newest to oldest day
     stats['weekly_completion_data']['labels'] = list(day_counts.keys())[::-1]
     stats['weekly_completion_data']['data'] = list(day_counts.values())[::-1]
 
@@ -383,16 +426,12 @@ def family_dashboard():
         recent_events=recent_events
     )
 
-
 @app.route('/calendar-focus')
 @login_required
 def calendar_focus():
-    """ Big month/week/day calendar for the entire family. """
     family_members = list(users_collection.find({'family_id': current_user.family_id}))
     return render_template('index.html', page='calendar_focus', family_members=family_members)
 
-
-# --- Mood Dashboards ---
 @app.route('/mood-dashboard/personal')
 @login_required
 def mood_dashboard_personal():
@@ -403,8 +442,6 @@ def mood_dashboard_personal():
 def mood_dashboard_family():
     return render_template('index.html', page='mood_dashboard_family', mood_config=MOOD_CONFIG)
 
-
-# --- Family Management ---
 @app.route('/child/edit/<child_id>', methods=['POST'])
 @login_required
 def edit_child(child_id):
@@ -422,7 +459,6 @@ def edit_child(child_id):
     new_password = request.form.get('password')
 
     if new_username and new_username != child.get('username'):
-        # check if it's taken by another child in the same family
         if users_collection.find_one({
             'username': new_username,
             'family_id': current_user.family_id,
@@ -440,7 +476,6 @@ def edit_child(child_id):
         flash('Child information updated successfully.', 'success')
 
     return redirect(url_for('personal_dashboard'))
-
 
 @app.route('/child/remove/<child_id>')
 @login_required
@@ -466,8 +501,6 @@ def remove_child(child_id):
 
     return redirect(url_for('personal_dashboard'))
 
-
-# --- Event (Chore/Habit) Management ---
 @app.route('/event/create', methods=['POST'])
 @login_required
 def create_event():
@@ -492,12 +525,52 @@ def create_event():
         events_collection.insert_one(doc)
         flash(f"{t.capitalize()} created and assigned!", 'success')
     return redirect(url_for('personal_dashboard'))
+    
+# --- NEW ROUTE FOR EDITING A TASK ---
+@app.route('/event/edit/<event_id>', methods=['POST'])
+@login_required
+def edit_event(event_id):
+    if current_user.role != 'parent':
+        flash("You are not authorized to edit tasks.", "error")
+        return redirect(url_for('personal_dashboard'))
 
+    event = events_collection.find_one({'_id': ObjectId(event_id), 'family_id': current_user.family_id})
+    if not event:
+        flash("Task not found or you don't have permission to edit it.", "error")
+        return redirect(url_for('manage_plan'))
+
+    update_data = {
+        'name': request.form['name'],
+        'description': request.form['description'],
+        'points': int(request.form['points']),
+        'assigned_to': request.form['assigned_to'],
+        'due_date': datetime.strptime(request.form['due_date'], '%Y-%m-%d')
+    }
+    
+    events_collection.update_one({'_id': ObjectId(event_id)}, {'$set': update_data})
+    flash("Task has been updated successfully.", "success")
+    return redirect(url_for('manage_plan'))
+    
+# --- NEW ROUTE FOR DELETING A TASK ---
+@app.route('/event/delete/<event_id>')
+@login_required
+def delete_event(event_id):
+    if current_user.role != 'parent':
+        flash("You are not authorized to delete tasks.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    result = events_collection.delete_one({'_id': ObjectId(event_id), 'family_id': current_user.family_id})
+
+    if result.deleted_count > 0:
+        flash("Task has been deleted successfully.", "success")
+    else:
+        flash("Task not found or you don't have permission to delete it.", "error")
+    
+    return redirect(url_for('manage_plan'))
 
 @app.route('/event/complete/<event_id>')
 @login_required
 def complete_event(event_id):
-    """ Child marks a chore as complete => status=completed => parent must approve. """
     if current_user.role == 'child':
         events_collection.update_one(
             {'_id': ObjectId(event_id), 'assigned_to': current_user.id, 'type': 'chore'},
@@ -506,11 +579,9 @@ def complete_event(event_id):
         flash('Chore marked as complete! Awaiting approval.', 'success')
     return redirect(url_for('personal_dashboard'))
 
-
 @app.route('/event/habit/checkin/<event_id>')
 @login_required
 def checkin_habit(event_id):
-    """ Child 'check in' to a habit once a day => increment streak + points. """
     if current_user.role == 'child':
         habit = events_collection.find_one({'_id': ObjectId(event_id), 'assigned_to': current_user.id})
         if not habit:
@@ -542,11 +613,9 @@ def checkin_habit(event_id):
         flash(f"Habit checked in! You earned {habit['points']} points. Streak is now {new_streak}.", 'success')
     return redirect(url_for('personal_dashboard'))
 
-
 @app.route('/event/approve/<event_id>')
 @login_required
 def approve_event(event_id):
-    """ Parent approves a completed chore => child is awarded points. """
     if current_user.role == 'parent':
         e = events_collection.find_one_and_update(
             {'_id': ObjectId(event_id), 'family_id': current_user.family_id},
@@ -560,12 +629,9 @@ def approve_event(event_id):
             flash(f"Task approved! {e['points']} points awarded.", 'success')
     return redirect(url_for('personal_dashboard'))
 
-
-# --- Reward System ---
 @app.route('/reward/request', methods=['POST'])
 @login_required
 def request_reward():
-    """ Child requests a reward => deduct cost => awaits parent approval. """
     if current_user.role == 'child':
         cost = int(request.form['points_cost'])
         user = users_collection.find_one({'_id': ObjectId(current_user.id)})
@@ -601,11 +667,9 @@ def request_reward():
 
     return redirect(url_for('personal_dashboard'))
 
-
 @app.route('/reward/handle/<reward_id>/<action>')
 @login_required
 def handle_reward(reward_id, action):
-    """ Parent approves or rejects child reward. """
     if current_user.role == 'parent':
         reward = rewards_collection.find_one({'_id': ObjectId(reward_id), 'family_id': current_user.family_id})
         if not reward:
@@ -623,7 +687,6 @@ def handle_reward(reward_id, action):
             flash("Reward approved!", 'success')
 
         elif action == 'reject':
-            # refund child's points
             users_collection.update_one(
                 {'_id': ObjectId(reward['requested_by_id'])},
                 {'$inc': {'points': reward['points_cost']}}
@@ -640,12 +703,9 @@ def handle_reward(reward_id, action):
 
     return redirect(url_for('personal_dashboard'))
 
-
-# --- API Routes ---
 @app.route('/api/events')
 @login_required
 def api_events():
-    """ Return family events in a JSON format for FullCalendar. """
     fam_id = current_user.family_id
     fam_members = list(users_collection.find({'family_id': fam_id}))
     member_map = {str(m['_id']): m['username'] for m in fam_members}
@@ -678,11 +738,9 @@ def api_events():
 
     return jsonify(calendar_events)
 
-
 @app.route('/api/mood/log', methods=['POST'])
 @login_required
 def api_mood_log():
-    """ Endpoint to log or update a single mood entry. """
     data = request.json
     try:
         entry_date = datetime.strptime(data['date'], '%Y-%m-%d')
@@ -709,18 +767,12 @@ def api_mood_log():
             upsert=True
         )
         return jsonify({'status': 'success'})
-
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
 
 @app.route('/api/mood/personal')
 @login_required
 def api_mood_personal():
-    """
-    If 'date' and 'period' are provided, return that single entry;
-    otherwise, return last 30 days for personal mood chart.
-    """
     if 'date' in request.args and 'period' in request.args:
         try:
             entry_date = datetime.strptime(request.args['date'], '%Y-%m-%d')
@@ -747,11 +799,9 @@ def api_mood_personal():
     data = [e['mood_score'] for e in mood_entries]
     return jsonify({'labels': labels, 'data': data})
 
-
 @app.route('/api/mood/family')
 @login_required
 def api_mood_family():
-    """ Family-level mood distribution & daily averages (last 30 days). """
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     pipeline_avg = [
         {'$match': {'family_id': ObjectId(current_user.family_id), 'date': {'$gte': thirty_days_ago}}},
@@ -784,14 +834,9 @@ def api_mood_family():
         }
     })
 
-
 @app.route('/api/consult-ai', methods=['POST'])
 @login_required
 def api_consult_ai():
-    """
-    Example: Pass the user's CSV mood data to an external AI service
-    and get back supportive insights. (Mock route)
-    """
     history = list(moods_collection.find(
         {'user_id': ObjectId(current_user.id)},
         {'date': 1, 'period': 1, 'mood_emoji': 1, 'note': 1, '_id': 0}
@@ -810,177 +855,159 @@ def api_consult_ai():
             'mood': row['mood_emoji'],
             'note': row.get('note', '')
         })
-
     csv_content = output.getvalue()
-    payload = {
-        "context": [{
-            "text": f"Analyze the following mood data in CSV format:\n{csv_content}",
-            "url": "user-mood-insights"
-        }],
-        "user_input": (
-            "Provide a brief, supportive analysis of my mood patterns based on this data, "
-            "grounded in CBT principles. Format your response with markdown for readability, "
-            "using double asterisks for bolding."
+
+    system_prompt = "You are a supportive mental wellness assistant. Analyze the user's mood data and provide insights based on Cognitive Behavioral Therapy (CBT) principles. Format your response using markdown."
+    user_prompt = (
+        f"Here is my mood data in CSV format:\n{csv_content}\n\n"
+        "Please provide a brief, supportive analysis of my mood patterns. "
+        "Identify any potential patterns or triggers. Use markdown for readability, and bold key phrases with double asterisks."
+    )
+
+    try:
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500
         )
-    }
-
-    try:
-        import requests
-        response = requests.post(MOOD_CONFIG['aiApiUrl'], json=payload, timeout=45)
-        response.raise_for_status()
-        data = response.json()
-        return jsonify({'ai_response': data.get('ai_response', 'No response from AI.')})
-    except requests.exceptions.RequestException as e:
-        return jsonify({'error': f"Failed to connect to AI service: {e}"}), 503
+        ai_response = completion.choices[0].message.content
+        return jsonify({'ai_response': ai_response})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/generic-ai', methods=['POST'])
-@login_required
-def generic_ai_call():
-    """
-    Another example for a generic AI call.
-    In a real setup you'd connect to your AI service with the provided context.
-    """
-    user_context = request.json.get('text', '').strip()
-    user_input = request.json.get('user_input', '').strip()
-    if not user_context or not user_input:
-        return jsonify({'error': 'Both "text" and "user_input" fields are required.'}), 400
-
-    payload = {
-        "context": user_context,
-        "user_input": user_input
-    }
-    try:
-        import requests
-        response = requests.post(MOOD_CONFIG['aiApiUrl'], json=payload, timeout=45)
-        response.raise_for_status()
-        data = response.json()
-        return jsonify({'ai_response': data.get('ai_response', 'No response from AI.')})
-    except requests.exceptions.RequestException as e:
         return jsonify({'error': f"Failed to connect to AI service: {e}"}), 503
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
 
-
-# --- FamJam Plan API ---
 @app.route('/api/famjam/suggest', methods=['POST'])
 @login_required
 def suggest_famjam_plan():
-    """
-    Uses AI to generate a suggested quarterly chore plan for the family.
-    The suggestion is based on the family's structure and past chores.
-    """
     if current_user.role != 'parent':
-        return jsonify({"error": "Only parents can generate FamJam plans."}), 403
+        return jsonify({"error": "Only parents can generate QBR plans."}), 403
 
-    # 1. Gather data for AI context
     children = list(users_collection.find(
         {'family_id': current_user.family_id, 'role': 'child'},
-        {'username': 1, '_id': 0}  # projection
+        {'username': 1, '_id': 0}
     ))
-    child_usernames = [c['username'] for c in children]
-
-    if not child_usernames:
+    if not children:
         return jsonify({"error": "You need at least one child in the family to create a plan."}), 400
 
-    # Get a sample of past approved chores to give the AI a sense of task types and point values
+    child_usernames = [c['username'] for c in children]
     past_chores = list(events_collection.find(
         {'family_id': current_user.family_id, 'status': 'approved', 'type': 'chore'},
-        {'name': 1, 'points': 1, '_id': 0}  # projection
+        {'name': 1, 'points': 1, '_id': 0}
     ).limit(20))
 
-    # 2. Construct the prompt for the AI
-    context_text = (
-        f"Family context: This family has {len(child_usernames)} children named {', '.join(child_usernames)}. "
-        "They use a points-based chore system. Here are some examples of past approved chores and their point values: "
-        f"{json.dumps(past_chores)}. "
-    )
+    system_prompt = "You are a helpful assistant designed to create balanced, quarterly chore plans (QBR) for families. Your response must be a valid JSON object."
+    today = datetime.utcnow()
+    quarter = (today.month - 1) // 3 + 1
+    default_plan_name = f"Family QBR - Q{quarter} {today.year}"
 
     user_prompt = (
-        "Generate a 90-day (quarterly) chore plan. The plan should include a mix of daily and weekly chores suitable for "
-        "the family size and past chore types. Balance the workload fairly among all children. For each chore, suggest a name, "
-        "a brief description, a point value (typically between 5 and 50 points, based on the examples), and a recurrence. "
-        "Return your response ONLY as a single, valid JSON object, with no other text or explanation. The JSON structure must be: "
-        "`{\"plan_name\": string, \"suggested_chores\": [{\"name\": string, \"description\": string, \"points\": integer, "
-        "\"type\": \"chore\", \"recurrence\": \"daily\"|\"weekly\"}]}`"
+        f"Family context: This family has {len(child_usernames)} children named {', '.join(child_usernames)}. "
+        f"They use a points-based chore system. Here are examples of past chores: {json.dumps(past_chores)}. "
+        f"Please generate a 90-day (quarterly) chore plan with a mix of daily, weekly, or 'monthly' chores suitable for them. "
+        f"Give the plan a creative, motivational name like '{default_plan_name}'. "
+        "Balance the workload fairly. For each chore, suggest a name, a brief description, a point value (5-50), and recurrence. "
+        "Ensure the JSON structure is: "
+        "`{\"plan_name\": string, \"suggested_chores\": [{\"name\": string, \"description\": string, \"points\": integer, \"type\": \"chore\", \"recurrence\": \"daily\"|\"weekly\"|\"monthly\"}]}`"
     )
 
-    payload = {
-        "context": [{"text": context_text, "url": "famjam-plan-generation"}],
-        "user_input": user_prompt
-    }
-
-    # 3. Call the external AI service
     try:
-        import requests
-        response = requests.post(MOOD_CONFIG['aiApiUrl'], json=payload, timeout=60)
-        response.raise_for_status()
-        ai_response_data = response.json()
-        
-        # The AI response should be a string containing JSON. We need to parse it.
-        # Sometimes the AI might wrap the JSON in ```json ... ```, so let's clean that.
-        ai_response_text = ai_response_data.get('ai_response', '{}')
-        if ai_response_text.startswith("```json"):
-            ai_response_text = ai_response_text.strip("```json\n").strip("`")
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+        )
+        plan_json_string = completion.choices[0].message.content
+        plan_json = json.loads(plan_json_string)
 
-        plan_json = json.loads(ai_response_text)
-        
-        # Add children info to the response for the frontend to use
+        if 'plan_name' not in plan_json or not plan_json['plan_name']:
+            plan_json['plan_name'] = default_plan_name
+
+        start_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = start_date + timedelta(days=90)
+
+        plan_document_id = famjam_plans_collection.insert_one({
+            'plan_data': plan_json,
+            'family_id': current_user.family_id,
+            'status': 'draft', 
+            'start_date': start_date,
+            'end_date': end_date,
+            'created_at': datetime.utcnow()
+        }).inserted_id
+
+        plan_json['plan_id'] = str(plan_document_id)
+        plan_json['start_date_str'] = start_date.strftime('%B %d, %Y')
+        plan_json['end_date_str'] = end_date.strftime('%B %d, %Y')
         plan_json['family_children'] = children
         return jsonify(plan_json)
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({'error': f"Failed to connect to AI service: {e}"}), 503
-    except json.JSONDecodeError:
-        return jsonify({'error': "AI returned an invalid JSON format. Please try again.", 'raw_response': ai_response_data.get('ai_response', '')}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+        return jsonify({'error': f"Failed to get response from AI service: {e}"}), 503
 
 @app.route('/api/famjam/apply', methods=['POST'])
 @login_required
 def apply_famjam_plan():
-    """
-    Receives a FamJam plan and creates all the necessary chore events
-    for the next 90 days.
-    """
     if current_user.role != 'parent':
-        return jsonify({"error": "Only parents can apply FamJam plans."}), 403
+        return jsonify({"error": "Only parents can apply QBR plans."}), 403
 
-    plan = request.json
-    if not plan or 'suggested_chores' not in plan:
+    plan_data = request.json
+    plan_id_str = plan_data.get('plan_id')
+
+    if not plan_data or 'suggested_chores' not in plan_data or not plan_id_str:
         return jsonify({'error': 'Invalid plan format received.'}), 400
+
+    famjam_plans_collection.update_many(
+        {'family_id': current_user.family_id, 'status': 'active'},
+        {'$set': {'status': 'archived'}}
+    )
+
+    famjam_plans_collection.update_one(
+        {'_id': ObjectId(plan_id_str), 'family_id': current_user.family_id},
+        {'$set': {'status': 'active', 'applied_at': datetime.utcnow()}}
+    )
 
     children = list(users_collection.find(
         {'family_id': current_user.family_id, 'role': 'child'},
-        {'_id': 1}  # projection
+        {'_id': 1}
     ))
-    
     if not children:
         return jsonify({"error": "No children found in the family to assign chores to."}), 400
 
     child_ids = [str(c['_id']) for c in children]
-    child_cycler = itertools.cycle(child_ids)  # for round-robin assignment
+    child_cycler = itertools.cycle(child_ids)
 
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     end_date = today + timedelta(days=90)
     new_events = []
 
-    for chore_template in plan.get('suggested_chores', []):
-        recurrence = chore_template.get('recurrence')
-        
+    for chore_template in plan_data.get('suggested_chores', []):
+        recurrence = chore_template.get('recurrence', '').lower()
         if recurrence == 'daily':
             delta = timedelta(days=1)
         elif recurrence == 'weekly':
             delta = timedelta(weeks=1)
+        elif recurrence == 'monthly':
+            delta = relativedelta(months=1)
         else:
-            continue  # Skip chores with invalid recurrence
+            continue
 
         current_due_date = today
         while current_due_date < end_date:
             assigned_child_id = next(child_cycler)
+            existing_event = events_collection.find_one({
+                'family_id': current_user.family_id,
+                'name': chore_template.get('name'),
+                'due_date': current_due_date,
+                'assigned_to': assigned_child_id
+            })
+            if existing_event:
+                current_due_date += delta
+                continue
+
             doc = {
                 'name': chore_template.get('name'),
                 'description': chore_template.get('description'),
@@ -991,13 +1018,13 @@ def apply_famjam_plan():
                 'created_at': datetime.utcnow(),
                 'assigned_to': assigned_child_id,
                 'due_date': current_due_date,
-                'source': 'FamJamPlan'  # Add a source for tracking
+                'source': 'QBRPlan'
             }
             new_events.append(doc)
             current_due_date += delta
-    
+
     if not new_events:
-        return jsonify({'error': 'No valid chores were found in the plan to apply.'}), 400
+        return jsonify({'status': 'warning', 'message': 'No new chores were scheduled. They may already exist for these dates.'})
 
     try:
         events_collection.insert_many(new_events)
@@ -1005,21 +1032,16 @@ def apply_famjam_plan():
     except Exception as e:
         return jsonify({'error': f'Failed to save the plan to the database: {e}'}), 500
 
-
 @app.route('/share_invite')
 @login_required
 def share_invite():
-    """ Return a #hash-based invite link for client usage. """
     if current_user.role != 'parent':
         return jsonify({"error": "Not authorized"}), 403
     shareable_link_with_hash = f"{BASE_URL}/#invite={current_user.id}"
     return jsonify({"shareable_link": shareable_link_with_hash})
 
-
 if __name__ == '__main__':
-    # Important: in production, use gunicorn or another WSGI server, not app.run(debug=True).
     app.run(debug=True, port=5001)
-
 """
 gunicorn --workers 3 --bind 0.0.0.0:$PORT app:app
 gunicorn --workers 3 --bind 0.0.0.0:5001 app:app
