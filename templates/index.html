@@ -376,10 +376,16 @@
             <p class="mt-2 text-gray-600 dark:text-gray-200">Start by creating a parent account.</p>  
           </div>  
           <form method="POST" action="{{ url_for('register_parent') }}" class="space-y-6">  
-            <div>  
-              <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Your Name / Username</label>  
-              <input type="text" name="username" id="username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>  
-            </div>  
+            <div>
+              <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Your Name / Username</label>
+              <div class="relative mt-1">
+                <input type="text" name="username" id="username" required class="block w-full px-4 py-3 pr-24 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>
+                <button type="button" id="suggest-username-btn" class="absolute inset-y-0 right-0 flex items-center px-3 text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                  Suggest ✨
+                </button>
+              </div>
+              <div id="username-suggestions" class="mt-2 flex flex-wrap gap-2"></div>
+            </div>
             <div>  
               <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Email Address</label>  
               <input type="email" name="email" id="email" required class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>  
@@ -418,10 +424,16 @@
             <p class="mt-2 text-gray-600 dark:text-gray-200">Create a username and password to get started.</p>  
           </div>  
           <form method="POST" action="{{ url_for('register_child', invite_code=invite_code) }}" class="space-y-6">  
-            <div>  
-              <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Username</label>  
-              <input type="text" name="username" id="username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>  
-            </div>  
+            <div>
+              <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Username</label>
+              <div class="relative mt-1">
+                  <input type="text" name="username" id="username" required class="block w-full px-4 py-3 pr-24 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>
+                  <button type="button" id="suggest-username-btn" class="absolute inset-y-0 right-0 flex items-center px-3 text-sm font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                      Suggest ✨
+                  </button>
+              </div>
+              <div id="username-suggestions" class="mt-2 flex flex-wrap gap-2"></div>
+            </div>
             <div>  
               <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Password</label>  
               <input type="password" name="password" id="password" required class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>  
@@ -1416,7 +1428,61 @@
         })  
       });  
     }  
-  
+    const suggestBtn = document.getElementById('suggest-username-btn');
+    if (suggestBtn) {
+        const usernameInput = document.getElementById('username');
+        const suggestionsContainer = document.getElementById('username-suggestions');
+        // Check which registration page is active
+        const isParentRegistration = '{{ page }}' === 'register_parent';
+
+        suggestBtn.addEventListener('click', async () => {
+            const originalBtnText = suggestBtn.innerHTML;
+            suggestBtn.innerHTML = 'Thinking...';
+            suggestBtn.disabled = true;
+            suggestionsContainer.innerHTML = '';
+
+            // For parent registration, use the typed name as a seed.
+            // For child registration, send an empty name to get generic suggestions.
+            const nameSeed = isParentRegistration ? usernameInput.value.trim() : '';
+
+            try {
+                const response = await fetch('/api/suggest-username', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: nameSeed })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Could not get suggestions.');
+                }
+
+                const data = await response.json();
+                if (data.suggestions && data.suggestions.length > 0) {
+                    data.suggestions.forEach(suggestion => {
+                        const suggBtn = document.createElement('button');
+                        suggBtn.type = 'button';
+                        suggBtn.textContent = suggestion;
+                        suggBtn.className = 'px-3 py-1 text-sm text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors';
+                        // When a suggestion is clicked, fill the input and clear the other suggestions
+                        suggBtn.onclick = () => {
+                            usernameInput.value = suggestion;
+                            suggestionsContainer.innerHTML = ''; 
+                        };
+                        suggestionsContainer.appendChild(suggBtn);
+                    });
+                } else {
+                      suggestionsContainer.innerHTML = '<p class="text-sm text-gray-500">No suggestions available. Try typing a name first!</p>';
+                }
+
+            } catch (error) {
+                console.error('Error fetching username suggestions:', error);
+                suggestionsContainer.innerHTML = '<p class="text-sm text-red-500">Could not load suggestions right now.</p>';
+            } finally {
+                suggestBtn.innerHTML = originalBtnText;
+                suggestBtn.disabled = false;
+            }
+        });
+    }
     if (document.getElementById('calendar')) {  
       const calendarModal = document.getElementById('eventModal');  
       const closeModalBtn = document.getElementById('closeModalBtn');  

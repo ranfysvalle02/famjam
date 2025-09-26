@@ -1153,6 +1153,55 @@ def apply_famjam_plan():
         return jsonify({'status': 'success', 'message': f'{len(new_events)} chores have been scheduled for the next 90 days!'})
     except Exception as e:
         return jsonify({'error': f'Failed to save the plan to the database: {e}'}), 500
+@app.route('/api/suggest-username', methods=['POST'])
+def suggest_username():
+    """Suggests unique usernames using GPT-4o-mini and database validation."""
+    data = request.get_json() or {}
+    name = data.get('name', '')
+
+    # 1. Ask the AI for a larger batch of suggestions (e.g., 10)
+    system_prompt = "You are a creative assistant that suggests fun, family-friendly usernames. Your response MUST be a valid JSON object with a 'suggestions' key containing an array of 10 unique strings."
+    
+    if name:
+        user_prompt = f"Based on the name '{name}', suggest 10 creative and unique usernames for a family app. Avoid generic numbers."
+    else:
+        user_prompt = "Suggest 10 creative and unique usernames for a child in a family app. Use themes like animals, space, or nature."
+
+    try:
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.9, # Increased for more diverse options
+            max_tokens=250   # Increased to handle a larger response
+        )
+        suggestions_json_string = completion.choices[0].message.content
+        potential_suggestions = json.loads(suggestions_json_string).get('suggestions', [])
+        
+        # 2. Filter the suggestions against the database to find unique ones
+        unique_suggestions = []
+        if potential_suggestions:
+            for username in potential_suggestions:
+                # Perform a case-insensitive check to see if the username is taken
+                existing_user = users_collection.find_one(
+                    {'username': regex.Regex(f'^{username}$', 'i')}
+                )
+                if not existing_user:
+                    unique_suggestions.append(username)
+                
+                # 3. Stop once we have found 3 unique options
+                if len(unique_suggestions) >= 3:
+                    break
+        
+        return jsonify({'suggestions': unique_suggestions})
+
+    except Exception as e:
+        app.logger.error(f"Error during username suggestion: {e}")
+        # Fallback in case of an API error
+        return jsonify({'suggestions': ['User123', 'NewMember456', 'Player789']}), 500
 
 @app.route('/share_invite')
 @login_required
