@@ -533,16 +533,23 @@ def remove_child(child_id):
 @app.route('/event/create', methods=['POST'])
 @login_required
 def create_event():
+    # Ensure only parents can create tasks
     if current_user.role != 'parent':
         flash("You are not authorized to create tasks.", "error")
         return redirect(url_for('personal_dashboard'))
 
-    # Get form data
+    # --- 1. Get all data from the form ---
     recurrence = request.form['recurrence']
     start_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d')
     task_type = request.form['type']
     
-    # Create a base document for the task
+    # --- 2. Check for an active plan to correctly label manually added tasks ---
+    active_plan = famjam_plans_collection.find_one({
+        'family_id': current_user.family_id,
+        'status': 'active'
+    })
+    
+    # --- 3. Create a base document with all common task properties ---
     base_doc = {
         'name': request.form['name'],
         'description': request.form['description'],
@@ -552,44 +559,58 @@ def create_event():
         'status': 'assigned',
         'created_at': datetime.utcnow(),
         'assigned_to': request.form['assigned_to'],
-        'recurrence_id': ObjectId() # Group for future series edits
+        'recurrence_id': ObjectId() # A unique ID to group recurring tasks
     }
     
-    # Add habit-specific fields if needed
+    # Add special fields if the task is a 'habit'
     if task_type == 'habit':
         base_doc['streak'] = 0
         base_doc['last_completed'] = None
 
-    # If it's a one-time task
+    # --- 4. Handle a single, non-recurring task ---
     if recurrence == 'none':
         doc = base_doc.copy()
         doc['due_date'] = start_date
         del doc['recurrence_id'] # Not needed for a single task
+        
+        # If the task's due date falls within the active plan, label it as 'manual'
+        if active_plan and active_plan['start_date'] <= doc['due_date'] <= active_plan['end_date']:
+            doc['source_type'] = 'manual' 
+
         events_collection.insert_one(doc)
         flash(f"{task_type.capitalize()} created successfully!", 'success')
-    
-    # If it's a recurring task
+        
+    # --- 5. Handle recurring tasks ---
     else:
         events_to_insert = []
-        end_date = start_date + timedelta(days=90) # Schedule for the next 3 months
+        # Schedule recurring tasks for the next 90 days from the start date
+        end_date = start_date + timedelta(days=90) 
         current_date = start_date
 
-        if recurrence == 'daily':
-            delta = timedelta(days=1)
-        elif recurrence == 'weekly':
-            delta = timedelta(weeks=1)
-        elif recurrence == 'monthly':
-            delta = relativedelta(months=1)
-        else:
-            flash("Invalid recurrence type.", "error")
+        # Determine the time interval based on the selected recurrence
+        delta = {
+            'daily': timedelta(days=1), 
+            'weekly': timedelta(weeks=1), 
+            'monthly': relativedelta(months=1)
+        }.get(recurrence)
+        
+        if not delta:
+            flash("Invalid recurrence type selected.", "error")
             return redirect(url_for('personal_dashboard'))
-            
+
+        # Loop from the start date until the end date, creating tasks at each interval
         while current_date <= end_date:
             doc = base_doc.copy()
             doc['due_date'] = current_date
+            
+            # If the instance's due date falls within the active plan, label it as 'manual'
+            if active_plan and active_plan['start_date'] <= doc['due_date'] <= active_plan['end_date']:
+                doc['source_type'] = 'manual'
+
             events_to_insert.append(doc)
             current_date += delta
         
+        # Insert all generated events into the database in one operation
         if events_to_insert:
             events_collection.insert_many(events_to_insert)
             flash(f"Recurring {task_type} has been scheduled for the next 90 days!", 'success')
