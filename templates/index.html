@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FAMFLOW - Family Chore & Habit Management</title>
+  <title>FAMJAM by OBLIVIO - Family Chore & Habit Management</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.13/index.global.min.js"></script>
@@ -253,7 +253,7 @@
                 </g>
               </g>
             </svg>
-            <span class="gradient-text">fam-flow</span>
+            <span class="gradient-text">FAMJAM</span>
           </a>
         </div>
 
@@ -1298,9 +1298,9 @@
 
     if (inDarkMode) {
       document.documentElement.classList.add("dark");
-      themeIcon.innerText = "Light";
+      themeIcon.innerText = "Light Mode";
     } else {
-      themeIcon.innerText = "Dark";
+      themeIcon.innerText = "Dark Mode";
     }
 
     darkModeToggle.addEventListener("click", () => {
@@ -1308,11 +1308,11 @@
       if (inDarkMode) {
         document.documentElement.classList.add("dark");
         localStorage.setItem("theme", "dark");
-        themeIcon.innerText = "Light";
+        themeIcon.innerText = "Light Mode";
       } else {
         document.documentElement.classList.remove("dark");
         localStorage.setItem("theme", "light");
-        themeIcon.innerText = "Dark";
+        themeIcon.innerText = "Dark Mode";
       }
     });
 
