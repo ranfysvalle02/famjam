@@ -460,156 +460,165 @@
         </div>  
       </div>  
   
-      {% elif page == 'dashboard_parent' %}  
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">  
-          <div class="lg:col-span-2 space-y-8">  
-            <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-6">  
-              <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Assign a New Task</h2>  
-              <form method="POST" action="{{ url_for('create_event') }}">  
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">  
-                  <div class="md:col-span-2">  
-                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Task / Habit Name</label>  
-                    <input type="text" name="name" placeholder="e.g. Clean your room" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required/>  
-                  </div>  
-                  <div class="md:col-span-2">  
-                    <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Description (Optional)</label>  
-                    <textarea name="description" rows="3" placeholder="e.g. Tidy surfaces, vacuum, dust..." class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"></textarea>  
-                  </div>  
-                  <div>  
-                    <label for="type" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Type</label>  
-                    <select name="type" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">  
-                      <option value="chore">Chore (One-time or repeating)</option>  
-                      <option value="habit">Habit (Daily checks for a streak)</option>  
-                    </select>  
-                  </div>  
-                  <div>  
-                    <label for="points" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Points Value</label>  
-                    <input type="number" name="points" min="1" placeholder="e.g. 50" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required/>  
-                  </div>  
-                  <div>  
-                    <label for="assigned_to" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Assign To</label>  
-                    <select name="assigned_to" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>  
-                      <option value="">Select a child...</option>  
-                      {% for member in family_members if member.role == 'child' %}  
-                        <option value="{{ member._id }}">{{ member.username }}</option>  
-                      {% endfor %}  
-                    </select>  
-                  </div>  
-                  <div>  
-                    <label for="due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Due Date</label>  
-                    <input type="date" name="due_date" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required/>  
-                  </div>  
-                </div>  
-                <button type="submit" class="w-full md:w-auto mt-8 py-3 px-8 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg">Add Task</button>  
-              </form>  
-            </div>  
-  
-            {% if active_famjam_plan %}  
-            <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-4">  
-                <div class="flex justify-between items-start">  
-                    <div>  
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Active FamJam Plan</h3>  
-                        <p class="text-lg font-semibold text-secondary-600 dark:text-secondary-400">{{ active_famjam_plan.plan_data.plan_name }}</p>  
-                        <p class="text-sm text-gray-500 dark:text-gray-400">  
-                            Ends in {{ active_famjam_plan.days_left }} days on {{ active_famjam_plan.end_date.strftime('%b %d, %Y') }}  
-                        </p>  
-                    </div>  
-                    <a href="{{ url_for('manage_plan') }}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 transition">Manage Plan</a>  
-                </div>  
-                <div>  
-                    <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">  
-                        <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ active_famjam_plan.progress_percent }}%"></div>  
-                    </div>  
-                    <p class="text-right text-xs mt-1 text-gray-500 dark:text-gray-400">{{ active_famjam_plan.progress_percent|round|int }}% complete</p>  
-                </div>  
-            </div>  
-            {% endif %}  
-          </div>  
-  
-          <div class="lg:col-span-1 space-y-8">  
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">  
-                  <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Pending Approvals</h3>  
-                  <div class="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">  
-                    {% set pending_events = events|selectattr("status", "equalto", "completed")|list %}  
-                    {% if pending_events %}  
-                      {% for event in pending_events %}  
-                      <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow">  
-                        <div>  
-                          <p class="font-semibold text-gray-800 dark:text-gray-100">{{ event.name }}</p>  
-                          <p class="text-sm text-gray-500 dark:text-gray-300">by <span class="font-medium">{{ member_map[event.assigned_to] }}</span></p>  
-                        </div>  
-                        <a href="{{ url_for('approve_event', event_id=event._id) }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110">  
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">  
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>  
-                          </svg>  
-                        </a>  
-                      </div>  
-                      {% endfor %}  
-                    {% else %}  
-                      <p class="text-center py-8 text-gray-500 dark:text-gray-300">No tasks are pending approval.</p>  
-                    {% endif %}  
-                  </div>  
-              </div>  
-  
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">  
-                  <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Reward Requests</h3>  
-                  <div class="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">  
-                    {% if reward_requests %}  
-                      {% for reward in reward_requests %}  
-                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow">  
-                          <div>  
-                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ reward.name }}</p>  
-                            <p class="text-sm text-gray-500 dark:text-gray-300">{{ reward.requested_by_username }} &middot; <span class="font-medium text-yellow-700 dark:text-yellow-300">{{ reward.points_cost }} pts</span></p>  
-                          </div>  
-                          <div class="flex space-x-2">  
-                            <a href="{{ url_for('handle_reward', reward_id=reward._id, action='approve') }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110">  
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">  
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>  
-                              </svg>  
-                            </a>  
-                            <a href="{{ url_for('handle_reward', reward_id=reward._id, action='reject') }}" class="p-2 text-white bg-red-500 rounded-full hover:bg-red-600 transition-transform transform hover:scale-110">  
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">  
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>  
-                              </svg>  
-                            </a>  
-                          </div>  
-                        </div>  
-                      {% endfor %}  
-                    {% else %}  
-                      <p class="text-center py-8 text-gray-500 dark:text-gray-300">No pending reward requests.</p>  
-                    {% endif %}  
-                  </div>  
-              </div>  
-  
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">  
-                <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Spend History</h3>  
-                <div class="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">  
-                  {% if spend_history %}  
-                    {% for tx in spend_history %}  
-                    <div class="p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg flex items-center justify-between hover:shadow-md transition-shadow">  
-                      <div>  
-                        <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ tx.child_username }} spent <span class="text-blue-600 dark:text-blue-400 font-bold">{{ tx.points_spent }} pts</span></p>  
-                        <p class="text-xs text-gray-500 dark:text-gray-300">on "{{ tx.reward_name }}" &middot; {{ tx.spent_at_pretty }}</p>  
-                      </div>  
-                      <span class="text-xs font-medium px-2 py-0.5 rounded-full  
-                        {% if tx.status == 'approved' %}  
-                          bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300  
-                        {% elif tx.status == 'rejected' %}  
-                          bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300  
-                        {% else %}  
-                          bg-yellow-100 text-yellow-800 dark:text-yellow-300  
-                        {% endif %}">  
-                        {{ tx.status|capitalize }}  
-                      </span>  
-                    </div>  
-                    {% endfor %}  
-                  {% else %}  
-                    <p class="text-center py-8 text-gray-500 dark:text-gray-300">No spend history recorded yet.</p>  
-                  {% endif %}  
-                </div>  
-              </div>  
-          </div>  
-      </div>  
+      {% elif page == 'dashboard_parent' %}
+   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+     <div class="lg:col-span-2 space-y-8">
+      <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-6">
+       <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Assign a New Task</h2>
+       <form method="POST" action="{{ url_for('create_event') }}">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+         <div class="md:col-span-2">
+          <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Task / Habit Name</label>
+          <input type="text" name="name" placeholder="e.g. Clean your room" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required/>
+         </div>
+         <div class="md:col-span-2">
+          <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Description (Optional)</label>
+          <textarea name="description" rows="3" placeholder="e.g. Tidy surfaces, vacuum, dust..." class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500"></textarea>
+         </div>
+         <div>
+          <label for="type" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Type</label>
+          <select name="type" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+           <option value="chore">Chore (One-time or repeating)</option>
+           <option value="habit">Habit (Daily checks for a streak)</option>
+          </select>
+         </div>
+         <div>
+          <label for="points" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Points Value</label>
+          <input type="number" name="points" min="1" placeholder="e.g. 50" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required/>
+         </div>
+         <div>
+          <label for="assigned_to" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Assign To</label>
+          <select name="assigned_to" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+           <option value="">Select a child...</option>
+           {% for member in family_members if member.role == 'child' %}
+            <option value="{{ member._id }}">{{ member.username }}</option>
+           {% endfor %}
+          </select>
+         </div>
+         <div>
+          <label for="recurrence" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Recurrence</label>
+          <select name="recurrence" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+           <option value="none">Does not repeat</option>
+           <option value="daily">Daily</option>
+           <option value="weekly">Weekly</option>
+           <option value="monthly">Monthly</option>
+          </select>
+         </div>
+         <div>
+          <label for="due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Start Date / Due Date</label>
+          <input type="date" name="due_date" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required/>
+         </div>
+        </div>
+        <button type="submit" class="w-full md:w-auto mt-8 py-3 px-8 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg">Add Task</button>
+       </form>
+      </div>
+
+      {% if active_famjam_plan %}
+      <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-4">
+        <div class="flex justify-between items-start">
+          <div>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Active FamJam Plan</h3>
+            <p class="text-lg font-semibold text-secondary-600 dark:text-secondary-400">{{ active_famjam_plan.plan_data.plan_name }}</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              Ends in {{ active_famjam_plan.days_left }} days on {{ active_famjam_plan.end_date.strftime('%b %d, %Y') }}
+            </p>
+          </div>
+          <a href="{{ url_for('manage_plan') }}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 transition">Manage Plan</a>
+        </div>
+        <div>
+          <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+            <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ active_famjam_plan.progress_percent }}%"></div>
+   _        </div>
+          <p class="text-right text-xs mt-1 text-gray-500 dark:text-gray-400">{{ active_famjam_plan.progress_percent|round|int }}% complete</p>
+        </div>
+      </div>
+      {% endif %}
+     </div>
+
+     <div class="lg:col-span-1 space-y-8">
+       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+         <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Pending Approvals</h3>
+         <div class="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">
+          {% set pending_events = events|selectattr("status", "equalto", "completed")|list %}
+          {% if pending_events %}
+           {% for event in pending_events %}
+           <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow">
+            <div>
+             <p class="font-semibold text-gray-800 dark:text-gray-100">{{ event.name }}</p>
+             <p class="text-sm text-gray-500 dark:text-gray-300">by <span class="font-medium">{{ member_map[event.assigned_to] }}</span></p>
+            </div>
+            <a href="{{ url_for('approve_event', event_id=event._id) }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110">
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+             </svg>
+            </a>
+           </div>
+           {% endfor %}
+          {% else %}
+           <p class="text-center py-8 text-gray-500 dark:text-gray-300">No tasks are pending approval.</p>
+          {% endif %}
+         </div>
+       </div>
+
+       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+         <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Reward Requests</h3>
+         <div class="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">
+          {% if reward_requests %}
+           {% for reward in reward_requests %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow">
+             <div>
+              <p class="font-semibold text-gray-800 dark:text-gray-100">{{ reward.name }}</p>
+              <p class="text-sm text-gray-500 dark:text-gray-300">{{ reward.requested_by_username }} &middot; <span class="font-medium text-yellow-700 dark:text-yellow-300">{{ reward.points_cost }} pts</span></p>
+             </div>
+             <div class="flex space-x-2">
+              <a href="{{ url_for('handle_reward', reward_id=reward._id, action='approve') }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110">
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+               </svg>
+              </a>
+              <a href="{{ url_for('handle_reward', reward_id=reward._id, action='reject') }}" class="p-2 text-white bg-red-500 rounded-full hover:bg-red-600 transition-transform transform hover:scale-110">
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+               </svg>
+              </a>
+             </div>
+            </div>
+           {% endfor %}
+          {% else %}
+           <p class="text-center py-8 text-gray-500 dark:text-gray-300">No pending reward requests.</p>
+          {% endif %}
+         </div>
+       </div>
+
+       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Spend History</h3>
+        <div class="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-2">
+         {% if spend_history %}
+          {% for tx in spend_history %}
+          <div class="p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg flex items-center justify-between hover:shadow-md transition-shadow">
+           <div>
+            <p class="text-sm font-semibold text-gray-800 dark:text-gray-100">{{ tx.child_username }} spent <span class="text-blue-600 dark:text-blue-400 font-bold">{{ tx.points_spent }} pts</span></p>
+            <p class="text-xs text-gray-500 dark:text-gray-300">on "{{ tx.reward_name }}" &middot; {{ tx.spent_at_pretty }}</p>
+           </div>
+           <span class="text-xs font-medium px-2 py-0.5 rounded-full
+            {% if tx.status == 'approved' %}
+             bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300
+            {% elif tx.status == 'rejected' %}
+             bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300
+            {% else %}
+             bg-yellow-100 text-yellow-800 dark:text-yellow-300
+            {% endif %}">
+            {{ tx.status|capitalize }}
+           </span>
+          </div>
+     _    {% endfor %}
+         {% else %}
+          <p class="text-center py-8 text-gray-500 dark:text-gray-300">No spend history recorded yet.</p>
+         {% endif %}
+        </div>
+       </div>
+     </div>
+   </div>
   
       {% elif page == 'dashboard_child' %}  
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">  
@@ -973,27 +982,27 @@
               <tr>  
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">  
                   <a href="{{ url_for('manage_plan', sort_by='name', order='desc' if current_sort.by == 'name' and current_sort.order == 'asc' else 'asc') }}" class="hover:text-blue-500">  
-                    Task Name {% if current_sort.by == 'name' %}{{ '🔼' if current_sort.order == 'asc' else '🔽' }}{% endif %}  
+                    Task Name {% if current_sort.by == 'name' %}{{ '' if current_sort.order == 'asc' else '' }}{% endif %}  
                   </a>  
                 </th>  
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">  
                   <a href="{{ url_for('manage_plan', sort_by='assigned_to', order='desc' if current_sort.by == 'assigned_to' and current_sort.order == 'asc' else 'asc') }}" class="hover:text-blue-500">  
-                    Assigned To {% if current_sort.by == 'assigned_to' %}{{ '🔼' if current_sort.order == 'asc' else '🔽' }}{% endif %}  
+                    Assigned To {% if current_sort.by == 'assigned_to' %}{{ '' if current_sort.order == 'asc' else '' }}{% endif %}  
                   </a>  
                 </th>  
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">  
                   <a href="{{ url_for('manage_plan', sort_by='due_date', order='desc' if current_sort.by == 'due_date' and current_sort.order == 'asc' else 'asc') }}" class="hover:text-blue-500">  
-                    Due Date {% if current_sort.by == 'due_date' %}{{ '🔼' if current_sort.order == 'asc' else '🔽' }}{% endif %}  
+                    Due Date {% if current_sort.by == 'due_date' %}{{ '' if current_sort.order == 'asc' else '' }}{% endif %}  
                   </a>  
                 </th>  
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">  
                   <a href="{{ url_for('manage_plan', sort_by='points', order='desc' if current_sort.by == 'points' and current_sort.order == 'asc' else 'asc') }}" class="hover:text-blue-500">  
-                    Points {% if current_sort.by == 'points' %}{{ '🔼' if current_sort.order == 'asc' else '🔽' }}{% endif %}  
+                    Points {% if current_sort.by == 'points' %}{{ '' if current_sort.order == 'asc' else '' }}{% endif %}  
                   </a>  
                 </th>  
                 <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">  
                   <a href="{{ url_for('manage_plan', sort_by='status', order='desc' if current_sort.by == 'status' and current_sort.order == 'asc' else 'asc') }}" class="hover:text-blue-500">  
-                    Status {% if current_sort.by == 'status' %}{{ '🔼' if current_sort.order == 'asc' else '🔽' }}{% endif %}  
+                    Status {% if current_sort.by == 'status' %}{{ '' if current_sort.order == 'asc' else '' }}{% endif %}  
                   </a>  
                 </th>  
                 <th scope="col" class="relative px-6 py-3">  
@@ -1466,7 +1475,7 @@
         eventDidMount: (info) => {  
           let iconEl = document.createElement('i');  
           iconEl.style.cssText = 'font-style: normal; margin-right: 5px;';  
-          iconEl.innerText = info.event.extendedProps.type === 'habit' ? '💖' : '🧹';  
+          iconEl.innerText = info.event.extendedProps.type === 'habit' ? '' : '';  
           info.el.querySelector('.fc-event-title').prepend(iconEl);  
         }  
       });  

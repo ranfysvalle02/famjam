@@ -339,7 +339,7 @@ def manage_plan():
 
     query = {
         'family_id': current_user.family_id,
-        'source': 'FamJamPlan',
+        #allow manage all # 'source': 'FamJamPlan',
         'due_date': {'$gte': active_plan['start_date'], '$lte': active_plan['end_date']}
     }
     
@@ -533,38 +533,69 @@ def remove_child(child_id):
 @app.route('/event/create', methods=['POST'])
 @login_required
 def create_event():
-    if current_user.role == 'parent':
-        due_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d')
-        task_type = request.form['type']
-        
-        doc = {
-            'name': request.form['name'],
-            'description': request.form['description'],
-            'points': int(request.form['points']),
-            'type': task_type,
-            'family_id': current_user.family_id,
-            'status': 'assigned',
-            'created_at': datetime.utcnow(),
-            'assigned_to': request.form['assigned_to'],
-            'due_date': due_date
-        }
+    if current_user.role != 'parent':
+        flash("You are not authorized to create tasks.", "error")
+        return redirect(url_for('personal_dashboard'))
 
-        active_plan = famjam_plans_collection.find_one({
-            'family_id': current_user.family_id,
-            'status': 'active'
-        })
+    # Get form data
+    recurrence = request.form['recurrence']
+    start_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d')
+    task_type = request.form['type']
+    
+    # Create a base document for the task
+    base_doc = {
+        'name': request.form['name'],
+        'description': request.form['description'],
+        'points': int(request.form['points']),
+        'type': task_type,
+        'family_id': current_user.family_id,
+        'status': 'assigned',
+        'created_at': datetime.utcnow(),
+        'assigned_to': request.form['assigned_to'],
+        'recurrence_id': ObjectId() # Group for future series edits
+    }
+    
+    # Add habit-specific fields if needed
+    if task_type == 'habit':
+        base_doc['streak'] = 0
+        base_doc['last_completed'] = None
 
-        if active_plan and active_plan['start_date'] <= due_date <= active_plan['end_date']:
-            doc['source'] = 'FamJamPlan'
-            doc['source_type'] = 'manual'
-        
-        if task_type == 'habit':
-            doc['streak'] = 0
-            doc['last_completed'] = None
-
+    # If it's a one-time task
+    if recurrence == 'none':
+        doc = base_doc.copy()
+        doc['due_date'] = start_date
+        del doc['recurrence_id'] # Not needed for a single task
         events_collection.insert_one(doc)
-        flash(f"{task_type.capitalize()} created and assigned!", 'success')
+        flash(f"{task_type.capitalize()} created successfully!", 'success')
+    
+    # If it's a recurring task
+    else:
+        events_to_insert = []
+        end_date = start_date + timedelta(days=90) # Schedule for the next 3 months
+        current_date = start_date
+
+        if recurrence == 'daily':
+            delta = timedelta(days=1)
+        elif recurrence == 'weekly':
+            delta = timedelta(weeks=1)
+        elif recurrence == 'monthly':
+            delta = relativedelta(months=1)
+        else:
+            flash("Invalid recurrence type.", "error")
+            return redirect(url_for('personal_dashboard'))
+            
+        while current_date <= end_date:
+            doc = base_doc.copy()
+            doc['due_date'] = current_date
+            events_to_insert.append(doc)
+            current_date += delta
         
+        if events_to_insert:
+            events_collection.insert_many(events_to_insert)
+            flash(f"Recurring {task_type} has been scheduled for the next 90 days!", 'success')
+        else:
+            flash("No events were scheduled.", "warning")
+
     return redirect(url_for('personal_dashboard'))
     
 @app.route('/event/edit/<event_id>', methods=['POST'])
