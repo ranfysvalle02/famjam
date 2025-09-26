@@ -316,7 +316,6 @@ def personal_dashboard():
 
         return render_template('index.html', page='dashboard_child', events=child_events, rewards=child_rewards)
 
-# --- NEW ROUTE FOR MANAGING PLAN TASKS ---
 @app.route('/manage-plan')
 @login_required
 def manage_plan():
@@ -366,6 +365,29 @@ def manage_plan():
         family_members=family_members, # For the edit modal dropdown
         current_sort={'by': sort_by, 'order': order}
     )
+
+# --- NEW ROUTE TO HANDLE EDITING THE PLAN NAME ---
+@app.route('/plan/edit_name/<plan_id>', methods=['POST'])
+@login_required
+def edit_plan_name(plan_id):
+    if current_user.role != 'parent':
+        flash("You don't have permission to do this.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    new_name = request.form.get('plan_name')
+    if not new_name or not new_name.strip():
+        flash("Plan name cannot be empty.", "error")
+        return redirect(url_for('manage_plan'))
+
+    result = famjam_plans_collection.update_one(
+        {'_id': ObjectId(plan_id), 'family_id': current_user.family_id},
+        {'$set': {'plan_data.plan_name': new_name.strip()}}
+    )
+
+    if result.modified_count > 0:
+        flash("Plan name updated successfully.", "success")
+    
+    return redirect(url_for('manage_plan'))
 
 @app.route('/family-dashboard')
 @login_required
@@ -435,7 +457,6 @@ def family_dashboard():
 @login_required
 def calendar_focus():
     family_members = list(users_collection.find({'family_id': current_user.family_id}))
-    # Add this loop to convert ObjectId to a string
     for member in family_members:
         member['_id'] = str(member['_id'])
     return render_template('index.html', page='calendar_focus', family_members=family_members)
@@ -528,7 +549,6 @@ def create_event():
             'due_date': due_date
         }
 
-        # Check for an active FamJam plan and tag the task if it falls within the date range.
         active_plan = famjam_plans_collection.find_one({
             'family_id': current_user.family_id,
             'status': 'active'
@@ -536,7 +556,7 @@ def create_event():
 
         if active_plan and active_plan['start_date'] <= due_date <= active_plan['end_date']:
             doc['source'] = 'FamJamPlan'
-            doc['source_type'] = 'manual'  # Differentiates from AI-generated tasks
+            doc['source_type'] = 'manual'
         
         if task_type == 'habit':
             doc['streak'] = 0
@@ -547,7 +567,6 @@ def create_event():
         
     return redirect(url_for('personal_dashboard'))
     
-# --- NEW ROUTE FOR EDITING A TASK ---
 @app.route('/event/edit/<event_id>', methods=['POST'])
 @login_required
 def edit_event(event_id):
@@ -572,7 +591,6 @@ def edit_event(event_id):
     flash("Task has been updated successfully.", "success")
     return redirect(url_for('manage_plan'))
     
-# --- NEW ROUTE FOR DELETING A TASK ---
 @app.route('/event/delete/<event_id>')
 @login_required
 def delete_event(event_id):
@@ -925,22 +943,14 @@ def suggest_famjam_plan():
     system_prompt = "You are a helpful assistant designed to create balanced, quarterly chore plans (FamJam Plans) for families. Your response must be a valid JSON object."
     today = datetime.utcnow()
 
-    # --- NEW LOGIC: Calculate fixed calendar quarter dates ---
-    # Determine which quarter we are in (1, 2, 3, or 4)
     quarter = (today.month - 1) // 3 + 1
-    # Calculate the first month of that quarter (1 for Q1, 4 for Q2, etc.)
     start_month = (quarter - 1) * 3 + 1
     
-    # The plan's start date is the first day of the current quarter's first month
     start_date = today.replace(month=start_month, day=1, hour=0, minute=0, second=0, microsecond=0)
-    
-    # The plan's end date is the last day of the quarter (add 3 months, then subtract 1 day)
     end_date = start_date + relativedelta(months=3) - timedelta(days=1)
-    # --- END NEW LOGIC ---
-
+    
     default_plan_name = f"Family FamJam - Q{quarter} {today.year}"
 
-    # Updated prompt to give the AI the specific, fixed quarter dates for context
     user_prompt = (
         f"Family context: This family has {len(child_usernames)} children named {', '.join(child_usernames)}. "
         f"For the quarter running from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}, their primary goal is: '{goal}'.\n\n"
@@ -970,7 +980,6 @@ def suggest_famjam_plan():
         if 'plan_name' not in plan_json or not plan_json['plan_name']:
             plan_json['plan_name'] = default_plan_name
 
-        # The start_date and end_date are now correctly defined above with the fixed quarter logic
         plan_document_id = famjam_plans_collection.insert_one({
             'plan_data': plan_json,
             'goal': goal,
@@ -1001,16 +1010,23 @@ def apply_famjam_plan():
     if not plan_data or 'suggested_chores' not in plan_data or not plan_id_str:
         return jsonify({'error': 'Invalid plan format received.'}), 400
 
-    # Archive any currently active plans for this family
     famjam_plans_collection.update_many(
         {'family_id': current_user.family_id, 'status': 'active'},
         {'$set': {'status': 'archived'}}
     )
 
-    # Activate the new plan
+    plan_data_to_save = {
+        'plan_name': plan_data.get('plan_name'),
+        'suggested_chores': plan_data.get('suggested_chores', [])
+    }
+
     famjam_plans_collection.update_one(
         {'_id': ObjectId(plan_id_str), 'family_id': current_user.family_id},
-        {'$set': {'status': 'active', 'applied_at': datetime.utcnow()}}
+        {'$set': {
+            'status': 'active',
+            'applied_at': datetime.utcnow(),
+            'plan_data': plan_data_to_save
+        }}
     )
 
     children = list(users_collection.find(
@@ -1023,20 +1039,15 @@ def apply_famjam_plan():
     child_ids = [str(c['_id']) for c in children]
     child_cycler = itertools.cycle(child_ids)
 
-    # --- START: MODIFICATION TO HANDLE PLAN CHANGES ---
-    # Define "today" to ensure consistency for cleanup and creation
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # 1. Remove future, uncompleted, AI-generated tasks from any previous plans.
-    # This prevents tasks from an old, archived plan from remaining on the calendar.
     events_collection.delete_many({
         'family_id': current_user.family_id,
-        'source': 'FamJamPlan',          # Target only plan-generated tasks
-        'source_type': 'generated',     # Be specific to generated, not manual tasks
-        'status': 'assigned',           # Only remove tasks that are not yet completed
-        'due_date': {'$gte': today}     # Only affect tasks from today onwards
+        'source': 'FamJamPlan',
+        'source_type': 'generated',
+        'status': 'assigned',
+        'due_date': {'$gte': today}
     })
-    # --- END: MODIFICATION ---
 
     end_date = today + timedelta(days=90)
     new_events = []
@@ -1056,8 +1067,6 @@ def apply_famjam_plan():
         while current_due_date < end_date:
             assigned_child_id = next(child_cycler)
             
-            # This check for existing events is still useful to prevent duplicates
-            # if the function is somehow run twice with the same plan.
             existing_event = events_collection.find_one({
                 'family_id': current_user.family_id,
                 'name': chore_template.get('name'),
