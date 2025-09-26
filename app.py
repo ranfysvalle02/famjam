@@ -32,7 +32,7 @@ openai_client = OpenAI()
 
 # --- Mongo setup ---
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
-BASE_URL = os.environ.get('BASE_URL', 'https://famflow.onrender.com')
+BASE_URL = os.environ.get('BASE_URL', 'https://famjam.oblivio-company.com')
 client = MongoClient(MONGO_URI)
 db = client['mchores_app']
 
@@ -206,7 +206,9 @@ def register_child(invite_code):
 def invite():
     if current_user.role != 'parent':
         return redirect(url_for('family_dashboard'))
-    return render_template('index.html', page='invite', invite_code=current_user.id)
+    # Construct the full, shareable "magic link"
+    invite_url = f"{BASE_URL}{url_for('join_family', invite_code=current_user.id)}"
+    return render_template('index.html', page='invite', invite_url=invite_url)
 
 @app.route('/qr_code')
 @login_required
