@@ -1,8 +1,9 @@
 Flask
 Flask-Login
 Flask-Bcrypt
-PyMongo
+pymongo
+python-dotenv
+openai
 qrcode[pil]
 python-dateutil
 gunicorn
-python-dotenv==1.0.0
