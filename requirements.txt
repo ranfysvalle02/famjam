@@ -1,0 +1,11 @@
+Flask
+Flask-Login
+Flask-Bcrypt
+pymongo
+python-dotenv
+openai
+qrcode[pil]
+python-dateutil
+gunicorn
+uvicorn
+pytz

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Install FAMJAM by OBLIVIO</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Bitcount+Single+Ink:wght@100..900&display=swap" rel="stylesheet"/>
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {'50':'#eff6ff','100':'#dbeafe','200':'#bfdbfe','300':'#93c5fd','400':'#60a5fa','500':'#3b82f6','600':'#2563eb','700':'#1d4ed8','800':'#1e40af','900':'#1e3a8a'},
+            secondary: {'50':'#fdf2f8','100':'#fce7f3','200':'#fbcfe8','300':'#f9a8d4','400':'#f472b6','500':'#ec4899','600':'#db2777','700':'#be185d','800':'#9d174d','900':'#831843'}
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @keyframes gradientFlow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+    }
+    #body {
+      background: linear-gradient(-45deg, #f0f9ff, #fdf2f8, #f5f5f5, #ecfdf5);
+      background-size: 400% 400%;
+      animation: gradientFlow 20s ease infinite;
+    }
+    .dark #body {
+      background: linear-gradient(45deg, #1f2937, #2d3748, #4a5568);
+      background-size: 400% 400%;
+      animation: gradientFlow 20s ease infinite;
+    }
+    .gradient-text {
+      background: linear-gradient(to right, #4f46e5, #ec4899);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .font-brand {
+      font-family: "Bitcount Single Ink", system-ui;
+      font-weight: 800;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeIn 0.5s ease-in-out forwards; }
+    .fade-in-delay-1 { animation-delay: 100ms; }
+    .fade-in-delay-2 { animation-delay: 200ms; }
+    .fade-in-delay-3 { animation-delay: 300ms; }
+  </style>
+</head>
+
+<body class="text-gray-800 antialiased relative transition-colors duration-300 dark:text-gray-200" id="body">
+  <main class="max-w-screen-xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <div class="text-center fade-in">
+      <h1 class="text-5xl md:text-6xl font-extrabold gradient-text font-brand">Get the Full App Experience</h1>
+      <p class="mt-4 max-w-3xl mx-auto text-lg text-gray-600 dark:text-gray-300">
+        Install FAMJAM on your device for one-tap access, a faster interface, and a clean, app-like feel—no App Store required.
+      </p>
+    </div>
+
+    <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+      <div class="p-6 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl shadow-lg fade-in fade-in-delay-1">
+        <div class="mx-auto w-16 h-16 flex items-center justify-center bg-blue-100 dark:bg-blue-900/50 rounded-full">
+          <svg class="w-8 h-8 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+        </div>
+        <h3 class="mt-4 text-xl font-bold text-gray-900 dark:text-gray-100">Instant Access</h3>
+        <p class="mt-2 text-gray-600 dark:text-gray-300">Launch directly from your home screen just like a native app.</p>
+      </div>
+
+      <div class="p-6 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl shadow-lg fade-in fade-in-delay-2">
+        <div class="mx-auto w-16 h-16 flex items-center justify-center bg-secondary-100 dark:bg-secondary-900/50 rounded-full">
+          <svg class="w-8 h-8 text-secondary-600 dark:text-secondary-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        </div>
+        <h3 class="mt-4 text-xl font-bold text-gray-900 dark:text-gray-100">Faster & Cleaner</h3>
+        <p class="mt-2 text-gray-600 dark:text-gray-300">Enjoy a quicker, more focused experience without browser tabs or address bars.</p>
+      </div>
+
+      <div class="p-6 bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl shadow-lg fade-in fade-in-delay-3">
+        <div class="mx-auto w-16 h-16 flex items-center justify-center bg-green-100 dark:bg-green-900/50 rounded-full">
+          <svg class="w-8 h-8 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20L20 4"></path></svg>
+        </div>
+        <h3 class="mt-4 text-xl font-bold text-gray-900 dark:text-gray-100">Saves Space</h3>
+        <p class="mt-2 text-gray-600 dark:text-gray-300">Takes up minimal storage on your device compared to a traditional app.</p>
+      </div>
+    </div>
+
+    <div class="mt-20">
+      <h2 class="text-3xl font-bold text-center text-gray-900 dark:text-gray-100">How to Install</h2>
+      <div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <div class="bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl shadow-lg p-8">
+          <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">iPhone & iPad</h3>
+          <p class="mt-2 text-gray-500 dark:text-gray-400">Open with the <span class="font-semibold text-blue-500">Safari</span> browser.</p>
+          <ol class="mt-6 space-y-4 text-gray-700 dark:text-gray-200">
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">1</span>
+              <span class="ml-4">Tap the <strong class="text-blue-500">Share</strong> button (a square with an arrow pointing up).</span>
+            </li>
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">2</span>
+              <span class="ml-4">Scroll down and tap <strong class="text-blue-500">"Add to Home Screen"</strong>.</span>
+            </li>
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">3</span>
+              <span class="ml-4">Confirm by tapping <strong class="text-blue-500">"Add"</strong> in the top corner.</span>
+            </li>
+          </ol>
+        </div>
+
+        <div class="bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl shadow-lg p-8">
+          <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Android</h3>
+          <p class="mt-2 text-gray-500 dark:text-gray-400">Open with the <span class="font-semibold text-green-500">Chrome</span> browser.</p>
+          <ol class="mt-6 space-y-4 text-gray-700 dark:text-gray-200">
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">1</span>
+              <span class="ml-4">Tap the <strong class="text-green-500">three-dot menu (⋮)</strong> in the top-right corner.</span>
+            </li>
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">2</span>
+              <span class="ml-4">Tap <strong class="text-green-500">"Install app"</strong> or <strong class="text-green-500">"Add to Home screen"</strong>.</span>
+            </li>
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">3</span>
+              <span class="ml-4">Follow the on-screen prompts to confirm the installation.</span>
+            </li>
+          </ol>
+        </div>
+        
+        <div class="bg-white/50 dark:bg-gray-800/50 backdrop-blur-md rounded-2xl shadow-lg p-8">
+          <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Desktop Computer</h3>
+          <p class="mt-2 text-gray-500 dark:text-gray-400">Open with <span class="font-semibold text-red-500">Chrome</span> or <span class="font-semibold text-red-500">Edge</span>.</p>
+          <ol class="mt-6 space-y-4 text-gray-700 dark:text-gray-200">
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">1</span>
+              <span class="ml-4">Look for the <strong class="text-red-500">Install icon</strong> (a screen with a down-arrow) in the address bar.</span>
+            </li>
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">2</span>
+              <span class="ml-4">Click the icon and then click <strong class="text-red-500">"Install"</strong>.</span>
+            </li>
+            <li class="flex items-start">
+              <span class="flex-shrink-0 h-8 w-8 flex items-center justify-center font-bold bg-gray-100 dark:bg-gray-700 rounded-full">3</span>
+              <span class="ml-4">The app will now appear in your computer's app list.</span>
+            </li>
+          </ol>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Simple dark mode toggle for demonstration
+    document.addEventListener("DOMContentLoaded", function() {
+      let storedTheme = localStorage.getItem("theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      if (storedTheme === 'dark') {
+        document.documentElement.classList.add("dark");
+      }
+    });
+  </script>
+</body>
+</html>
