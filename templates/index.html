@@ -1440,7 +1440,9 @@
                                   border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm">
                         <option value="">All Members</option>
                         {% for member in family_members if member.role == 'child' %}
-                        <option value="{{ member._id }}">{{ member.username }}</option>
+                        <option value="{{ member._id }}" {% if member._id == current_user.id %}selected{% endif %}>
+                          {{ member.username }}
+                        </option>
                         {% endfor %}
                     </select>
                     <select id="filter-type"
