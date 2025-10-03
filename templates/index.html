@@ -1085,62 +1085,60 @@
                 My Assigned Chores  
               </h2>  
               <div class="space-y-4">  
-                {% set chores = events|selectattr("type","equalto","chore")|list %}  
-                {% if chores %}  
-                  {% for chore in chores %}  
-                    {% if chore.due_date.strftime('%Y-%m-%d') == today_date.strftime('%Y-%m-%d') %}  
-                    <div class="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600  
-                                rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center  
-                                hover:shadow-md transition-shadow">  
-                      <div class="flex-1">  
-                        <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100">{{ chore.name }}</h4>  
-                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 pr-4">{{ chore.description }}</p>  
-                        <div class="flex items-center gap-4 mt-3 text-sm">  
-                          <span class="font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-full">  
-                            +{{ chore.points }} pts  
-                          </span>  
-                          <span class="font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5">  
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4"  
-                                fill="currentColor" viewBox="0 0 20 20">  
-                              <path fill-rule="evenodd"  
-                                    d="M6 2a1 1 0 00-1 1v1H4  
-                                      a2 2 0 00-2 2v10  
-                                      a2 2 0 002 2h8a2 2 0 002-2v-6  
-                                      a1 1 0 00-1-1h-1v-1  
-                                      a1 1 0 10-2 0v1H7V3  
-                                      a1 1 0 00-1-1zM6 7a1 1 0 000 2h8  
-                                      a1 1 0 100-2H6z" clip-rule="evenodd"/>  
-                            </svg>  
-                            Due: {{ chore.due_date.strftime('%b %d, %Y') }}  
-                          </span>  
-                        </div>  
-                      </div>  
-                      <div class="mt-4 sm:mt-0 w-full sm:w-auto">  
-                        {% if chore.status == 'assigned' %}  
-                        <a href="{{ url_for('complete_event', event_id=chore._id) }}"  
-                          class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold  
-                                  text-white bg-blue-500 rounded-lg hover:bg-blue-600  
-                                  transition-transform transform hover:scale-105 shadow-md">  
-                          Mark as Done  
-                        </a>  
-                        {% elif chore.status == 'completed' %}  
-                        <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm  
-                                    font-semibold text-indigo-800 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900 rounded-lg">  
-                          Awaiting Approval  
-                        </span>  
-                        {% elif chore.status == 'approved' %}  
-                        <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm  
-                                    font-semibold text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900 rounded-lg">  
-                          Approved!  
-                        </span>  
-                        {% endif %}  
-                      </div>  
-                    </div>  
-                    {% endif %}  
-                  {% endfor %}  
-                {% else %}  
-                  <p class="text-center py-6 text-gray-500 dark:text-gray-300">You have no chores assigned. Great job!</p>  
-                {% endif %}  
+                {% set chores = events|selectattr("type","equalto","chore")|list %}
+                {% if chores %}
+                  {% for chore in chores %}
+                    <div class="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600
+                                rounded-lg flex flex-col sm:flex-row justify-between items-start sm:items-center
+                                hover:shadow-md transition-shadow">
+                      <div class="flex-1">
+                        <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100">{{ chore.name }}</h4>
+                        <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 pr-4">{{ chore.description }}</p>
+                        <div class="flex items-center gap-4 mt-3 text-sm">
+                          <span class="font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-full">
+                            +{{ chore.points }} pts
+                          </span>
+                          <span class="font-semibold text-gray-600 dark:text-gray-300 flex items-center gap-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4"
+                                fill="currentColor" viewBox="0 0 20 20">
+                              <path fill-rule="evenodd"
+                                    d="M6 2a1 1 0 00-1 1v1H4
+                                      a2 2 0 00-2 2v10
+                                      a2 2 0 002 2h8a2 2 0 002-2v-6
+                                      a1 1 0 00-1-1h-1v-1
+                                      a1 1 0 10-2 0v1H7V3
+                                      a1 1 0 00-1-1zM6 7a1 1 0 000 2h8
+                                      a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                            </svg>
+                            Due: {{ chore.due_date.strftime('%b %d, %Y') }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="mt-4 sm:mt-0 w-full sm:w-auto">
+                        {% if chore.status == 'assigned' %}
+                        <a href="{{ url_for('complete_event', event_id=chore._id) }}"
+                          class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold
+                                  text-white bg-blue-500 rounded-lg hover:bg-blue-600
+                                  transition-transform transform hover:scale-105 shadow-md">
+                          Mark as Done
+                        </a>
+                        {% elif chore.status == 'completed' %}
+                        <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm
+                                    font-semibold text-indigo-800 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                          Awaiting Approval
+                        </span>
+                        {% elif chore.status == 'approved' %}
+                        <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm
+                                    font-semibold text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900 rounded-lg">
+                          Approved!
+                        </span>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% else %}
+                  <p class="text-center py-6 text-gray-500 dark:text-gray-300">You have no chores assigned. Great job!</p>
+                {% endif %} 
               </div>  
             </div>  
           </div>  
