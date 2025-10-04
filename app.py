@@ -466,7 +466,7 @@ def personal_dashboard():
 
     # --- PARENT LOGIC ---
     if current_user.role == 'parent':
-        # Parent's personal dashboard - Users collection uses family_id string
+        # Parent's "Manage Tasks" dashboard
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
         for member in family_members:
@@ -494,13 +494,27 @@ def personal_dashboard():
             'family_id': family_oid
         }).sort('spent_at', DESCENDING))
         for t in spend_tx:
-            delta = now - t['spent_at'].astimezone(TIMEZONE)
-            if delta.days > 0:
-                t['spent_at_pretty'] = f"{delta.days}d ago"
-            elif delta.seconds > 3600:
-                t['spent_at_pretty'] = f"{delta.seconds // 3600}h ago"
-            else:
-                t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+            # Add a 'completed_at_pretty' field for display
+            if t.get('spent_at'):
+                delta = now - t['spent_at'].astimezone(TIMEZONE)
+                if delta.days > 0:
+                    t['spent_at_pretty'] = f"{delta.days}d ago"
+                elif delta.seconds > 3600:
+                    t['spent_at_pretty'] = f"{delta.seconds // 3600}h ago"
+                else:
+                    t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+        
+        # Add 'completed_at_pretty' for pending approval events
+        for event in events:
+            if event.get('completed_at'):
+                delta = now - event['completed_at'].astimezone(TIMEZONE)
+                if delta.days > 0:
+                    event['completed_at_pretty'] = f"Completed {delta.days}d ago"
+                elif delta.seconds > 3600:
+                    event['completed_at_pretty'] = f"Completed {delta.seconds // 3600}h ago"
+                else:
+                    event['completed_at_pretty'] = f"Completed {max(1, delta.seconds // 60)}m ago"
+
 
         # Active FamJam Plan
         active_famjam_plan = famjam_plans_collection.find_one({
@@ -539,16 +553,20 @@ def personal_dashboard():
             personal_notes=personal_notes,
             personal_todos=personal_todos,
             challenges=challenges,
-            today_date=today
+            today_date=today,
+            now_est=now_est,
+            TIMEZONE=TIMEZONE
         )
     # --- CHILD LOGIC (Corrected for 3-Tab View) ---
     else:
         # Child's "My Day" dashboard logic
         start_of_today = start_of_day_est(today)
         end_of_today = start_of_today + timedelta(days=1)
+        # Define the 7-day boundary for the 'Upcoming' tab
+        seven_days_from_now = start_of_today + timedelta(days=8)
 
         # 1. Fetch ALL relevant chores (overdue, today, and upcoming)
-        #    This now gets all chores that aren't fully approved yet for the template to filter.
+        #    This gets all chores that aren't fully approved yet for the template to filter.
         chores_cursor = events_collection.find({
             'assigned_to': current_user.id,
             'type': 'chore',
@@ -624,7 +642,8 @@ def personal_dashboard():
             challenges=challenges,
             direct_messages=direct_messages,
             today_date=today,
-            TIMEZONE=TIMEZONE  # Pass timezone for accurate date filtering in template
+            TIMEZONE=TIMEZONE,
+            seven_days_from_now=seven_days_from_now
         )
 
 
