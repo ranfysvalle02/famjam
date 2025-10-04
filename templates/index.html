@@ -753,6 +753,7 @@
                     <select name="assigned_to" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
                       <option value="">Select a child...</option>
                       <option value="__ALL__">All Children</option>
+                      <option value="__ROUND_ROBIN__">Round Robin (Auto-distribute)</option>
                       {% for member in family_members if member.role == 'child' %}
                       <option value="{{ member._id }}">{{ member.username }}</option>
                       {% endfor %}
@@ -2710,6 +2711,15 @@
                     }
 
                     calendarModal.classList.remove('hidden');
+                    // 4. ✨ NEW: Smoothly scroll to the modal
+                    // We use a short timeout to make sure the modal is fully
+                    // rendered in the DOM before we try to scroll to it.
+                    setTimeout(() => {
+                        calendarModal.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center' // This centers the modal vertically in the viewport
+                        });
+                    }, 100); // A 100ms delay is usually sufficient
                 },
                 height: 'auto',
                 progressiveEventRendering: true

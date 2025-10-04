@@ -1250,99 +1250,115 @@ def remove_child(child_id):
 @app.route('/event/create', methods=['POST'])
 @login_required
 def create_event():
-  if current_user.role != 'parent':
-    flash("You are not authorized to create tasks.", "error")
-    return redirect(url_for('personal_dashboard'))
-
-  assigned_to_value = request.form['assigned_to']
-  assignee_ids = []
-
-  if assigned_to_value == "__ALL__":
-    children = list(users_collection.find({
-      'family_id': current_user.family_id, # users collection uses string
-      'role': 'child'
-    }, {'_id': 1}))
-    if not children:
-      flash("There are no children in the family to assign tasks to.", "warning")
-      return redirect(url_for('personal_dashboard'))
-    assignee_ids = [str(c['_id']) for c in children]
-  else:
-    assignee_ids.append(assigned_to_value)
-
-  recurrence = request.form['recurrence']
- 
-  # User input date (naive date object assumed)
-  input_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d').date()
-  # Convert naive date input into an EST/EDT midnight datetime object for storage consistency
-  start_date = start_of_day_est(input_date)
- 
-  task_type = request.form['type']
-
-  # FamJam plan query uses OID
-  active_plan = famjam_plans_collection.find_one({
-    'family_id': ObjectId(current_user.family_id),
-    'status': 'active'
-  })
-
-  family_oid = ObjectId(current_user.family_id) # Helper for event inserts
-  all_events_to_insert = []
-
-  for user_id in assignee_ids:
-    base_doc = {
-      'name': request.form['name'],
-      'description': request.form['description'],
-      'points': int(request.form['points']),
-      'type': task_type,
-      'family_id': family_oid,
-      'status': 'assigned',
-      'created_at': now_est(), # UPDATED to EST/EDT
-      'assigned_to': user_id,
-      'recurrence_id': ObjectId()
-    }
-    if task_type == 'habit':
-      base_doc['streak'] = 0
-      base_doc['last_completed'] = None
-
-    if recurrence == 'none':
-      doc = base_doc.copy()
-      doc['due_date'] = start_date
-      del doc['recurrence_id']
-      if active_plan and start_of_day_est(active_plan['start_date'].date()) <= start_date <= start_of_day_est(active_plan['end_date'].date()):
-        doc['source_type'] = 'manual'
-      all_events_to_insert.append(doc)
-    else:
-      # We want recurrence for the next 90 days, counting from the input date
-      end_date = start_date + timedelta(days=90)
-      current_date = start_date
-      delta = {
-        'daily': timedelta(days=1),
-        'weekly': timedelta(weeks=1),
-        'monthly': relativedelta(months=1)
-      }.get(recurrence)
-
-      if not delta:
-        flash("Invalid recurrence type selected.", "error")
+    if current_user.role != 'parent':
+        flash("You are not authorized to create tasks.", "error")
         return redirect(url_for('personal_dashboard'))
 
-      while current_date < end_date:
-        doc = base_doc.copy()
-        doc['due_date'] = current_date
-       
-        # Compare awareness: active_plan dates are likely naive/UTC from DB, so make them EST/EDT midnight
-        if active_plan and start_of_day_est(active_plan['start_date'].date()) <= current_date <= start_of_day_est(active_plan['end_date'].date()):
-          doc['source_type'] = 'manual'
-         
-        all_events_to_insert.append(doc)
-        current_date += delta
+    assigned_to_value = request.form['assigned_to']
+    recurrence = request.form['recurrence']
+    task_type = request.form['type']
+    
+    # Get all children to be used for 'All' and 'Round Robin' assignments
+    children = list(users_collection.find({
+        'family_id': current_user.family_id,
+        'role': 'child'
+    }, {'_id': 1}))
 
-  if all_events_to_insert:
-    events_collection.insert_many(all_events_to_insert)
-    total_events_created = len(all_events_to_insert)
-    flash(f"{total_events_created} task(s) scheduled successfully!", 'success')
-  else:
-    flash("No events were scheduled.", "warning")
+    if not children:
+        flash("There are no children in the family to assign tasks to.", "warning")
+        return redirect(url_for('personal_dashboard'))
+    
+    child_ids = [str(c['_id']) for c in children]
 
-  return redirect(url_for('personal_dashboard'))
+    # Convert naive date input into an EST/EDT midnight datetime object
+    input_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d').date()
+    start_date = start_of_day_est(input_date)
+    
+    family_oid = ObjectId(current_user.family_id)
+    all_events_to_insert = []
+    
+    # --- ✨ REVISED LOGIC FOR ASSIGNMENTS ✨ ---
+
+    base_doc_template = {
+        'name': request.form['name'],
+        'description': request.form['description'],
+        'points': int(request.form['points']),
+        'type': task_type,
+        'family_id': family_oid,
+        'status': 'assigned',
+        'created_at': now_est(),
+        'source_type': 'manual' # Manually created tasks
+    }
+    if task_type == 'habit':
+        base_doc_template['streak'] = 0
+        base_doc_template['last_completed'] = None
+
+    # Handle a single, non-recurring task
+    if recurrence == 'none':
+        assignees = []
+        if assigned_to_value == "__ALL__":
+            assignees = child_ids
+        elif assigned_to_value == "__ROUND_ROBIN__":
+            # For a single task, round-robin assigns to the first child.
+            assignees = [child_ids[0]] if child_ids else []
+        else:
+            assignees.append(assigned_to_value)
+            
+        for user_id in assignees:
+            doc = base_doc_template.copy()
+            doc['assigned_to'] = user_id
+            doc['due_date'] = start_date
+            all_events_to_insert.append(doc)
+    
+    # Handle recurring tasks
+    else:
+        end_date = start_date + timedelta(days=90)
+        current_date = start_date
+        delta = {
+            'daily': timedelta(days=1),
+            'weekly': timedelta(weeks=1),
+            'monthly': relativedelta(months=1)
+        }.get(recurrence)
+
+        if not delta:
+            flash("Invalid recurrence type selected.", "error")
+            return redirect(url_for('personal_dashboard'))
+
+        # Create the cycler for Round Robin assignments
+        child_cycler = itertools.cycle(child_ids)
+        base_doc_template['recurrence_id'] = ObjectId()
+
+        while current_date < end_date:
+            assignees_for_this_instance = []
+            if assigned_to_value == "__ALL__":
+                assignees_for_this_instance = child_ids
+            elif assigned_to_value == "__ROUND_ROBIN__":
+                assignees_for_this_instance = [next(child_cycler)] # Get the next child in the cycle
+            else: # A specific child was selected
+                assignees_for_this_instance = [assigned_to_value]
+
+            for user_id in assignees_for_this_instance:
+                doc = base_doc_template.copy()
+                doc['assigned_to'] = user_id
+                doc['due_date'] = current_date
+                all_events_to_insert.append(doc)
+            
+            current_date += delta
+
+    if all_events_to_insert:
+        try:
+            # Use ordered=False to skip duplicates and insert all other valid chores
+            events_collection.insert_many(all_events_to_insert, ordered=False)
+            flash(f"Task(s) scheduled successfully!", 'success')
+        except Exception as e:
+            if "E11000 duplicate key error" in str(e):
+                 flash("Task(s) scheduled. Some duplicates for existing dates were skipped.", 'warning')
+            else:
+                flash(f"An error occurred: {e}", "error")
+    else:
+        flash("No events were scheduled.", "warning")
+
+    return redirect(url_for('personal_dashboard'))
 
 @app.context_processor
 def inject_global_vars():
