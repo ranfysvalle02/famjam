@@ -1428,7 +1428,10 @@ def complete_event(event_id):
         # Mark chore as completed only if assigned to this child
         events_collection.update_one(
             {'_id': ObjectId(event_id), 'assigned_to': current_user.id, 'type': 'chore'},
-            {'$set': {'status': 'completed'}}
+            {'$set': {
+                'status': 'completed',
+                'completed_at': now_est() # UPDATED to EST/EDT
+            }}
         )
         flash('Chore marked as complete! Awaiting approval.', 'success')
 
