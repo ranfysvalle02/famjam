@@ -541,28 +541,28 @@ def personal_dashboard():
             challenges=challenges,
             today_date=today
         )
-    # --- CHILD LOGIC (Corrected) ---
+    # --- CHILD LOGIC (Corrected for 3-Tab View) ---
     else:
         # Child's "My Day" dashboard logic
         start_of_today = start_of_day_est(today)
         end_of_today = start_of_today + timedelta(days=1)
 
-        # 1. Fetch overdue and today's CHORES that are not yet approved.
+        # 1. Fetch ALL relevant chores (overdue, today, and upcoming)
+        #    This now gets all chores that aren't fully approved yet for the template to filter.
         chores_cursor = events_collection.find({
             'assigned_to': current_user.id,
             'type': 'chore',
-            'due_date': {'$lt': end_of_today}, # Due before tomorrow (includes today + past)
-            'status': {'$in': ['assigned', 'completed']} # Not yet approved
+            'status': {'$in': ['assigned', 'completed']} 
         }).sort('due_date', ASCENDING)
         
-        child_events = list(chores_cursor) # Start the list with all relevant chores
+        child_events = list(chores_cursor) # Start the list with all chores
 
         # 2. Fetch HABITS for today ONLY.
         habits_cursor = events_collection.find({
             'assigned_to': current_user.id,
             'type': 'habit',
             'due_date': {'$gte': start_of_today, '$lt': end_of_today},
-        }).sort('due_date', ASCENDING)
+        })
 
         for e in habits_cursor:
             # This logic determines if a habit can be checked in today
@@ -624,7 +624,7 @@ def personal_dashboard():
             challenges=challenges,
             direct_messages=direct_messages,
             today_date=today,
-            TIMEZONE=TIMEZONE 
+            TIMEZONE=TIMEZONE  # Pass timezone for accurate date filtering in template
         )
 
 
