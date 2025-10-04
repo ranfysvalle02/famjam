@@ -623,7 +623,8 @@ def personal_dashboard():
             personal_todos=personal_todos,
             challenges=challenges,
             direct_messages=direct_messages,
-            today_date=today
+            today_date=today,
+            TIMEZONE=TIMEZONE 
         )
 
 
