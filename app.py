@@ -458,12 +458,13 @@ def reset_child_password(child_id):
 def personal_dashboard():
     # Helper for all family artifact queries
     family_oid = ObjectId(current_user.family_id)
-    today = today_est() # UPDATED to EST/EDT date
+    today = today_est() # Today's date in EST/EDT
     
-    # Fetch personal items for ANY logged in user (notes and todos use user_id, not family_id)
+    # Fetch personal items for ANY logged in user (notes and todos use user_id)
     personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
     personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
 
+    # --- PARENT LOGIC ---
     if current_user.role == 'parent':
         # Parent's personal dashboard - Users collection uses family_id string
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
@@ -471,13 +472,13 @@ def personal_dashboard():
         for member in family_members:
             member['_id'] = str(member['_id'])
 
-        # Events (Artifact collection)
+        # Fetch events for "Pending Approvals" list
         events = list(events_collection.find({
             'family_id': family_oid,
             'status': {'$in': ['completed', 'approved']}
         }).sort('due_date', DESCENDING).limit(20))
 
-        # Reward Requests (Artifact collection)
+        # Reward Requests
         reward_requests_cursor = rewards_collection.find({
             'family_id': family_oid,
             'status': 'requested'
@@ -487,13 +488,13 @@ def personal_dashboard():
             r['requested_by_username'] = member_map.get(str(r.get('requested_by_id')), 'Unknown')
             reward_requests.append(r)
 
-        # Transaction History (Artifact collection)
-        now = now_est() # UPDATED to EST/EDT now
+        # Transaction History
+        now = now_est()
         spend_tx = list(transactions_collection.find({
             'family_id': family_oid
         }).sort('spent_at', DESCENDING))
         for t in spend_tx:
-            delta = now - t['spent_at'].astimezone(TIMEZONE) # Compare EST/EDT time to EST/EDT stored time
+            delta = now - t['spent_at'].astimezone(TIMEZONE)
             if delta.days > 0:
                 t['spent_at_pretty'] = f"{delta.days}d ago"
             elif delta.seconds > 3600:
@@ -501,20 +502,15 @@ def personal_dashboard():
             else:
                 t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
 
-        # FamJam Plan (Artifact collection)
+        # Active FamJam Plan
         active_famjam_plan = famjam_plans_collection.find_one({
             'family_id': family_oid,
             'status': 'active'
         })
         if active_famjam_plan:
-            today_dt = now_est() # UPDATED to EST/EDT now
+            today_dt = now_est()
             start_date = active_famjam_plan['start_date']
             end_date = active_famjam_plan['end_date']
-            # We assume dates stored are naive dates or have timezone info,
-            # but comparing against current EST/EDT time is needed here.
-            
-            # Since start_date and end_date are Python date objects from MongoDB
-            # they are likely naive, so we make them aware for calculation.
             start_date_aware = start_of_day_est(start_date.date())
             end_date_aware = start_of_day_est(end_date.date())
             
@@ -526,7 +522,7 @@ def personal_dashboard():
                 active_famjam_plan['progress_percent'] = 100
             active_famjam_plan['days_left'] = max(0, (end_date_aware - today_dt).days)
 
-        # Challenges (Artifact collection)
+        # Challenges
         challenges = list(challenges_collection.find({'family_id': family_oid}))
         for c in challenges:
             c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
@@ -543,43 +539,45 @@ def personal_dashboard():
             personal_notes=personal_notes,
             personal_todos=personal_todos,
             challenges=challenges,
-            # Pass today's date to the template
             today_date=today
         )
+    # --- CHILD LOGIC (Corrected) ---
     else:
-        # Child's personal dashboard - limited to "things for today"
-        from datetime import datetime, time
+        # Child's "My Day" dashboard logic
+        start_of_today = start_of_day_est(today)
+        end_of_today = start_of_today + timedelta(days=1)
 
-        today = today_est() # UPDATED to EST/EDT date
-        start_of_day = start_of_day_est(today) # UPDATED to EST/EDT midnight
-        end_of_day = start_of_day + timedelta(days=1)
-
-        # CORRECTED QUERY: This simplified query fetches BOTH chores and habits,
-        # but correctly filters them to only include items due for the current day.
-        # This prevents the entire plan from appearing on the "My Day" view.
-        events_cursor = events_collection.find({
+        # 1. Fetch overdue and today's CHORES that are not yet approved.
+        chores_cursor = events_collection.find({
             'assigned_to': current_user.id,
-            'due_date': {'$gte': start_of_day, '$lt': end_of_day}, # Use $lt for end of day for proper range
-            'status': {'$in': ['assigned', 'completed', 'approved']}
+            'type': 'chore',
+            'due_date': {'$lt': end_of_today}, # Due before tomorrow (includes today + past)
+            'status': {'$in': ['assigned', 'completed']} # Not yet approved
+        }).sort('due_date', ASCENDING)
+        
+        child_events = list(chores_cursor) # Start the list with all relevant chores
+
+        # 2. Fetch HABITS for today ONLY.
+        habits_cursor = events_collection.find({
+            'assigned_to': current_user.id,
+            'type': 'habit',
+            'due_date': {'$gte': start_of_today, '$lt': end_of_today},
         }).sort('due_date', ASCENDING)
 
-        child_events = []
-        for e in events_cursor:
-            if e['type'] == 'habit':
-                # This logic correctly determines if a habit for today can be checked in
-                last_check = e.get('last_completed')
-                # If last_completed exists and its EST date matches today's EST date
-                last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
-                e['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
-            child_events.append(e)
-
-        now = now_est() # UPDATED to EST/EDT now
+        for e in habits_cursor:
+            # This logic determines if a habit can be checked in today
+            last_check = e.get('last_completed')
+            last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
+            e['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
+            child_events.append(e) # Add the processed habit to the main list
+        
+        # --- The rest of the data fetching for the child dashboard ---
+        now = now_est()
         child_rewards = list(rewards_collection.find({
             'requested_by_id': current_user.id
         }))
         for reward in child_rewards:
             if reward.get('status') in ['approved', 'rejected'] and reward.get('resolved_at'):
-                # Make resolved_at timezone aware for delta comparison
                 resolved_at_aware = reward['resolved_at'].astimezone(TIMEZONE)
                 delta = now - resolved_at_aware
                 if delta.days > 0:
