@@ -131,10 +131,10 @@ login_manager.login_view = 'login'
 # Moods configuration
 MOOD_CONFIG = {
   'moods': [
-    {'emoji': '', 'desc': 'Upset', 'score': 1, 'color': '#ef4444'},
-    {'emoji': '', 'desc': 'Not Happy', 'score': 2, 'color': '#f97316'},
-    {'emoji': '', 'desc': 'Calm / Okay', 'score': 3, 'color': '#84cc16'},
-    {'emoji': '', 'desc': 'Very Happy', 'score': 4, 'color': '#22c55e'}
+    {'emoji': '😡', 'desc': 'Upset', 'score': 1, 'color': '#ef4444'},
+    {'emoji': '😟', 'desc': 'Not Happy', 'score': 2, 'color': '#f97316'},
+    {'emoji': '😐', 'desc': 'Calm / Okay', 'score': 3, 'color': '#84cc16'},
+    {'emoji': '😄', 'desc': 'Very Happy', 'score': 4, 'color': '#22c55e'}
   ]
 }
 MOOD_EMOJI_TO_SCORE = {m['emoji']: m['score'] for m in MOOD_CONFIG['moods']}
@@ -459,7 +459,7 @@ def personal_dashboard():
   # Helper for all family artifact queries
   family_oid = ObjectId(current_user.family_id)
   today = today_est() # Today's date in EST/EDT
- 
+  
   # Fetch personal items for ANY logged in user (notes and todos use user_id)
   personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
   personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
@@ -503,7 +503,7 @@ def personal_dashboard():
           t['spent_at_pretty'] = f"{delta.seconds // 3600}h ago"
         else:
           t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
-   
+    
     # Add 'completed_at_pretty' for pending approval events
     for event in events:
       if event.get('completed_at'):
@@ -527,7 +527,7 @@ def personal_dashboard():
       end_date = active_famjam_plan['end_date']
       start_date_aware = start_of_day_est(start_date.date())
       end_date_aware = start_of_day_est(end_date.date())
-     
+      
       total_days = (end_date_aware - start_date_aware).days
       if total_days > 0:
         days_passed = (today_dt - start_date_aware).days
@@ -557,38 +557,55 @@ def personal_dashboard():
       now_est=now_est,
       TIMEZONE=TIMEZONE
     )
-  # --- CHILD LOGIC (Corrected for 3-Tab View) ---
+  # --- CHILD LOGIC (BUG FIX FOR 'MY DAY' TAB) ---
   else:
     # Child's "My Day" dashboard logic
+    today = today_est() # Today's date in EST/EDT
     start_of_today = start_of_day_est(today)
     end_of_today = start_of_today + timedelta(days=1)
-    # Define the 7-day boundary for the 'Upcoming' tab
-    seven_days_from_now = start_of_today + timedelta(days=8)
+    seven_days_from_now = start_of_today + timedelta(days=8) # Looks 7 days into the future
 
-    # 1. Fetch ALL relevant chores (overdue, today, and upcoming)
-    #  This gets all chores that aren't fully approved yet for the template to filter.
-    chores_cursor = events_collection.find({
-      'assigned_to': current_user.id,
-      'type': 'chore',
-      'status': {'$in': ['assigned', 'completed']}
-    }).sort('due_date', ASCENDING)
-   
-    child_events = list(chores_cursor) # Start the list with all chores
+    # --- ✨ NEW, EFFICIENT FETCH LOGIC ✨ ---
+    # 1. Fetch Overdue Chores (only assigned ones that are still actionable)
+    overdue_chores = list(events_collection.find({
+        'assigned_to': current_user.id,
+        'type': 'chore',
+        'status': 'assigned', # Only show incomplete overdue chores
+        'due_date': {'$lt': start_of_today}
+    }).sort('due_date', ASCENDING))
 
-    # 2. Fetch HABITS for today ONLY.
-    habits_cursor = events_collection.find({
-      'assigned_to': current_user.id,
-      'type': 'habit',
-      'due_date': {'$gte': start_of_today, '$lt': end_of_today},
+    # 2. Fetch Today's Chores (both assigned and completed for status view)
+    todays_chores = list(events_collection.find({
+        'assigned_to': current_user.id,
+        'type': 'chore',
+        'status': {'$in': ['assigned', 'completed']},
+        'due_date': {'$gte': start_of_today, '$lt': end_of_today}
+    }).sort('name', ASCENDING))
+
+    # 3. Fetch Upcoming Chores (limited to the next 7 days)
+    upcoming_chores = list(events_collection.find({
+        'assigned_to': current_user.id,
+        'type': 'chore',
+        'status': {'$in': ['assigned', 'completed']},
+        'due_date': {'$gte': end_of_today, '$lt': seven_days_from_now}
+    }).sort('due_date', ASCENDING))
+
+    # 4. Fetch and process HABITS for today for its own dedicated section
+    todays_habits_cursor = events_collection.find({
+        'assigned_to': current_user.id,
+        'type': 'habit',
+        # Habits are daily, so we just need to find the template for today
+        'due_date': {'$gte': start_of_today, '$lt': end_of_today},
     })
-
-    for e in habits_cursor:
-      # This logic determines if a habit can be checked in today
-      last_check = e.get('last_completed')
-      last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
-      e['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
-      child_events.append(e) # Add the processed habit to the main list
-   
+    
+    todays_habits = []
+    for habit in todays_habits_cursor:
+        last_check = habit.get('last_completed')
+        last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
+        # A habit can be checked in if it hasn't been completed today
+        habit['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
+        todays_habits.append(habit)
+        
     # --- The rest of the data fetching for the child dashboard ---
     now = now_est()
     child_rewards = list(rewards_collection.find({
@@ -632,18 +649,23 @@ def personal_dashboard():
       else:
         msg['sent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
 
+    # Pass the new, specific lists to the template
     return render_template(
-      'index.html',
-      page='dashboard_child',
-      events=child_events,
-      rewards=child_rewards,
-      personal_notes=personal_notes,
-      personal_todos=personal_todos,
-      challenges=challenges,
-      direct_messages=direct_messages,
-      today_date=today,
-      TIMEZONE=TIMEZONE,
-      seven_days_from_now=seven_days_from_now
+        'index.html',
+        page='dashboard_child',
+        # Pass new pre-filtered lists
+        todays_chores=todays_chores,
+        overdue_chores=overdue_chores,
+        upcoming_chores=upcoming_chores,
+        todays_habits=todays_habits,
+        # Pass other data as before
+        rewards=child_rewards,
+        personal_notes=personal_notes,
+        personal_todos=personal_todos,
+        challenges=challenges,
+        direct_messages=direct_messages,
+        today_date=today,
+        TIMEZONE=TIMEZONE,
     )
 
 
@@ -695,7 +717,7 @@ def family_dashboard():
     # The rest of this logic now only processes tasks belonging to children.
     if e.get('status') == 'completed':
       stats['pending_approval'] += 1
-   
+    
     if e.get('status') == 'approved' and e.get('approved_at'):
       # Make approved_at timezone aware for comparison
       approved_at_aware = e['approved_at'].astimezone(TIMEZONE)
@@ -717,7 +739,7 @@ def family_dashboard():
     # +++ FIX 3: Also filter recent events to only show children's accomplishments +++
     'assigned_to': {'$in': list(child_ids)}
   }).sort('approved_at', DESCENDING).limit(5)
- 
+  
   recent_events = []
   for ev in rec_cursor:
     ev['assigned_to_username'] = member_map.get(str(ev.get('assigned_to')), 'Unknown')
@@ -740,7 +762,7 @@ def family_dashboard():
   for t in timers_cursor:
     creator_name = member_map.get(str(t.get('created_by')), "Unknown")
     end_date_aware = start_of_day_est(t['end_date'].date())
-   
+    
     delta = end_date_aware - now
     if delta.total_seconds() < 0:
       time_left = "Timer ended"
@@ -1352,7 +1374,7 @@ def create_event():
             flash(f"Task(s) scheduled successfully!", 'success')
         except Exception as e:
             if "E11000 duplicate key error" in str(e):
-                 flash("Task(s) scheduled. Some duplicates for existing dates were skipped.", 'warning')
+                flash("Task(s) scheduled. Some duplicates for existing dates were skipped.", 'warning')
             else:
                 flash(f"An error occurred: {e}", "error")
     else:
@@ -1373,7 +1395,7 @@ def inject_global_vars():
   )
   family_members = []
   parent = {} # Used for the child's 'parent' variable if needed
- 
+  
   # We load the family document once to determine the primary parent ID
   family_doc = families_collection.find_one({'_id': ObjectId(current_user.family_id)})
   primary_parent_oid = family_doc['parent_ids'][0] if family_doc and family_doc.get('parent_ids') else None
@@ -1381,13 +1403,13 @@ def inject_global_vars():
   for member in family_members_cursor:
     # Ensure user IDs are strings for easy use in JavaScript
     member['_id'] = str(member['_id'])
-   
+    
     # If this member is the primary parent, save them for the child context
     if primary_parent_oid and member.get('_id') == str(primary_parent_oid):
       parent = member
 
     family_members.append(member)
-   
+    
   # *** FIX: Fetch personal notes and todos here to make them globally available ***
   personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
   personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
@@ -1730,7 +1752,7 @@ def api_events():
 
   cursor = events_collection.find(query)
   calendar_events = []
- 
+  
   # 2. Get today's date once before the loop
   today = datetime.now(timezone.utc).date()
 
@@ -1772,7 +1794,7 @@ def api_mood_log():
     # We assume the user date input is in the local time (EST/EDT)
     input_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
     entry_date_aware = start_of_day_est(input_date) # Store as EST midnight
-   
+    
     period = data['period']
     mood_emoji = data['emoji']
     note = data.get('note', '')
@@ -1813,7 +1835,7 @@ def api_mood_personal():
       # Query the date as EST midnight
       entry_date_naive = datetime.strptime(request.args['date'], '%Y-%m-%d').date()
       entry_date_aware = start_of_day_est(entry_date_naive)
-     
+      
       period = request.args['period']
       entry = moods_collection.find_one({
         'user_id': ObjectId(current_user.id),
@@ -1841,7 +1863,7 @@ def api_mood_personal():
     date_est = e['date'].astimezone(TIMEZONE)
     labels.append(f"{date_est.strftime('%b %d')} {e['period']}")
     data.append(e['mood_score'])
-   
+    
   return jsonify({'labels': labels, 'data': data})
 
 @app.route('/api/mood/family')
@@ -1849,7 +1871,7 @@ def api_mood_personal():
 def api_mood_family():
   # Look back 30 days based on EST/EDT time
   thirty_days_ago = now_est() - timedelta(days=30)
- 
+  
   pipeline_avg = [
     {
       '$match': {
@@ -1866,7 +1888,7 @@ def api_mood_family():
     {'$sort': {'_id': 1}}
   ]
   daily_avg_data = list(moods_collection.aggregate(pipeline_avg))
- 
+  
   # Process aggregation results to use EST for display
   daily_avg_labels = []
   for d in daily_avg_data:
@@ -2069,15 +2091,15 @@ def suggest_famjam_plan():
     return jsonify({"error": error_message}), 500
 
   today = now_est() # UPDATED to EST/EDT now
- 
+  
   # Logic to set quarterly start/end dates based on EST/EDT time
   quarter = (today.month - 1) // 3 + 1
   start_month = (quarter - 1) * 3 + 1
- 
+  
   # Calculate naive start/end dates for the quarter
   naive_start_date = today.replace(month=start_month, day=1, hour=0, minute=0, second=0, microsecond=0)
   naive_end_date = naive_start_date + relativedelta(months=3) - timedelta(days=1)
- 
+  
   # Convert naive dates to EST/EDT midnight timezone-aware datetimes for storage
   start_date_aware = start_of_day_est(naive_start_date.date())
   end_date_aware = start_of_day_est(naive_end_date.date())
@@ -2177,7 +2199,7 @@ def apply_famjam_plan():
       continue
 
     assigned_to_value = chore_template.get('assigned_to')
-   
+    
     # Reset generation loop start point for each chore template
     loop_date = current_due_date
 
@@ -2235,7 +2257,7 @@ def apply_famjam_plan():
       return jsonify({
         'status': 'success',
         'message': 'Chore plan applied successfully. Existing chores were not duplicated.'
-       })
+        })
     # Handle other potential database errors
     return jsonify({'error': f'Failed to save the plan to the database: {e}'}), 500
 
