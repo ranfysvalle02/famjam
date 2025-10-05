@@ -131,10 +131,10 @@ login_manager.login_view = 'login'
 # Moods configuration
 MOOD_CONFIG = {
   'moods': [
-    {'emoji': '😡', 'desc': 'Upset', 'score': 1, 'color': '#ef4444'},
-    {'emoji': '😟', 'desc': 'Not Happy', 'score': 2, 'color': '#f97316'},
-    {'emoji': '😐', 'desc': 'Calm / Okay', 'score': 3, 'color': '#84cc16'},
-    {'emoji': '😄', 'desc': 'Very Happy', 'score': 4, 'color': '#22c55e'}
+    {'emoji': '😖', 'desc': 'Upset', 'score': 1, 'color': '#ef4444'},
+    {'emoji': '😔', 'desc': 'Not Happy', 'score': 2, 'color': '#f97316'},
+    {'emoji': '😌', 'desc': 'Calm / Okay', 'score': 3, 'color': '#84cc16'},
+    {'emoji': '😎', 'desc': 'Very Happy', 'score': 4, 'color': '#22c55e'}
   ]
 }
 MOOD_EMOJI_TO_SCORE = {m['emoji']: m['score'] for m in MOOD_CONFIG['moods']}
@@ -1186,6 +1186,31 @@ def remove_child(child_id):
 ################################################################################
 # 12. EVENT / TASK CREATION & MANAGEMENT
 ################################################################################
+@app.route('/event/delete/<event_id>')
+@login_required
+def delete_event(event_id):
+    """Allows a parent to delete a task from the manage_plan view."""
+    # Step 1: Authorization check
+    if current_user.role != 'parent':
+        flash("You are not authorized to delete tasks.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    # Step 2: Security check - Find the event and verify it belongs to the parent's family
+    event_to_delete = events_collection.find_one({
+        '_id': ObjectId(event_id),
+        'family_id': ObjectId(current_user.family_id)
+    })
+
+    if not event_to_delete:
+        flash("Task not found or you don't have permission to delete it.", "error")
+        return redirect(url_for('manage_plan'))
+
+    # Step 3: Perform the deletion
+    events_collection.delete_one({'_id': ObjectId(event_id)})
+    
+    flash("Task has been successfully deleted.", "success")
+    # Step 4: Redirect back to the page where the action was made
+    return redirect(url_for('manage_plan'))
 @app.route('/event/create', methods=['POST'])
 @login_required
 def create_event():
