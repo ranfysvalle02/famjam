@@ -579,7 +579,7 @@ def personal_dashboard():
         'assigned_to': current_user.id,
         'type': 'chore',
         'status': {'$in': ['assigned', 'completed']},
-        'due_date': {'$gte': start_of_today, '$lt': end_of_today}
+        'due_date': {'$gte': start_of_today, '$lt': end_of_today} # <--- CORRECT FIELD NAME
     }).sort('name', ASCENDING))
 
     # 3. Fetch Upcoming Chores (limited to the next 7 days)
