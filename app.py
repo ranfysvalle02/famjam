@@ -453,6 +453,52 @@ def reset_child_password(child_id):
 ################################################################################
 # 7. DASHBOARD ROUTES
 ################################################################################
+def get_formatted_events(family_oid, member_map, filters={}):
+    """
+    Fetches and formats events from the database based on a set of filters.
+    This consolidates the logic from the API and dashboard into one place.
+    """
+    query = {'family_id': family_oid}
+    query.update(filters) # Apply any additional filters
+
+    # Define a stable color mapping for consistency
+    child_colors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6']
+    all_children = [m for m in member_map.values()]
+    child_color_map = {child_id: child_colors[i % len(child_colors)] for i, child_id in enumerate(member_map.keys())}
+
+    # Set a default color for consistency
+    default_color = '#6b7280'
+
+    formatted_events = []
+    events_cursor = events_collection.find(query).sort([('due_date', ASCENDING), ('name', ASCENDING)])
+
+    for event in events_cursor:
+        assignee_id_str = str(event.get('assigned_to'))
+        
+        # Determine if a habit can be checked in today
+        can_checkin = False
+        if event.get('type') == 'habit':
+            last_completed = event.get('last_completed')
+            last_completed_date_est = last_completed.astimezone(TIMEZONE).date() if last_completed else None
+            if not (last_completed_date_est and last_completed_date_est == today_est()):
+                can_checkin = True
+
+        formatted_events.append({
+            '_id': str(event['_id']),
+            'name': event.get('name'),
+            'description': event.get('description'),
+            'points': event.get('points'),
+            'type': event.get('type'),
+            'status': event.get('status'),
+            'streak': event.get('streak', 0),
+            'assignee_name': member_map.get(assignee_id_str, 'N/A'),
+            'assignee_id': assignee_id_str,
+            'color': child_color_map.get(assignee_id_str, default_color),
+            'can_checkin': can_checkin,
+            'due_date': event.get('due_date') # Keep the original datetime object
+        })
+    return formatted_events
+
 @app.route('/dashboard')
 @login_required
 def personal_dashboard():
@@ -462,7 +508,7 @@ def personal_dashboard():
     personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
     personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
 
-    # Parent logic was already correct and requires no changes.
+    # --- PARENT LOGIC (UNCHANGED) ---
     if current_user.role == 'parent':
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
@@ -516,52 +562,38 @@ def personal_dashboard():
             personal_notes=personal_notes, personal_todos=personal_todos,
             challenges=challenges, today_date=today, now_est=now_est, TIMEZONE=TIMEZONE
         )
-    
-    # --- CORRECTED CHILD LOGIC ---
+
+    # --- NEW, SIMPLIFIED CHILD LOGIC ---
     else:
         current_user_oid = ObjectId(current_user.id)
 
-        # 1. Define time boundaries in the local timezone (EST)
+        # Create the member_map needed for the helper function
+        family_members = list(users_collection.find({'family_id': current_user.family_id}))
+        member_map = {str(m['_id']): m['username'] for m in family_members}
+
+        # Define time boundaries in UTC for database queries
         start_of_today_est = start_of_day_est(today)
-        end_of_today_est = start_of_today_est + timedelta(days=1)
-        seven_days_from_now_est = start_of_today_est + timedelta(days=8)
-
-        # 2. Convert boundaries to UTC for all database queries
         start_of_today_utc = start_of_today_est.astimezone(timezone.utc)
-        end_of_today_utc = end_of_today_est.astimezone(timezone.utc)
-        seven_days_from_now_utc = seven_days_from_now_est.astimezone(timezone.utc)
+        end_of_today_utc = start_of_today_utc + timedelta(days=1)
 
-        # 3. Use UTC boundaries in all date-based queries
-        overdue_chores = list(events_collection.find({
-            'assigned_to': current_user_oid, 'type': 'chore', 'status': 'assigned',
+        # 1. Get Overdue Chores using the helper function
+        overdue_filters = {
+            'assigned_to': current_user_oid,
+            'type': 'chore',
+            'status': 'assigned',  # Only show *uncompleted* overdue chores
             'due_date': {'$lt': start_of_today_utc}
-        }).sort('due_date', ASCENDING))
+        }
+        overdue_events = get_formatted_events(family_oid, member_map, filters=overdue_filters)
 
-        todays_chores = list(events_collection.find({
-            'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed', 'approved']},
+        # 2. Get all of Today's Events (Chores and Habits) using the helper function
+        todays_filters = {
+            'assigned_to': current_user_oid,
             'due_date': {'$gte': start_of_today_utc, '$lt': end_of_today_utc}
-        }).sort('name', ASCENDING))
-
-        upcoming_chores = list(events_collection.find({
-            'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed']},
-            'due_date': {'$gte': end_of_today_utc, '$lt': seven_days_from_now_utc}
-        }).sort('due_date', ASCENDING))
-
-        todays_habits_cursor = events_collection.find({
-            'assigned_to': current_user_oid, 'type': 'habit',
-            'due_date': {'$gte': start_of_today_utc, '$lt': end_of_today_utc},
-        })
-
-        todays_habits = []
-        for habit in todays_habits_cursor:
-            last_check = habit.get('last_completed')
-            # For logic/display, convert DB time (UTC) to local time (EST)
-            last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
-            habit['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
-            todays_habits.append(habit)
-
+        }
+        todays_events = get_formatted_events(family_oid, member_map, filters=todays_filters)
+        
+        # --- Other data fetching logic remains the same ---
         now = now_est()
-        # This query does not use a date range, so it doesn't need UTC conversion
         child_rewards = list(rewards_collection.find({'requested_by_id': current_user.id}))
         for reward in child_rewards:
             if reward.get('status') in ['approved', 'rejected'] and reward.get('resolved_at'):
@@ -588,12 +620,21 @@ def personal_dashboard():
             else: msg['sent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
 
         return render_template(
-            'index.html', page='dashboard_child',
-            todays_chores=todays_chores, overdue_chores=overdue_chores, upcoming_chores=upcoming_chores,
-            todays_habits=todays_habits, rewards=child_rewards, personal_notes=personal_notes,
-            personal_todos=personal_todos, challenges=challenges, direct_messages=direct_messages,
-            today_date=today, TIMEZONE=TIMEZONE,
+            'index.html',
+            page='dashboard_child',
+            overdue_events=overdue_events,
+            todays_events=todays_events,
+            rewards=child_rewards,
+            personal_notes=personal_notes,
+            personal_todos=personal_todos,
+            challenges=challenges,
+            direct_messages=direct_messages,
+            today_date=today,
+            TIMEZONE=TIMEZONE
         )
+
+
+
 @app.route('/family-dashboard')
 @login_required
 def family_dashboard():
