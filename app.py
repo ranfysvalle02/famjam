@@ -456,353 +456,218 @@ def reset_child_password(child_id):
 @app.route('/dashboard')
 @login_required
 def personal_dashboard():
-  # Helper for all family artifact queries
-  family_oid = ObjectId(current_user.family_id)
-  today = today_est() # Today's date in EST/EDT
-  
-  # Fetch personal items for ANY logged in user (notes and todos use user_id)
-  personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
-  personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
-
-  # --- PARENT LOGIC ---
-  if current_user.role == 'parent':
-    # Parent's "Manage Tasks" dashboard
-    family_members = list(users_collection.find({'family_id': current_user.family_id}))
-    member_map = {str(m['_id']): m['username'] for m in family_members}
-    for member in family_members:
-      member['_id'] = str(member['_id'])
-
-    # Fetch events for "Pending Approvals" list
-    events = list(events_collection.find({
-      'family_id': family_oid,
-      'status': {'$in': ['completed', 'approved']}
-    }).sort('due_date', DESCENDING).limit(20))
-
-    # Reward Requests
-    reward_requests_cursor = rewards_collection.find({
-      'family_id': family_oid,
-      'status': 'requested'
-    }).sort('_id', -1)
-    reward_requests = []
-    for r in reward_requests_cursor:
-      r['requested_by_username'] = member_map.get(str(r.get('requested_by_id')), 'Unknown')
-      reward_requests.append(r)
-
-    # Transaction History
-    now = now_est()
-    spend_tx = list(transactions_collection.find({
-      'family_id': family_oid
-    }).sort('spent_at', DESCENDING))
-    for t in spend_tx:
-      # Add a 'completed_at_pretty' field for display
-      if t.get('spent_at'):
-        delta = now - t['spent_at'].astimezone(TIMEZONE)
-        if delta.days > 0:
-          t['spent_at_pretty'] = f"{delta.days}d ago"
-        elif delta.seconds > 3600:
-          t['spent_at_pretty'] = f"{delta.seconds // 3600}h ago"
-        else:
-          t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+    family_oid = ObjectId(current_user.family_id)
+    today = today_est()
     
-    # Add 'completed_at_pretty' for pending approval events
-    for event in events:
-      if event.get('completed_at'):
-        delta = now - event['completed_at'].astimezone(TIMEZONE)
-        if delta.days > 0:
-          event['completed_at_pretty'] = f"Completed {delta.days}d ago"
-        elif delta.seconds > 3600:
-          event['completed_at_pretty'] = f"Completed {delta.seconds // 3600}h ago"
-        else:
-          event['completed_at_pretty'] = f"Completed {max(1, delta.seconds // 60)}m ago"
+    personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
+    personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
 
+    if current_user.role == 'parent':
+        family_members = list(users_collection.find({'family_id': current_user.family_id}))
+        member_map = {str(m['_id']): m['username'] for m in family_members}
+        for member in family_members: member['_id'] = str(member['_id'])
 
-    # Active FamJam Plan
-    active_famjam_plan = famjam_plans_collection.find_one({
-      'family_id': family_oid,
-      'status': 'active'
-    })
-    if active_famjam_plan:
-      today_dt = now_est()
-      start_date = active_famjam_plan['start_date']
-      end_date = active_famjam_plan['end_date']
-      start_date_aware = start_of_day_est(start_date.date())
-      end_date_aware = start_of_day_est(end_date.date())
-      
-      total_days = (end_date_aware - start_date_aware).days
-      if total_days > 0:
-        days_passed = (today_dt - start_date_aware).days
-        active_famjam_plan['progress_percent'] = min(100, max(0, (days_passed / total_days) * 100))
-      else:
-        active_famjam_plan['progress_percent'] = 100
-      active_famjam_plan['days_left'] = max(0, (end_date_aware - today_dt).days)
-
-    # Challenges
-    challenges = list(challenges_collection.find({'family_id': family_oid}))
-    for c in challenges:
-      c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
-
-    return render_template(
-      'index.html',
-      page='dashboard_parent',
-      family_members=family_members,
-      events=events,
-      reward_requests=reward_requests,
-      member_map=member_map,
-      spend_history=spend_tx,
-      active_famjam_plan=active_famjam_plan,
-      personal_notes=personal_notes,
-      personal_todos=personal_todos,
-      challenges=challenges,
-      today_date=today,
-      now_est=now_est,
-      TIMEZONE=TIMEZONE
-    )
-  # --- CHILD LOGIC (BUG FIX FOR 'MY DAY' TAB) ---
-  else:
-    # Child's "My Day" dashboard logic
-    today = today_est() # Today's date in EST/EDT
-    start_of_today = start_of_day_est(today)
-    end_of_today = start_of_today + timedelta(days=1)
-    seven_days_from_now = start_of_today + timedelta(days=8) # Looks 7 days into the future
-
-    # --- ✨ NEW, EFFICIENT FETCH LOGIC ✨ ---
-    # 1. Fetch Overdue Chores (only assigned ones that are still actionable)
-    overdue_chores = list(events_collection.find({
-        'assigned_to': current_user.id,
-        'type': 'chore',
-        'status': 'assigned', # Only show incomplete overdue chores
-        'due_date': {'$lt': start_of_today}
-    }).sort('due_date', ASCENDING))
-
-    # 2. Fetch Today's Chores (both assigned and completed for status view)
-    todays_chores = list(events_collection.find({
-        'assigned_to': current_user.id,
-        'type': 'chore',
-        'status': {'$in': ['assigned', 'completed']},
-        'due_date': {'$gte': start_of_today, '$lt': end_of_today} # <--- CORRECT FIELD NAME
-    }).sort('name', ASCENDING))
-
-    # 3. Fetch Upcoming Chores (limited to the next 7 days)
-    upcoming_chores = list(events_collection.find({
-        'assigned_to': current_user.id,
-        'type': 'chore',
-        'status': {'$in': ['assigned', 'completed']},
-        'due_date': {'$gte': end_of_today, '$lt': seven_days_from_now}
-    }).sort('due_date', ASCENDING))
-
-    # 4. Fetch and process HABITS for today for its own dedicated section
-    todays_habits_cursor = events_collection.find({
-        'assigned_to': current_user.id,
-        'type': 'habit',
-        # Habits are daily, so we just need to find the template for today
-        'due_date': {'$gte': start_of_today, '$lt': end_of_today},
-    })
-    
-    todays_habits = []
-    for habit in todays_habits_cursor:
-        last_check = habit.get('last_completed')
-        last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
-        # A habit can be checked in if it hasn't been completed today
-        habit['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
-        todays_habits.append(habit)
+        events = list(events_collection.find({'family_id': family_oid, 'status': {'$in': ['completed', 'approved']}}).sort('due_date', DESCENDING).limit(20))
         
-    # --- The rest of the data fetching for the child dashboard ---
-    now = now_est()
-    child_rewards = list(rewards_collection.find({
-      'requested_by_id': current_user.id
-    }))
-    for reward in child_rewards:
-      if reward.get('status') in ['approved', 'rejected'] and reward.get('resolved_at'):
-        resolved_at_aware = reward['resolved_at'].astimezone(TIMEZONE)
-        delta = now - resolved_at_aware
-        if delta.days > 0:
-          reward['resolved_at_pretty'] = f"{delta.days}d ago"
-        elif delta.seconds > 3600:
-          reward['resolved_at_pretty'] = f"{delta.seconds // 3600}h ago"
-        else:
-          minutes_ago = max(1, delta.seconds // 60)
-          reward['resolved_at_pretty'] = f"{minutes_ago}m ago"
+        reward_requests_cursor = rewards_collection.find({'family_id': family_oid, 'status': 'requested'}).sort('_id', -1)
+        reward_requests = []
+        for r in reward_requests_cursor:
+            r['requested_by_username'] = member_map.get(str(r.get('requested_by_id')), 'Unknown')
+            reward_requests.append(r)
 
-    challenges = list(challenges_collection.find({
-      'family_id': family_oid,
-      'status': {'$in': ['open', 'in_progress', 'completed']}
-    }).sort('created_at', DESCENDING))
+        now = now_est()
+        spend_tx = list(transactions_collection.find({'family_id': family_oid}).sort('spent_at', DESCENDING))
+        for t in spend_tx:
+            if t.get('spent_at'):
+                delta = now - t['spent_at'].astimezone(TIMEZONE)
+                if delta.days > 0: t['spent_at_pretty'] = f"{delta.days}d ago"
+                elif delta.seconds > 3600: t['spent_at_pretty'] = f"{delta.seconds // 3600}h ago"
+                else: t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+        
+        for event in events:
+            if event.get('completed_at'):
+                delta = now - event['completed_at'].astimezone(TIMEZONE)
+                if delta.days > 0: event['completed_at_pretty'] = f"Completed {delta.days}d ago"
+                elif delta.seconds > 3600: event['completed_at_pretty'] = f"Completed {delta.seconds // 3600}h ago"
+                else: event['completed_at_pretty'] = f"Completed {max(1, delta.seconds // 60)}m ago"
 
-    child_id = ObjectId(current_user.id)
-    direct_messages_cursor = direct_messages_collection.find({
-      'family_id': family_oid,
-      '$or': [
-        {'sender_id': child_id},
-        {'recipient_id': child_id}
-      ]
-    }).sort('sent_at', ASCENDING)
-    direct_messages = list(direct_messages_cursor)
-    for msg in direct_messages:
-      sent_at_aware = msg['sent_at'].astimezone(TIMEZONE)
-      delta = now - sent_at_aware
-      if delta.days > 1:
-        msg['sent_at_pretty'] = sent_at_aware.strftime('%b %d')
-      elif delta.days == 1:
-        msg['sent_at_pretty'] = "Yesterday"
-      elif delta.seconds > 3600:
-        msg['sent_at_pretty'] = f"{delta.seconds // 3600}h ago"
-      else:
-        msg['sent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+        active_famjam_plan = famjam_plans_collection.find_one({'family_id': family_oid, 'status': 'active'})
+        if active_famjam_plan:
+            today_dt = now_est()
+            start_date_aware = start_of_day_est(active_famjam_plan['start_date'].date())
+            end_date_aware = start_of_day_est(active_famjam_plan['end_date'].date())
+            total_days = (end_date_aware - start_date_aware).days
+            if total_days > 0:
+                days_passed = (today_dt - start_date_aware).days
+                active_famjam_plan['progress_percent'] = min(100, max(0, (days_passed / total_days) * 100))
+            else:
+                active_famjam_plan['progress_percent'] = 100
+            active_famjam_plan['days_left'] = max(0, (end_date_aware - today_dt).days)
 
-    # Pass the new, specific lists to the template
-    return render_template(
-        'index.html',
-        page='dashboard_child',
-        # Pass new pre-filtered lists
-        todays_chores=todays_chores,
-        overdue_chores=overdue_chores,
-        upcoming_chores=upcoming_chores,
-        todays_habits=todays_habits,
-        # Pass other data as before
-        rewards=child_rewards,
-        personal_notes=personal_notes,
-        personal_todos=personal_todos,
-        challenges=challenges,
-        direct_messages=direct_messages,
-        today_date=today,
-        TIMEZONE=TIMEZONE,
-    )
+        challenges = list(challenges_collection.find({'family_id': family_oid}))
+        for c in challenges:
+            c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
 
+        return render_template(
+            'index.html', page='dashboard_parent', family_members=family_members,
+            events=events, reward_requests=reward_requests, member_map=member_map,
+            spend_history=spend_tx, active_famjam_plan=active_famjam_plan,
+            personal_notes=personal_notes, personal_todos=personal_todos,
+            challenges=challenges, today_date=today, now_est=now_est, TIMEZONE=TIMEZONE
+        )
+    else: # Child Logic
+        start_of_today = start_of_day_est(today)
+        end_of_today = start_of_today + timedelta(days=1)
+        seven_days_from_now = start_of_today + timedelta(days=8)
+        current_user_oid = ObjectId(current_user.id) # FIX: Use ObjectId for queries
 
+        # FIX: Standardized all queries to use ObjectId and correct field names
+        overdue_chores = list(events_collection.find({
+            'assigned_to': current_user_oid, 'type': 'chore', 'status': 'assigned',
+            'due_date': {'$lt': start_of_today}
+        }).sort('due_date', ASCENDING))
+
+        todays_chores = list(events_collection.find({
+            'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed']},
+            'due_date': {'$gte': start_of_today, '$lt': end_of_today}
+        }).sort('name', ASCENDING))
+
+        upcoming_chores = list(events_collection.find({
+            'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed']},
+            'due_date': {'$gte': end_of_today, '$lt': seven_days_from_now}
+        }).sort('due_date', ASCENDING))
+
+        todays_habits_cursor = events_collection.find({
+            'assigned_to': current_user_oid, 'type': 'habit',
+            'due_date': {'$gte': start_of_today, '$lt': end_of_today},
+        })
+        
+        todays_habits = []
+        for habit in todays_habits_cursor:
+            last_check = habit.get('last_completed')
+            last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
+            habit['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
+            todays_habits.append(habit)
+        
+        now = now_est()
+        child_rewards = list(rewards_collection.find({'requested_by_id': current_user.id}))
+        for reward in child_rewards:
+            if reward.get('status') in ['approved', 'rejected'] and reward.get('resolved_at'):
+                resolved_at_aware = reward['resolved_at'].astimezone(TIMEZONE)
+                delta = now - resolved_at_aware
+                if delta.days > 0: reward['resolved_at_pretty'] = f"{delta.days}d ago"
+                elif delta.seconds > 3600: reward['resolved_at_pretty'] = f"{delta.seconds // 3600}h ago"
+                else: reward['resolved_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+
+        challenges = list(challenges_collection.find({
+            'family_id': family_oid, 'status': {'$in': ['open', 'in_progress', 'completed']}
+        }).sort('created_at', DESCENDING))
+
+        direct_messages_cursor = direct_messages_collection.find({
+            'family_id': family_oid, '$or': [{'sender_id': current_user_oid}, {'recipient_id': current_user_oid}]
+        }).sort('sent_at', ASCENDING)
+        direct_messages = list(direct_messages_cursor)
+        for msg in direct_messages:
+            sent_at_aware = msg['sent_at'].astimezone(TIMEZONE)
+            delta = now - sent_at_aware
+            if delta.days > 1: msg['sent_at_pretty'] = sent_at_aware.strftime('%b %d')
+            elif delta.days == 1: msg['sent_at_pretty'] = "Yesterday"
+            elif delta.seconds > 3600: msg['sent_at_pretty'] = f"{delta.seconds // 3600}h ago"
+            else: msg['sent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+
+        return render_template(
+            'index.html', page='dashboard_child',
+            todays_chores=todays_chores, overdue_chores=overdue_chores, upcoming_chores=upcoming_chores,
+            todays_habits=todays_habits, rewards=child_rewards, personal_notes=personal_notes,
+            personal_todos=personal_todos, challenges=challenges, direct_messages=direct_messages,
+            today_date=today, TIMEZONE=TIMEZONE,
+        )
 
 @app.route('/family-dashboard')
 @login_required
 def family_dashboard():
-  fam_id = current_user.family_id
-  fam_oid = ObjectId(fam_id) # Helper for OID-based collections
-
-  # Users collection uses string ID
-  family_members = list(users_collection.find({'family_id': fam_id}))
-  for member in family_members:
-    member['_id'] = str(member['_id'])
-  member_map = {str(m['_id']): m['username'] for m in family_members}
-
-  # +++ FIX 1: Get a set of child IDs for efficient filtering +++
-  # This creates a set of all user IDs that belong to children for quick lookups.
-  child_ids = {str(m['_id']) for m in family_members if m.get('role') == 'child'}
-
-  # Events collection uses OID
-  events = list(events_collection.find({'family_id': fam_oid}))
-
-  # Basic stats
-  stats = {
-    "completed_this_week": 0,
-    "pending_approval": 0,
-    # This calculation was already correct as it filters by role.
-    "total_points_awarded": sum(
-      m.get('lifetime_points', 0) for m in family_members if m.get('role') == 'child'
-    ),
-    "weekly_completion_data": {"labels": [], "data": []}
-  }
-
-  now = now_est() # Uses timezone-aware helper
-  one_week_ago = now - timedelta(days=7)
-  # Initialize counts for the last 7 days, including today
-  day_counts = {(now.date() - timedelta(days=i)).strftime('%a'): 0 for i in range(7)}
-
-  for e in events:
-    assignee_id_str = str(e.get('assigned_to'))
-
-    # +++ FIX 2: Skip any event that is not assigned to a child +++
-    # If the event's assignee is not in our set of child IDs, we ignore it
-    # and move to the next event in the loop. This is the key change.
-    if assignee_id_str not in child_ids:
-      continue
-
-    # The rest of this logic now only processes tasks belonging to children.
-    if e.get('status') == 'completed':
-      stats['pending_approval'] += 1
+    fam_oid = ObjectId(current_user.family_id)
+    family_members = list(users_collection.find({'family_id': current_user.family_id}))
+    for member in family_members: member['_id'] = str(member['_id'])
+    member_map = {m['_id']: m['username'] for m in family_members}
     
-    if e.get('status') == 'approved' and e.get('approved_at'):
-      # Make approved_at timezone aware for comparison
-      approved_at_aware = e['approved_at'].astimezone(TIMEZONE)
-      if approved_at_aware > one_week_ago:
-        stats['completed_this_week'] += 1
-        day_label = approved_at_aware.strftime('%a')
-        if day_label in day_counts:
-          day_counts[day_label] += 1
+    # FIX: Use ObjectId for queries
+    child_ids_str = {m['_id'] for m in family_members if m.get('role') == 'child'}
+    child_ids_obj = [ObjectId(cid) for cid in child_ids_str]
 
-  stats['weekly_completion_data']['labels'] = list(day_counts.keys())[::-1]
-  stats['weekly_completion_data']['data'] = list(day_counts.values())[::-1]
+    events = list(events_collection.find({'family_id': fam_oid}))
+    stats = {
+        "completed_this_week": 0, "pending_approval": 0,
+        "total_points_awarded": sum(m.get('lifetime_points', 0) for m in family_members if m.get('role') == 'child'),
+        "weekly_completion_data": {"labels": [], "data": []}
+    }
 
-  # --- The rest of the function remains the same ---
+    now = now_est()
+    one_week_ago = now - timedelta(days=7)
+    day_counts = {(now.date() - timedelta(days=i)).strftime('%a'): 0 for i in range(7)}
 
-  # Recent events (Events collection uses OID)
-  rec_cursor = events_collection.find({
-    'family_id': fam_oid,
-    'status': 'approved',
-    # +++ FIX 3: Also filter recent events to only show children's accomplishments +++
-    'assigned_to': {'$in': list(child_ids)}
-  }).sort('approved_at', DESCENDING).limit(5)
-  
-  recent_events = []
-  for ev in rec_cursor:
-    ev['assigned_to_username'] = member_map.get(str(ev.get('assigned_to')), 'Unknown')
-    if ev.get('approved_at'):
-      approved_at_aware = ev['approved_at'].astimezone(TIMEZONE)
-      delta = now - approved_at_aware
-      if delta.days > 0:
-        ev['approved_at_pretty'] = f"{delta.days}d ago"
-      elif delta.seconds > 3600:
-        ev['approved_at_pretty'] = f"{delta.seconds // 3600}h ago"
-      else:
-        ev['approved_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
-    else:
-      ev['approved_at_pretty'] = 'Recently'
-    recent_events.append(ev)
+    for e in events:
+        assignee_id = e.get('assigned_to')
+        if not assignee_id or assignee_id not in child_ids_obj:
+            continue
 
-  # Load family timers (Timers collection uses OID)
-  timers_cursor = timers_collection.find({'family_id': fam_oid}).sort('end_date', ASCENDING)
-  timers = []
-  for t in timers_cursor:
-    creator_name = member_map.get(str(t.get('created_by')), "Unknown")
-    end_date_aware = start_of_day_est(t['end_date'].date())
+        if e.get('status') == 'completed':
+            stats['pending_approval'] += 1
+        
+        if e.get('status') == 'approved' and e.get('approved_at'):
+            approved_at_aware = e['approved_at'].astimezone(TIMEZONE)
+            if approved_at_aware > one_week_ago:
+                stats['completed_this_week'] += 1
+                day_label = approved_at_aware.strftime('%a')
+                if day_label in day_counts:
+                    day_counts[day_label] += 1
+
+    stats['weekly_completion_data']['labels'] = list(day_counts.keys())[::-1]
+    stats['weekly_completion_data']['data'] = list(day_counts.values())[::-1]
     
-    delta = end_date_aware - now
-    if delta.total_seconds() < 0:
-      time_left = "Timer ended"
-    else:
-      days_left = delta.days
-      if days_left >= 1:
-        time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
-      else:
-        hours = delta.seconds // 3600
-        minutes = (delta.seconds % 3600) // 60
-        if hours > 0:
-            time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
+    # FIX: Query with list of ObjectIds
+    rec_cursor = events_collection.find({
+        'family_id': fam_oid, 'status': 'approved', 'assigned_to': {'$in': child_ids_obj}
+    }).sort('approved_at', DESCENDING).limit(5)
+    
+    recent_events = []
+    for ev in rec_cursor:
+        ev['assigned_to_username'] = member_map.get(str(ev.get('assigned_to')), 'Unknown')
+        if ev.get('approved_at'):
+            approved_at_aware = ev['approved_at'].astimezone(TIMEZONE)
+            delta = now - approved_at_aware
+            if delta.days > 0: ev['approved_at_pretty'] = f"{delta.days}d ago"
+            elif delta.seconds > 3600: ev['approved_at_pretty'] = f"{delta.seconds // 3600}h ago"
+            else: ev['approved_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
         else:
-          time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
+            ev['approved_at_pretty'] = 'Recently'
+        recent_events.append(ev)
 
-    timers.append({
-      'name': t['name'],
-      'end_date': end_date_aware.strftime('%b %d, %Y'),
-      'creator_name': creator_name,
-      'time_left': time_left
-    })
+    timers_cursor = timers_collection.find({'family_id': fam_oid}).sort('end_date', ASCENDING)
+    timers = []
+    for t in timers_cursor:
+        creator_name = member_map.get(str(t.get('created_by')), "Unknown")
+        end_date_aware = start_of_day_est(t['end_date'].date())
+        delta = end_date_aware - now
+        if delta.total_seconds() < 0:
+            time_left = "Timer ended"
+        else:
+            days_left = delta.days
+            if days_left >= 1: time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
+            else:
+                hours, remainder = divmod(delta.seconds, 3600)
+                minutes, _ = divmod(remainder, 60)
+                if hours > 0: time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
+                else: time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
+        timers.append({'name': t['name'], 'end_date': end_date_aware.strftime('%b %d, %Y'), 'creator_name': creator_name, 'time_left': time_left})
 
-  # Load family challenges (Challenges collection uses OID)
-  challenges_cursor = challenges_collection.find({'family_id': fam_oid}).sort('created_at', DESCENDING)
-  challenges = []
-  for c in challenges_cursor:
-    c['creator_username'] = member_map.get(str(c.get('created_by_id')), 'Unknown')
-    c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
-    challenges.append(c)
+    challenges_cursor = challenges_collection.find({'family_id': fam_oid}).sort('created_at', DESCENDING)
+    challenges = [{'creator_username': member_map.get(str(c.get('created_by_id')), 'Unknown'), 'claimer_username': member_map.get(str(c.get('claimed_by_id')), ''), **c} for c in challenges_cursor]
 
-  return render_template(
-    'index.html',
-    page='family_dashboard',
-    stats=stats,
-    family_members=family_members,
-    recent_events=recent_events,
-    timers=timers,
-    challenges=challenges
-  )
-
+    return render_template(
+        'index.html', page='family_dashboard', stats=stats, family_members=family_members,
+        recent_events=recent_events, timers=timers, challenges=challenges
+    )
 
 
 @app.route('/calendar-focus')
@@ -1242,29 +1107,23 @@ def edit_child(child_id):
 @app.route('/child/remove/<child_id>')
 @login_required
 def remove_child(child_id):
-  if current_user.role != 'parent':
-    flash('You do not have permission to do this.', 'error')
-    return redirect(url_for('family_dashboard'))
+    if current_user.role != 'parent':
+        flash('You do not have permission to do this.', 'error')
+        return redirect(url_for('family_dashboard'))
 
-  # Security check uses family_id string
-  child = users_collection.find_one({
-    '_id': ObjectId(child_id),
-    'family_id': current_user.family_id,
-    'role': 'child'
-  })
-  if child:
-    users_collection.delete_one({'_id': ObjectId(child_id)})
-    # Delete related artifacts (events, rewards, transactions, moods) using child ID
-    events_collection.delete_many({'assigned_to': child_id})
-    rewards_collection.delete_many({'requested_by_id': str(child['_id'])})
-    transactions_collection.delete_many({'child_id': str(child['_id'])})
-    moods_collection.delete_many({'user_id': ObjectId(child_id)})
-
-    flash(f"{child.get('username')} has been removed from the family.", 'success')
-  else:
-    flash('Could not find the specified child in your family.', 'error')
-
-  return redirect(url_for('personal_dashboard'))
+    child = users_collection.find_one({'_id': ObjectId(child_id), 'family_id': current_user.family_id, 'role': 'child'})
+    if child:
+        child_oid = ObjectId(child_id)
+        users_collection.delete_one({'_id': child_oid})
+        # FIX: Use ObjectId to delete related events
+        events_collection.delete_many({'assigned_to': child_oid})
+        rewards_collection.delete_many({'requested_by_id': child_id}) # This field was a string
+        transactions_collection.delete_many({'child_id': child_id}) # This field was a string
+        moods_collection.delete_many({'user_id': child_oid})
+        flash(f"{child.get('username')} has been removed from the family.", 'success')
+    else:
+        flash('Could not find the specified child in your family.', 'error')
+    return redirect(url_for('personal_dashboard'))
 
 ################################################################################
 # 12. EVENT / TASK CREATION & MANAGEMENT
@@ -1280,88 +1139,63 @@ def create_event():
     recurrence = request.form['recurrence']
     task_type = request.form['type']
     
-    # Get all children to be used for 'All' and 'Round Robin' assignments
-    children = list(users_collection.find({
-        'family_id': current_user.family_id,
-        'role': 'child'
-    }, {'_id': 1}))
-
+    children = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}, {'_id': 1}))
     if not children:
         flash("There are no children in the family to assign tasks to.", "warning")
         return redirect(url_for('personal_dashboard'))
-    
     child_ids = [str(c['_id']) for c in children]
 
-    # Convert naive date input into an EST/EDT midnight datetime object
     input_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d').date()
     start_date = start_of_day_est(input_date)
     
     family_oid = ObjectId(current_user.family_id)
     all_events_to_insert = []
     
-    # --- ✨ REVISED LOGIC FOR ASSIGNMENTS ✨ ---
-
     base_doc_template = {
-        'name': request.form['name'],
-        'description': request.form['description'],
-        'points': int(request.form['points']),
-        'type': task_type,
-        'family_id': family_oid,
-        'status': 'assigned',
-        'created_at': now_est(),
-        'source_type': 'manual' # Manually created tasks
+        'name': request.form['name'], 'description': request.form['description'],
+        'points': int(request.form['points']), 'type': task_type,
+        'family_id': family_oid, 'status': 'assigned',
+        'created_at': now_est(), 'source_type': 'manual'
     }
     if task_type == 'habit':
         base_doc_template['streak'] = 0
         base_doc_template['last_completed'] = None
 
-    # Handle a single, non-recurring task
     if recurrence == 'none':
         assignees = []
-        if assigned_to_value == "__ALL__":
-            assignees = child_ids
-        elif assigned_to_value == "__ROUND_ROBIN__":
-            # For a single task, round-robin assigns to the first child.
-            assignees = [child_ids[0]] if child_ids else []
-        else:
-            assignees.append(assigned_to_value)
+        if assigned_to_value == "__ALL__": assignees = child_ids
+        elif assigned_to_value == "__ROUND_ROBIN__": assignees = [child_ids[0]] if child_ids else []
+        else: assignees.append(assigned_to_value)
             
         for user_id in assignees:
             doc = base_doc_template.copy()
-            doc['assigned_to'] = user_id
+            # FIX: Store assigned_to as ObjectId
+            doc['assigned_to'] = ObjectId(user_id)
             doc['due_date'] = start_date
             all_events_to_insert.append(doc)
     
-    # Handle recurring tasks
-    else:
+    else: # Recurring tasks
         end_date = start_date + timedelta(days=90)
         current_date = start_date
-        delta = {
-            'daily': timedelta(days=1),
-            'weekly': timedelta(weeks=1),
-            'monthly': relativedelta(months=1)
-        }.get(recurrence)
-
+        delta_map = {'daily': timedelta(days=1), 'weekly': timedelta(weeks=1), 'monthly': relativedelta(months=1)}
+        delta = delta_map.get(recurrence)
         if not delta:
             flash("Invalid recurrence type selected.", "error")
             return redirect(url_for('personal_dashboard'))
 
-        # Create the cycler for Round Robin assignments
         child_cycler = itertools.cycle(child_ids)
         base_doc_template['recurrence_id'] = ObjectId()
 
         while current_date < end_date:
             assignees_for_this_instance = []
-            if assigned_to_value == "__ALL__":
-                assignees_for_this_instance = child_ids
-            elif assigned_to_value == "__ROUND_ROBIN__":
-                assignees_for_this_instance = [next(child_cycler)] # Get the next child in the cycle
-            else: # A specific child was selected
-                assignees_for_this_instance = [assigned_to_value]
+            if assigned_to_value == "__ALL__": assignees_for_this_instance = child_ids
+            elif assigned_to_value == "__ROUND_ROBIN__": assignees_for_this_instance = [next(child_cycler)]
+            else: assignees_for_this_instance = [assigned_to_value]
 
             for user_id in assignees_for_this_instance:
                 doc = base_doc_template.copy()
-                doc['assigned_to'] = user_id
+                # FIX: Store assigned_to as ObjectId
+                doc['assigned_to'] = ObjectId(user_id)
                 doc['due_date'] = current_date
                 all_events_to_insert.append(doc)
             
@@ -1369,7 +1203,6 @@ def create_event():
 
     if all_events_to_insert:
         try:
-            # Use ordered=False to skip duplicates and insert all other valid chores
             events_collection.insert_many(all_events_to_insert, ordered=False)
             flash(f"Task(s) scheduled successfully!", 'success')
         except Exception as e:
@@ -1381,6 +1214,135 @@ def create_event():
         flash("No events were scheduled.", "warning")
 
     return redirect(url_for('personal_dashboard'))
+
+@app.route('/event/edit/<event_id>', methods=['POST'])
+@login_required
+def edit_event(event_id):
+    if current_user.role != 'parent':
+        flash("You are not authorized to edit tasks.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    event = events_collection.find_one({'_id': ObjectId(event_id), 'family_id': ObjectId(current_user.family_id)})
+    if not event:
+        flash("Task not found or you don't have permission to edit it.", "error")
+        return redirect(url_for('manage_plan'))
+
+    input_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d').date()
+    due_date_aware = start_of_day_est(input_date)
+
+    update_data = {
+        'name': request.form['name'], 'description': request.form['description'],
+        'points': int(request.form['points']),
+        # FIX: Store assigned_to as ObjectId
+        'assigned_to': ObjectId(request.form['assigned_to']),
+        'due_date': due_date_aware
+    }
+    events_collection.update_one({'_id': ObjectId(event_id)}, {'$set': update_data})
+    flash("Task has been updated successfully.", "success")
+    return redirect(url_for('manage_plan'))
+
+@app.route('/event/complete/<event_id>')
+@login_required
+def complete_event(event_id):
+    if current_user.role == 'child':
+        # FIX: Query with ObjectId
+        events_collection.update_one(
+            {'_id': ObjectId(event_id), 'assigned_to': ObjectId(current_user.id), 'type': 'chore'},
+            {'$set': {'status': 'completed', 'completed_at': now_est()}}
+        )
+        flash('Chore marked as complete! Awaiting approval.', 'success')
+    return redirect(url_for('personal_dashboard'))
+
+@app.route('/event/habit/checkin/<event_id>')
+@login_required
+def checkin_habit(event_id):
+    if current_user.role == 'child':
+        # FIX: Query with ObjectId
+        habit = events_collection.find_one({'_id': ObjectId(event_id), 'assigned_to': ObjectId(current_user.id)})
+        if not habit:
+            return redirect(url_for('personal_dashboard'))
+
+        today = today_est()
+        yesterday = today - timedelta(days=1)
+        last_completed = habit.get('last_completed')
+        curr_streak = habit.get('streak', 0)
+        last_completed_date_est = last_completed.astimezone(TIMEZONE).date() if last_completed else None
+
+        if last_completed_date_est and last_completed_date_est == today:
+            flash('You have already checked in for this habit today.', 'error')
+            return redirect(url_for('personal_dashboard'))
+
+        new_streak = curr_streak + 1 if (last_completed_date_est and last_completed_date_est == yesterday) else 1
+        events_collection.update_one(
+            {'_id': ObjectId(event_id)},
+            {'$set': {'last_completed': now_est(), 'streak': new_streak}}
+        )
+        users_collection.update_one(
+            {'_id': ObjectId(current_user.id)},
+            {'$inc': {'points': habit['points'], 'lifetime_points': habit['points']}}
+        )
+        flash(f"Habit checked in! You earned {habit['points']} points. Streak is now {new_streak}.", 'success')
+    return redirect(url_for('personal_dashboard'))
+
+@app.route('/event/approve/<event_id>')
+@login_required
+def approve_event(event_id):
+    if current_user.role == 'parent':
+        e = events_collection.find_one_and_update(
+            {'_id': ObjectId(event_id), 'family_id': ObjectId(current_user.family_id)},
+            {'$set': {'status': 'approved', 'approved_at': now_est()}}
+        )
+        if e and e.get('assigned_to'):
+            # FIX: e['assigned_to'] is now already an ObjectId, no conversion needed
+            users_collection.update_one(
+                {'_id': e['assigned_to']},
+                {'$inc': {'points': e['points'], 'lifetime_points': e['points']}}
+            )
+            flash(f"Task approved! {e['points']} points awarded.", 'success')
+    return redirect(url_for('personal_dashboard'))
+
+@app.route('/event/bulk_approve', methods=['POST'])
+@login_required
+def bulk_approve_events():
+    if current_user.role != 'parent':
+        return jsonify({"error": "You are not authorized to approve tasks."}), 403
+
+    data = request.get_json()
+    event_ids_str = data.get('event_ids')
+    if not isinstance(event_ids_str, list) or not event_ids_str:
+        return jsonify({"error": "A list of event_ids is required."}), 400
+
+    try:
+        event_ids_obj = [ObjectId(eid) for eid in event_ids_str]
+    except Exception:
+        return jsonify({"error": "Invalid event ID format provided."}), 400
+
+    events_to_approve = list(events_collection.find({
+        '_id': {'$in': event_ids_obj}, 'family_id': ObjectId(current_user.family_id), 'status': 'completed'
+    }))
+    if not events_to_approve:
+        return jsonify({"status": "warning", "message": "No valid tasks to approve were found."}), 200
+
+    points_to_award = defaultdict(int)
+    valid_event_ids_to_update = []
+    for event in events_to_approve:
+        # FIX: event['assigned_to'] is already an ObjectId
+        assignee_id = event['assigned_to']
+        points = event.get('points', 0)
+        points_to_award[assignee_id] += points
+        valid_event_ids_to_update.append(event['_id'])
+
+    if points_to_award:
+        user_updates = [UpdateOne({'_id': user_id}, {'$inc': {'points': total_points, 'lifetime_points': total_points}}) for user_id, total_points in points_to_award.items()]
+        users_collection.bulk_write(user_updates)
+
+    events_collection.update_many({'_id': {'$in': valid_event_ids_to_update}}, {'$set': {'status': 'approved', 'approved_at': now_est()}})
+    
+    count = len(valid_event_ids_to_update)
+    flash(f"{count} task(s) have been approved successfully!", "success")
+    return jsonify({"status": "success", "message": f"{count} task(s) approved.", "approved_count": count}), 200
+
+
 
 @app.context_processor
 def inject_global_vars():
@@ -1427,205 +1389,7 @@ def inject_global_vars():
     'personal_notes': personal_notes, # Now available in all templates
     'personal_todos': personal_todos # Now available in all templates
   }
-@app.route('/event/edit/<event_id>', methods=['POST'])
-@login_required
-def edit_event(event_id):
-  if current_user.role != 'parent':
-    flash("You are not authorized to edit tasks.", "error")
-    return redirect(url_for('personal_dashboard'))
 
-  # Events collection query uses OID
-  event = events_collection.find_one({
-    '_id': ObjectId(event_id),
-    'family_id': ObjectId(current_user.family_id)
-  })
-  if not event:
-    flash("Task not found or you don't have permission to edit it.", "error")
-    return redirect(url_for('manage_plan'))
-
-  # Convert input date to EST/EDT midnight
-  input_date = datetime.strptime(request.form['due_date'], '%Y-%m-%d').date()
-  due_date_aware = start_of_day_est(input_date)
-
-  update_data = {
-    'name': request.form['name'],
-    'description': request.form['description'],
-    'points': int(request.form['points']),
-    'assigned_to': request.form['assigned_to'],
-    'due_date': due_date_aware # UPDATED to EST/EDT
-  }
-  events_collection.update_one({'_id': ObjectId(event_id)}, {'$set': update_data})
-  flash("Task has been updated successfully.", "success")
-  return redirect(url_for('manage_plan'))
-
-@app.route('/event/delete/<event_id>')
-@login_required
-def delete_event(event_id):
-  if current_user.role != 'parent':
-    flash("You are not authorized to delete tasks.", "error")
-    return redirect(url_for('personal_dashboard'))
-
-  # Events collection query uses OID
-  result = events_collection.delete_one({
-    '_id': ObjectId(event_id),
-    'family_id': ObjectId(current_user.family_id)
-  })
-  if result.deleted_count > 0:
-    flash("Task has been deleted successfully.", "success")
-  else:
-    flash("Task not found or you don't have permission to delete it.", "error")
-
-  return redirect(request.referrer or url_for('manage_plan'))
-
-@app.route('/event/complete/<event_id>')
-@login_required
-def complete_event(event_id):
-  if current_user.role == 'child':
-    # Mark chore as completed only if assigned to this child
-    events_collection.update_one(
-      {'_id': ObjectId(event_id), 'assigned_to': current_user.id, 'type': 'chore'},
-      {'$set': {
-        'status': 'completed',
-        'completed_at': now_est() # UPDATED to EST/EDT
-      }}
-    )
-    flash('Chore marked as complete! Awaiting approval.', 'success')
-
-  return redirect(url_for('personal_dashboard'))
-
-@app.route('/event/habit/checkin/<event_id>')
-@login_required
-def checkin_habit(event_id):
-  if current_user.role == 'child':
-    habit = events_collection.find_one({
-      '_id': ObjectId(event_id),
-      'assigned_to': current_user.id
-    })
-    if not habit:
-      return redirect(url_for('personal_dashboard'))
-
-    # Check against today's EST/EDT date
-    today = today_est()
-    yesterday = today - timedelta(days=1)
-    last_completed = habit.get('last_completed')
-    curr_streak = habit.get('streak', 0)
-
-    # Ensure last_completed is EST date for comparison
-    last_completed_date_est = last_completed.astimezone(TIMEZONE).date() if last_completed else None
-
-    if last_completed_date_est and last_completed_date_est == today:
-      flash('You have already checked in for this habit today.', 'error')
-      return redirect(url_for('personal_dashboard'))
-
-    new_streak = curr_streak + 1 if (last_completed_date_est and last_completed_date_est == yesterday) else 1
-    events_collection.update_one(
-      {'_id': ObjectId(event_id)},
-      {'$set': {
-        'last_completed': now_est(), # UPDATED to EST/EDT
-        'streak': new_streak
-      }}
-    )
-
-    users_collection.update_one(
-      {'_id': ObjectId(current_user.id)},
-      {'$inc': {
-        'points': habit['points'],
-        'lifetime_points': habit['points']
-      }}
-    )
-
-    flash(f"Habit checked in! You earned {habit['points']} points. Streak is now {new_streak}.", 'success')
-  return redirect(url_for('personal_dashboard'))
-
-@app.route('/event/approve/<event_id>')
-@login_required
-def approve_event(event_id):
-  if current_user.role == 'parent':
-    e = events_collection.find_one_and_update(
-      {'_id': ObjectId(event_id), 'family_id': ObjectId(current_user.family_id)},
-      {'$set': {'status': 'approved', 'approved_at': now_est()}} # UPDATED to EST/EDT
-    )
-    if e and e.get('assigned_to'):
-      users_collection.update_one(
-        {'_id': ObjectId(e['assigned_to'])},
-        {'$inc': {'points': e['points'], 'lifetime_points': e['points']}}
-      )
-      flash(f"Task approved! {e['points']} points awarded.", 'success')
-  return redirect(url_for('personal_dashboard'))
-
-@app.route('/event/bulk_approve', methods=['POST'])
-@login_required
-def bulk_approve_events():
-    """
-    Allows a parent to approve multiple completed tasks at once.
-    Expects a JSON payload: {"event_ids": ["id1", "id2", ...]}
-    """
-    # 1. Authorization: Ensure the user is a parent.
-    if current_user.role != 'parent':
-        return jsonify({"error": "You are not authorized to approve tasks."}), 403
-
-    # 2. Data Validation: Check for a valid list of event IDs.
-    data = request.get_json()
-    event_ids_str = data.get('event_ids')
-
-    if not isinstance(event_ids_str, list) or not event_ids_str:
-        return jsonify({"error": "A list of event_ids is required."}), 400
-
-    try:
-        event_ids_obj = [ObjectId(eid) for eid in event_ids_str]
-    except Exception:
-        return jsonify({"error": "Invalid event ID format provided."}), 400
-
-    family_oid = ObjectId(current_user.family_id)
-
-    # 3. Security & Logic: Find only the events that are valid for approval.
-    #    - Must be in the parent's family.
-    #    - Must have a status of 'completed'.
-    events_to_approve = list(events_collection.find({
-        '_id': {'$in': event_ids_obj},
-        'family_id': family_oid,
-        'status': 'completed'
-    }))
-
-    if not events_to_approve:
-        return jsonify({"status": "warning", "message": "No valid tasks to approve were found."}), 200
-
-    # 4. Process Points: Aggregate points for each child.
-    points_to_award = defaultdict(int)
-    valid_event_ids_to_update = []
-
-    for event in events_to_approve:
-        # Use ObjectId for matching users collection.
-        assignee_id = ObjectId(event['assigned_to'])
-        points = event.get('points', 0)
-        points_to_award[assignee_id] += points
-        valid_event_ids_to_update.append(event['_id'])
-
-    # 5. Database Updates: Use efficient bulk operations.
-    # Award points to children
-    if points_to_award:
-        user_updates = [
-            UpdateOne(
-                {'_id': user_id},
-                {'$inc': {'points': total_points, 'lifetime_points': total_points}}
-            ) for user_id, total_points in points_to_award.items()
-        ]
-        users_collection.bulk_write(user_updates)
-
-    # Update event statuses to 'approved'
-    events_collection.update_many(
-        {'_id': {'$in': valid_event_ids_to_update}},
-        {'$set': {'status': 'approved', 'approved_at': now_est()}}
-    )
-
-    # 6. Response: Inform the client of the successful operation.
-    count = len(valid_event_ids_to_update)
-    flash(f"{count} task(s) have been approved successfully!", "success")
-    return jsonify({
-        "status": "success",
-        "message": f"{count} task(s) approved.",
-        "approved_count": count
-    }), 200
 
 ################################################################################
 # 13. REWARDS
@@ -1724,67 +1488,46 @@ def handle_reward(reward_id, action):
 @app.route('/api/events')
 @login_required
 def api_events():
-  fam_id = current_user.family_id
-  fam_oid = ObjectId(fam_id)
+    fam_oid = ObjectId(current_user.family_id)
+    
+    child_colors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#6366f1', '#a855f7', '#d946ef']
+    default_color = '#6b7280'
+    fam_members = list(users_collection.find({'family_id': current_user.family_id}))
+    member_map = {str(m['_id']): m['username'] for m in fam_members}
+    child_color_map = {str(child['_id']): child_colors[i % len(child_colors)] for i, child in enumerate(m for m in fam_members if m.get('role') == 'child')}
 
-  # --- (Your existing color mapping logic stays the same) ---
-  child_colors = [
-    '#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e',
-    '#14b8a6', '#06b6d4', '#6366f1', '#a855f7', '#d946ef'
-  ]
-  default_color = '#6b7280'
-  fam_members = list(users_collection.find({'family_id': fam_id}))
-  member_map = {str(m['_id']): m['username'] for m in fam_members}
-  child_color_map = {}
-  children_in_family = [m for m in fam_members if m.get('role') == 'child']
-  for i, child in enumerate(children_in_family):
-    child_id_str = str(child['_id'])
-    child_color_map[child_id_str] = child_colors[i % len(child_colors)]
-  # --- (End of color logic) ---
+    query = {'family_id': fam_oid}
+    if (search := request.args.get('search')): query['name'] = regex.Regex(search, 'i')
+    # FIX: Filter by ObjectId
+    if (member_id := request.args.get('member')): query['assigned_to'] = ObjectId(member_id)
+    if (etype := request.args.get('type')): query['type'] = etype
 
-  query = {'family_id': fam_oid}
-  if (search := request.args.get('search')):
-    query['name'] = regex.Regex(search, 'i')
-  if (member_id := request.args.get('member')):
-    query['assigned_to'] = member_id
-  if (etype := request.args.get('type')):
-    query['type'] = etype
+    cursor = events_collection.find(query)
+    calendar_events = []
+    for e in cursor:
+        assigned_to_id_str = str(e.get('assigned_to'))
+        event_color = child_color_map.get(assigned_to_id_str, default_color)
 
-  cursor = events_collection.find(query)
-  calendar_events = []
-  
-  # 2. Get today's date once before the loop
-  today = datetime.now(timezone.utc).date()
+        can_checkin = False
+        if e.get('type') == 'habit':
+            last_completed = e.get('last_completed')
+            last_completed_date_est = last_completed.astimezone(TIMEZONE).date() if last_completed else None
+            if not (last_completed_date_est and last_completed_date_est == today_est()):
+                can_checkin = True
 
-  for e in cursor:
-    assigned_to_id = e.get('assigned_to')
-    event_color = child_color_map.get(assigned_to_id, default_color)
-
-    can_checkin = False
-    if e.get('type') == 'habit':
-      last_completed = e.get('last_completed')
-      # Check if habit was already completed today (in EST/EDT)
-      last_completed_date_est = last_completed.astimezone(TIMEZONE).date() if last_completed else None
-      if not (last_completed_date_est and last_completed_date_est == today_est()):
-        can_checkin = True
-    calendar_events.append({
-      'title': f"{e.get('type', 'Task').capitalize()}: {e['name']}",
-      'start': e['due_date'].isoformat(),
-      'allDay': True,
-      'color': event_color,
-      'extendedProps': {
-        '_id': str(e['_id']), # <-- ADD: Event's unique ID
-        'type': e.get('type'),
-        'description': e.get('description', 'No description.'),
-        'points': e.get('points'),
-        'status': e.get('status'),
-        'assignee_name': member_map.get(assigned_to_id, 'N/A'),
-        'assigned_to': assigned_to_id,
-        'can_checkin': can_checkin # <-- ADD: The new flag
-      }
-    })
-
-  return jsonify(calendar_events)
+        calendar_events.append({
+            'title': f"{e.get('type', 'Task').capitalize()}: {e['name']}",
+            'start': e['due_date'].isoformat(), 'allDay': True, 'color': event_color,
+            'extendedProps': {
+                '_id': str(e['_id']), 'type': e.get('type'),
+                'description': e.get('description', 'No description.'),
+                'points': e.get('points'), 'status': e.get('status'),
+                'assignee_name': member_map.get(assigned_to_id_str, 'N/A'),
+                'assigned_to': assigned_to_id_str, # FIX: ensure string for frontend
+                'can_checkin': can_checkin
+            }
+        })
+    return jsonify(calendar_events)
 
 @app.route('/api/mood/log', methods=['POST'])
 @login_required
@@ -2125,141 +1868,70 @@ def suggest_famjam_plan():
 @app.route('/api/famjam/apply', methods=['POST'])
 @login_required
 def apply_famjam_plan():
-  if current_user.role != 'parent':
-    return jsonify({"error": "Only parents can apply FamJam plans."}), 403
+    if current_user.role != 'parent':
+        return jsonify({"error": "Only parents can apply FamJam plans."}), 403
 
-  plan_data = request.json
-  plan_id_str = plan_data.get('plan_id')
-  if not plan_data or 'suggested_chores' not in plan_data or not plan_id_str:
-    return jsonify({'error': 'Invalid plan format received.'}), 400
+    plan_data = request.json
+    plan_id_str = plan_data.get('plan_id')
+    if not plan_data or 'suggested_chores' not in plan_data or not plan_id_str:
+        return jsonify({'error': 'Invalid plan format received.'}), 400
 
-  family_oid = ObjectId(current_user.family_id)
-
-  # Archive previous active plans
-  famjam_plans_collection.update_many(
-    {'family_id': family_oid, 'status': 'active'},
-    {'$set': {'status': 'archived'}}
-  )
-
-  plan_data_to_save = {
-    'plan_name': plan_data.get('plan_name'),
-    'suggested_chores': plan_data.get('suggested_chores', [])
-  }
-
-  # Update new plan status to active
-  famjam_plans_collection.update_one(
-    {
-      '_id': ObjectId(plan_id_str),
-      'family_id': family_oid
-    },
-    {
-      '$set': {
-        'status': 'active',
-        'applied_at': now_est(), # UPDATED to EST/EDT
-        'plan_data': plan_data_to_save
-      }
-    }
-  )
-
-  children = list(users_collection.find({
-    'family_id': current_user.family_id,
-    'role': 'child'
-  }, {'_id': 1}))
-  if not children:
-    return jsonify({"error": "No children found in the family to assign chores to."}), 400
-
-  child_ids = [str(c['_id']) for c in children]
-  child_cycler = itertools.cycle(child_ids)
-
-  # Start date/time for chore generation: Midnight EST/EDT of today
-  today_date_est = today_est()
-  current_due_date = start_of_day_est(today_date_est)
-  end_date = current_due_date + timedelta(days=90)
-
-
-  # Delete existing auto-generated events for the family from today forward
-  events_collection.delete_many({
-    'family_id': family_oid,
-    'source': 'FamJamPlan',
-    'source_type': 'generated',
-    'status': 'assigned',
-    'due_date': {'$gte': current_due_date}
-  })
-
-  new_events = []
-  for chore_template in plan_data.get('suggested_chores', []):
-    recurrence = chore_template.get('recurrence', '').lower()
-    if recurrence == 'daily':
-      delta = timedelta(days=1)
-    elif recurrence == 'weekly':
-      delta = timedelta(weeks=1)
-    elif recurrence == 'monthly':
-      delta = relativedelta(months=1)
-    else:
-      continue
-
-    assigned_to_value = chore_template.get('assigned_to')
+    family_oid = ObjectId(current_user.family_id)
+    famjam_plans_collection.update_many({'family_id': family_oid, 'status': 'active'}, {'$set': {'status': 'archived'}})
     
-    # Reset generation loop start point for each chore template
-    loop_date = current_due_date
+    plan_data_to_save = {'plan_name': plan_data.get('plan_name'), 'suggested_chores': plan_data.get('suggested_chores', [])}
+    famjam_plans_collection.update_one({'_id': ObjectId(plan_id_str), 'family_id': family_oid}, {'$set': {'status': 'active', 'applied_at': now_est(), 'plan_data': plan_data_to_save}})
 
-    while loop_date < end_date:
-      # Determine who gets this specific instance of the chore
-      assignees_for_this_instance = []
-      if assigned_to_value == "__ALL__":
-        assignees_for_this_instance = child_ids
-      elif assigned_to_value in child_ids:
-        assignees_for_this_instance = [assigned_to_value]
-      else:
-        # Fallback to cycling if not specified or invalid
-        assignees_for_this_instance = [next(child_cycler)]
+    children = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}, {'_id': 1}))
+    if not children:
+        return jsonify({"error": "No children found in the family to assign chores to."}), 400
 
-      # *** FIX: Removed the inefficient find_one() check from this loop ***
-      for assigned_child_id in assignees_for_this_instance:
-        doc = {
-          'name': chore_template.get('name'),
-          'description': chore_template.get('description'),
-          'points': int(chore_template.get('points', 0)),
-          'type': 'chore',
-          'family_id': family_oid,
-          'status': 'assigned',
-          'created_at': now_est(), # UPDATED to EST/EDT
-          'assigned_to': assigned_child_id,
-          'due_date': loop_date,
-          'source': 'FamJamPlan',
-          'source_type': 'generated'
-        }
-        new_events.append(doc)
+    child_ids = [str(c['_id']) for c in children]
+    child_cycler = itertools.cycle(child_ids)
 
-      if isinstance(delta, relativedelta):
-        loop_date += delta
-      else:
-        loop_date += delta
+    current_due_date = start_of_day_est(today_est())
+    end_date = current_due_date + timedelta(days=90)
 
-  if not new_events:
-    return jsonify({
-      'status': 'warning',
-      'message': 'No new chores were scheduled. They may already exist for these dates.'
-    })
+    events_collection.delete_many({'family_id': family_oid, 'source': 'FamJamPlan', 'source_type': 'generated', 'status': 'assigned', 'due_date': {'$gte': current_due_date}})
 
-  # *** FIX: Modified the insert_many call to handle duplicates gracefully ***
-  try:
-    # Use ordered=False to insert all valid documents and ignore duplicates
-    events_collection.insert_many(new_events, ordered=False)
-    return jsonify({
-      'status': 'success',
-      'message': f'{len(new_events)} chores have been scheduled for the next 90 days!'
-    })
-  except Exception as e:
-    # Handle the expected error when duplicates are found. This is now a
-    # success case, as it means the duplicates were correctly prevented.
-    if "E11000 duplicate key error" in str(e):
-      return jsonify({
-        'status': 'success',
-        'message': 'Chore plan applied successfully. Existing chores were not duplicated.'
-        })
-    # Handle other potential database errors
-    return jsonify({'error': f'Failed to save the plan to the database: {e}'}), 500
+    new_events = []
+    for chore_template in plan_data.get('suggested_chores', []):
+        recurrence = chore_template.get('recurrence', '').lower()
+        delta_map = {'daily': timedelta(days=1), 'weekly': timedelta(weeks=1), 'monthly': relativedelta(months=1)}
+        delta = delta_map.get(recurrence)
+        if not delta: continue
+
+        assigned_to_value = chore_template.get('assigned_to')
+        loop_date = current_due_date
+        while loop_date < end_date:
+            assignees_for_this_instance = []
+            if assigned_to_value == "__ALL__": assignees_for_this_instance = child_ids
+            elif assigned_to_value in child_ids: assignees_for_this_instance = [assigned_to_value]
+            else: assignees_for_this_instance = [next(child_cycler)]
+
+            for assigned_child_id in assignees_for_this_instance:
+                doc = {
+                    'name': chore_template.get('name'), 'description': chore_template.get('description'),
+                    'points': int(chore_template.get('points', 0)), 'type': 'chore',
+                    'family_id': family_oid, 'status': 'assigned', 'created_at': now_est(),
+                    # FIX: Store assigned_to as ObjectId
+                    'assigned_to': ObjectId(assigned_child_id),
+                    'due_date': loop_date, 'source': 'FamJamPlan', 'source_type': 'generated'
+                }
+                new_events.append(doc)
+            
+            loop_date += delta
+
+    if not new_events:
+        return jsonify({'status': 'warning', 'message': 'No new chores were scheduled.'})
+
+    try:
+        events_collection.insert_many(new_events, ordered=False)
+        return jsonify({'status': 'success', 'message': f'{len(new_events)} chores have been scheduled!'})
+    except Exception as e:
+        if "E11000 duplicate key error" in str(e):
+            return jsonify({'status': 'success', 'message': 'Chore plan applied. Existing chores were not duplicated.'})
+        return jsonify({'error': f'Failed to save plan: {e}'}), 500
 
 
 @app.route('/api/suggest-username', methods=['POST'])
