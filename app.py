@@ -538,7 +538,7 @@ def personal_dashboard():
         }).sort('due_date', ASCENDING))
 
         todays_chores = list(events_collection.find({
-            'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed']},
+            'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed', 'approved']},
             'due_date': {'$gte': start_of_today_utc, '$lt': end_of_today_utc}
         }).sort('name', ASCENDING))
 
