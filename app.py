@@ -457,18 +457,19 @@ def reset_child_password(child_id):
 @login_required
 def personal_dashboard():
     family_oid = ObjectId(current_user.family_id)
-    today = today_est()
-    
+    today = today_est() # This returns a date object
+
     personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
     personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
 
+    # Parent logic was already correct and requires no changes.
     if current_user.role == 'parent':
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
         for member in family_members: member['_id'] = str(member['_id'])
 
         events = list(events_collection.find({'family_id': family_oid, 'status': {'$in': ['completed', 'approved']}}).sort('due_date', DESCENDING).limit(20))
-        
+
         reward_requests_cursor = rewards_collection.find({'family_id': family_oid, 'status': 'requested'}).sort('_id', -1)
         reward_requests = []
         for r in reward_requests_cursor:
@@ -483,7 +484,7 @@ def personal_dashboard():
                 if delta.days > 0: t['spent_at_pretty'] = f"{delta.days}d ago"
                 elif delta.seconds > 3600: t['spent_at_pretty'] = f"{delta.seconds // 3600}h ago"
                 else: t['spent_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
-        
+
         for event in events:
             if event.get('completed_at'):
                 delta = now - event['completed_at'].astimezone(TIMEZONE)
@@ -515,41 +516,52 @@ def personal_dashboard():
             personal_notes=personal_notes, personal_todos=personal_todos,
             challenges=challenges, today_date=today, now_est=now_est, TIMEZONE=TIMEZONE
         )
-    else: # Child Logic
-        start_of_today = start_of_day_est(today)
-        end_of_today = start_of_today + timedelta(days=1)
-        seven_days_from_now = start_of_today + timedelta(days=8)
-        current_user_oid = ObjectId(current_user.id) # FIX: Use ObjectId for queries
+    
+    # --- CORRECTED CHILD LOGIC ---
+    else:
+        current_user_oid = ObjectId(current_user.id)
 
-        # FIX: Standardized all queries to use ObjectId and correct field names
+        # 1. Define time boundaries in the local timezone (EST)
+        start_of_today_est = start_of_day_est(today)
+        end_of_today_est = start_of_today_est + timedelta(days=1)
+        seven_days_from_now_est = start_of_today_est + timedelta(days=8)
+
+        # 2. Convert boundaries to UTC for all database queries
+        start_of_today_utc = start_of_today_est.astimezone(timezone.utc)
+        end_of_today_utc = end_of_today_est.astimezone(timezone.utc)
+        seven_days_from_now_utc = seven_days_from_now_est.astimezone(timezone.utc)
+
+        # 3. Use UTC boundaries in all date-based queries
         overdue_chores = list(events_collection.find({
             'assigned_to': current_user_oid, 'type': 'chore', 'status': 'assigned',
-            'due_date': {'$lt': start_of_today}
+            'due_date': {'$lt': start_of_today_utc}
         }).sort('due_date', ASCENDING))
 
         todays_chores = list(events_collection.find({
             'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed']},
-            'due_date': {'$gte': start_of_today, '$lt': end_of_today}
+            'due_date': {'$gte': start_of_today_utc, '$lt': end_of_today_utc}
         }).sort('name', ASCENDING))
 
         upcoming_chores = list(events_collection.find({
             'assigned_to': current_user_oid, 'type': 'chore', 'status': {'$in': ['assigned', 'completed']},
-            'due_date': {'$gte': end_of_today, '$lt': seven_days_from_now}
+            'due_date': {'$gte': end_of_today_utc, '$lt': seven_days_from_now_utc}
         }).sort('due_date', ASCENDING))
 
         todays_habits_cursor = events_collection.find({
             'assigned_to': current_user_oid, 'type': 'habit',
-            'due_date': {'$gte': start_of_today, '$lt': end_of_today},
+            'due_date': {'$gte': start_of_today_utc, '$lt': end_of_today_utc},
         })
-        
+
         todays_habits = []
         for habit in todays_habits_cursor:
             last_check = habit.get('last_completed')
+            # For logic/display, convert DB time (UTC) to local time (EST)
             last_completed_date_est = last_check.astimezone(TIMEZONE).date() if last_check else None
             habit['can_checkin'] = not (last_completed_date_est and last_completed_date_est == today)
             todays_habits.append(habit)
-        
+
         now = now_est()
+        # This query does not use a date range, so it doesn't need UTC conversion
         child_rewards = list(rewards_collection.find({'requested_by_id': current_user.id}))
         for reward in child_rewards:
             if reward.get('status') in ['approved', 'rejected'] and reward.get('resolved_at'):
@@ -582,7 +594,6 @@ def personal_dashboard():
             personal_todos=personal_todos, challenges=challenges, direct_messages=direct_messages,
             today_date=today, TIMEZONE=TIMEZONE,
         )
-
 @app.route('/family-dashboard')
 @login_required
 def family_dashboard():
