@@ -462,14 +462,15 @@ def get_formatted_events(family_oid, member_map, filters={}):
     query.update(filters) # Apply any additional filters
 
     # Define a stable color mapping for consistency
-    child_colors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6']
-    all_children = [m for m in member_map.values()]
-    child_color_map = {child_id: child_colors[i % len(child_colors)] for i, child_id in enumerate(member_map.keys())}
+    child_colors = ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#6366f1', '#a855f7']
+    # Filter member_map to only include children for color assignment
+    child_member_ids = [uid for uid, uname in member_map.items() if users_collection.find_one({'_id': ObjectId(uid), 'role': 'child'})]
+    child_color_map = {child_id: child_colors[i % len(child_colors)] for i, child_id in enumerate(child_member_ids)}
 
-    # Set a default color for consistency
     default_color = '#6b7280'
 
     formatted_events = []
+    # Sort by due date first, then by name for consistent ordering
     events_cursor = events_collection.find(query).sort([('due_date', ASCENDING), ('name', ASCENDING)])
 
     for event in events_cursor:
@@ -563,7 +564,7 @@ def personal_dashboard():
             challenges=challenges, today_date=today, now_est=now_est, TIMEZONE=TIMEZONE
         )
 
-    # --- NEW, SIMPLIFIED CHILD LOGIC ---
+    # --- CORRECTED & SIMPLIFIED CHILD LOGIC ---
     else:
         current_user_oid = ObjectId(current_user.id)
 
@@ -571,10 +572,14 @@ def personal_dashboard():
         family_members = list(users_collection.find({'family_id': current_user.family_id}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
 
-        # Define time boundaries in UTC for database queries
-        start_of_today_est = start_of_day_est(today)
-        start_of_today_utc = start_of_today_est.astimezone(timezone.utc)
-        end_of_today_utc = start_of_today_utc + timedelta(days=1)
+        # --- FIX: Use a more robust date range to catch both naive and aware datetimes ---
+        # Create a naive datetime for the start of the day (midnight)
+        start_of_today_naive = datetime.combine(today, datetime.min.time())
+        # Create the boundary for the start of the next day
+        end_of_today_naive = start_of_today_naive + timedelta(days=1)
+        
+        # For overdue, we can still use the timezone-aware version for accuracy.
+        start_of_today_utc = start_of_day_est(today).astimezone(timezone.utc)
 
         # 1. Get Overdue Chores using the helper function
         overdue_filters = {
@@ -585,10 +590,10 @@ def personal_dashboard():
         }
         overdue_events = get_formatted_events(family_oid, member_map, filters=overdue_filters)
 
-        # 2. Get all of Today's Events (Chores and Habits) using the helper function
+        # 2. Get all of Today's Events using the robust naive date range
         todays_filters = {
             'assigned_to': current_user_oid,
-            'due_date': {'$gte': start_of_today_utc, '$lt': end_of_today_utc}
+            'due_date': {'$gte': start_of_today_naive, '$lt': end_of_today_naive}
         }
         todays_events = get_formatted_events(family_oid, member_map, filters=todays_filters)
         
@@ -632,6 +637,7 @@ def personal_dashboard():
             today_date=today,
             TIMEZONE=TIMEZONE
         )
+
 
 
 
