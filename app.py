@@ -385,54 +385,70 @@ def personal_dashboard():
         family_members_cursor = users_collection.find({'family_id': current_user.family_id})
         family_members = list(family_members_cursor)
         member_map = {str(m['_id']): m['username'] for m in family_members}
-        for member in family_members:
-            member['_id'] = str(member['_id'])
 
-        # --- Weekly Stats Calculation ---
+        # --- NEW: Create a detailed dashboard data structure for children ---
+        child_dashboard_data = []
+        children = [m for m in family_members if m.get('role') == 'child']
+
         now = now_est()
+        start_of_today = start_of_day_est(today)
+        end_of_today = start_of_today + timedelta(days=1)
         start_of_week = start_of_day_est(today - timedelta(days=now.weekday()))
         end_of_week = start_of_week + timedelta(days=7)
 
-        weekly_stats = {
-            'total_points_assigned': 0,
-            'child_stats': defaultdict(lambda: {'tasks_assigned': 0, 'points_assigned': 0})
-        }
-        tasks_this_week_cursor = events_collection.find({
-            'family_id': family_oid,
-            'due_date': {'$gte': start_of_week, '$lt': end_of_week}
-        })
+        for child in children:
+            child_id_obj = child['_id'] # Use the ObjectId directly
+            
+            # Today's stats
+            todays_tasks = list(events_collection.find({
+                'assigned_to': child_id_obj,
+                'due_date': {'$gte': start_of_today, '$lt': end_of_today}
+            }))
+            todays_total = len(todays_tasks)
+            todays_completed = sum(1 for t in todays_tasks if t.get('status') in ['completed', 'approved'])
+            
+            # This week's stats
+            weekly_tasks = list(events_collection.find({
+                'assigned_to': child_id_obj,
+                'due_date': {'$gte': start_of_week, '$lt': end_of_week}
+            }))
+            weekly_total_tasks = len(weekly_tasks)
+            weekly_potential_points = sum(t.get('points', 0) for t in weekly_tasks)
 
-        for task in tasks_this_week_cursor:
-            weekly_stats['total_points_assigned'] += task.get('points', 0)
-            child_id = str(task.get('assigned_to'))
-            if child_id in member_map:
-                weekly_stats['child_stats'][child_id]['tasks_assigned'] += 1
-                weekly_stats['child_stats'][child_id]['points_assigned'] += task.get('points', 0)
+            child_dashboard_data.append({
+                '_id': str(child_id_obj),
+                'username': child.get('username'),
+                'points': child.get('points', 0),
+                'today': {
+                    'total': todays_total,
+                    'completed': todays_completed,
+                    'progress': int((todays_completed / todays_total * 100)) if todays_total > 0 else 100
+                },
+                'week': {
+                    'total_tasks': weekly_total_tasks,
+                    'potential_points': weekly_potential_points
+                }
+            })
         
+        # Convert all ObjectIds in family_members to strings for template rendering
+        for member in family_members:
+            member['_id'] = str(member['_id'])
+
         # --- Pending Approvals ---
         pending_events = list(events_collection.find({
             'family_id': family_oid,
             'status': 'completed'
         }).sort('completed_at', DESCENDING))
 
-        # --- Mood Tracking Activity ---
-        start_of_today = start_of_day_est(today)
-        mood_trackers_today_cursor = moods_collection.find({
-            'family_id': family_oid,
-            'date': start_of_today
-        })
-        mood_trackers_today = {str(mood['user_id']) for mood in mood_trackers_today_cursor}
-
         # --- Reward Store Management ---
         available_rewards = list(store_rewards_collection.find({'family_id': family_oid}).sort('cost', ASCENDING))
         
-        # ✨ NEW: Fetch Pending Reward Requests
+        # --- Fetch Pending Reward Requests ---
         pending_rewards = list(rewards_collection.find({
             'family_id': family_oid,
             'status': 'pending',
         }).sort('requested_at', DESCENDING))
         
-        # ✨ NEW: Create a map of user IDs to usernames for the reward requests
         user_ids_for_rewards = [r['requested_by_id'] for r in pending_rewards]
         users_for_rewards = {str(u['_id']): u['username'] for u in users_collection.find({'_id': {'$in': user_ids_for_rewards}})}
         
@@ -444,15 +460,14 @@ def personal_dashboard():
             page='dashboard_parent',
             family_members=family_members,
             member_map=member_map,
+            child_dashboard_data=child_dashboard_data, # Pass the new data structure
             pending_events=pending_events,
-            pending_rewards=pending_rewards, # ✨ NEW: Pass data to template
-            weekly_stats=weekly_stats,
-            mood_trackers_today=mood_trackers_today,
+            pending_rewards=pending_rewards,
             available_rewards=available_rewards,
             TIMEZONE=TIMEZONE
         )
 
-    # --- CHILD DASHBOARD LOGIC ---
+    # --- CHILD DASHBOARD LOGIC (Unchanged) ---
     else: # current_user.role == 'child'
         current_user_oid = ObjectId(current_user.id)
         
