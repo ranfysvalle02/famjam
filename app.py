@@ -1316,13 +1316,32 @@ def api_mood_log():
 @app.route('/api/mood/personal')
 @login_required
 def api_mood_personal():
+    # This part handles the request for a single mood entry (e.g., Morning on Oct 6th)
     if 'date' in request.args and 'period' in request.args:
         try:
             entry_date_aware = start_of_day_est(datetime.strptime(request.args['date'], '%Y-%m-%d').date())
-            entry = moods_collection.find_one({'user_id': ObjectId(current_user.id), 'date': entry_date_aware, 'period': request.args['period']})
-            return jsonify(entry) if entry else jsonify({'error': 'Not found'}), 404
+            entry = moods_collection.find_one({
+                'user_id': ObjectId(current_user.id), 
+                'date': entry_date_aware, 
+                'period': request.args['period']
+            })
+
+            if entry:
+                # FIX IS HERE: Instead of returning the raw 'entry' object,
+                # create a new dictionary with only the data needed by the frontend.
+                # This avoids trying to serialize ObjectId fields.
+                return jsonify({
+                    'mood_emoji': entry.get('mood_emoji'),
+                    'note': entry.get('note', '')
+                })
+            else:
+                # This part is correct and handles when no mood is found
+                return jsonify({}), 200 # Return an empty object with a 200 OK status
+        
         except Exception as e:
             return jsonify({'error': str(e)}), 400
+
+    # This part, which gets the 30-day history for the chart, is fine and doesn't need changes.
     thirty_days_ago = now_est() - timedelta(days=30)
     mood_entries = list(moods_collection.find({'user_id': ObjectId(current_user.id), 'date': {'$gte': thirty_days_ago}}).sort('date', ASCENDING))
     labels = [f"{e['date'].astimezone(TIMEZONE).strftime('%b %d')} {e['period']}" for e in mood_entries]
