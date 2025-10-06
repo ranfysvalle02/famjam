@@ -426,12 +426,25 @@ def personal_dashboard():
         # --- Reward Store Management ---
         available_rewards = list(store_rewards_collection.find({'family_id': family_oid}).sort('cost', ASCENDING))
         
+        # ✨ NEW: Fetch Pending Reward Requests
+        pending_rewards = list(rewards_collection.find({
+            'status': 'pending',
+        }).sort('requested_at', DESCENDING))
+        
+        # ✨ NEW: Create a map of user IDs to usernames for the reward requests
+        user_ids_for_rewards = [r['requested_by_id'] for r in pending_rewards]
+        users_for_rewards = {str(u['_id']): u['username'] for u in users_collection.find({'_id': {'$in': user_ids_for_rewards}})}
+        
+        for reward_req in pending_rewards:
+            reward_req['username'] = users_for_rewards.get(str(reward_req.get('requested_by_id')), 'Unknown')
+            
         return render_template(
             'index.html',
             page='dashboard_parent',
             family_members=family_members,
             member_map=member_map,
             pending_events=pending_events,
+            pending_rewards=pending_rewards, # ✨ NEW: Pass data to template
             weekly_stats=weekly_stats,
             mood_trackers_today=mood_trackers_today,
             available_rewards=available_rewards,
@@ -567,7 +580,19 @@ def family_dashboard():
             'creator_name': member_map.get(str(t.get('created_by')), "Unknown"),
             'time_left': time_left
         })
-    return render_template('index.html', page='family_dashboard', stats=stats, family_members=family_members, recent_events=recent_events, timers=timers)
+        
+    # ✨ NEW: Fetch rewards for the family hub view
+    available_rewards = list(store_rewards_collection.find({'family_id': fam_oid}).sort('cost', ASCENDING))
+    
+    return render_template(
+        'index.html', 
+        page='family_dashboard', 
+        stats=stats, 
+        family_members=family_members, 
+        recent_events=recent_events, 
+        timers=timers,
+        available_rewards=available_rewards  # ✨ NEW: Pass rewards to template
+    )
 
 @app.route('/calendar-focus')
 @login_required
@@ -590,6 +615,90 @@ def mood_dashboard_family():
 ################################################################################
 # 7. NEW REWARD STORE MANAGEMENT ROUTES
 ################################################################################
+@app.route('/reward/request/resolve/<request_id>', methods=['POST'])
+@login_required
+def resolve_reward_request(request_id):
+    """Allows a parent to approve or deny a reward request."""
+    if current_user.role != 'parent':
+        flash("You are not authorized to manage rewards.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    action = request.form.get('action') # Should be 'approve' or 'deny'
+    reward_request = rewards_collection.find_one({'_id': ObjectId(request_id)})
+    
+    if not reward_request:
+        flash("Reward request not found.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    if action == 'approve':
+        rewards_collection.update_one(
+            {'_id': ObjectId(request_id)},
+            {'$set': {
+                'status': 'approved',
+                'resolved_at': now_est(),
+                'resolved_by_id': ObjectId(current_user.id)
+            }}
+        )
+        flash(f"Request for '{reward_request['reward_name']}' approved.", "success")
+
+    elif action == 'deny':
+        # Refund the points to the child
+        users_collection.update_one(
+            {'_id': reward_request['requested_by_id']},
+            {'$inc': {'points': reward_request['cost']}}
+        )
+        rewards_collection.update_one(
+            {'_id': ObjectId(request_id)},
+            {'$set': {
+                'status': 'denied',
+                'resolved_at': now_est(),
+                'resolved_by_id': ObjectId(current_user.id)
+            }}
+        )
+        flash(f"Request for '{reward_request['reward_name']}' denied. Points have been refunded.", "info")
+
+    return redirect(url_for('personal_dashboard'))
+@app.route('/reward/request/<reward_id>', methods=['POST'])
+@login_required
+def request_reward(reward_id):
+    """Allows a child to request a reward from the store using their points."""
+    if current_user.role != 'child':
+        flash("Only children can request rewards.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    reward = store_rewards_collection.find_one({
+        '_id': ObjectId(reward_id),
+        'family_id': ObjectId(current_user.family_id)
+    })
+
+    if not reward:
+        flash("This reward is not available.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    user = users_collection.find_one({'_id': ObjectId(current_user.id)})
+    if user.get('points', 0) < reward.get('cost', 0):
+        flash("You don't have enough points for this reward.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    # Deduct points and log the request
+    users_collection.update_one(
+        {'_id': ObjectId(current_user.id)},
+        {'$inc': {'points': -reward['cost']}}
+    )
+
+    rewards_collection.insert_one({
+        'requested_by_id': ObjectId(current_user.id),
+        'reward_name': reward['name'],
+        'cost': reward['cost'],
+        'status': 'pending', # Statuses: pending, approved, denied
+        'requested_at': now_est(),
+        'resolved_at': None,
+        'resolved_by_id': None
+    })
+
+    flash(f"You've successfully requested '{reward['name']}'! Awaiting parent approval.", "success")
+    return redirect(url_for('personal_dashboard'))
+
 @app.route('/reward/store/add', methods=['POST'])
 @login_required
 def add_store_reward():
@@ -789,6 +898,7 @@ def approve_event(event_id):
             flash(f"Task approved! {e['points']} points awarded.", 'success')
     return redirect(url_for('personal_dashboard'))
 
+# ✨ NEW: Bulk approval route
 @app.route('/event/bulk_approve', methods=['POST'])
 @login_required
 def bulk_approve_events():
@@ -818,6 +928,54 @@ def bulk_approve_events():
     events_collection.update_many({'_id': {'$in': valid_event_ids_to_update}}, {'$set': {'status': 'approved', 'approved_at': now_est()}})
     flash(f"{len(valid_event_ids_to_update)} task(s) approved!", "success")
     return jsonify({"status": "success", "approved_count": len(valid_event_ids_to_update)}), 200
+
+
+@app.route('/plan/add_task/<plan_id>', methods=['POST'])
+@login_required
+def add_task_to_plan(plan_id):
+    if current_user.role != 'parent':
+        flash("Unauthorized access.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    plan = famjam_plans_collection.find_one({
+        '_id': ObjectId(plan_id),
+        'family_id': ObjectId(current_user.family_id)
+    })
+    if not plan:
+        flash("Plan not found.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    try:
+        name = request.form['name']
+        points = int(request.form['points'])
+        assigned_to = ObjectId(request.form['assigned_to'])
+        due_date_str = request.form['due_date']
+        due_date_aware = start_of_day_est(datetime.strptime(due_date_str, '%Y-%m-%d').date())
+
+        # Check if due date is within the plan's range for organizational purposes
+        plan_start = plan['start_date']
+        plan_end = plan['end_date']
+        if not (plan_start <= due_date_aware <= plan_end):
+             flash(f"Warning: The due date is outside the active plan's range ({plan_start.strftime('%b %d')} - {plan_end.strftime('%b %d')}).", 'warning')
+
+
+        events_collection.insert_one({
+            'name': name,
+            'description': request.form.get('description', ''),
+            'points': points,
+            'type': 'chore', # Manually added tasks are chores
+            'family_id': ObjectId(current_user.family_id),
+            'status': 'assigned',
+            'created_at': now_est(),
+            'assigned_to': assigned_to,
+            'due_date': due_date_aware,
+            'source_type': 'manual' # Identifier for manually added tasks
+        })
+        flash(f"Task '{name}' was added to the plan.", 'success')
+    except Exception as e:
+        flash(f"Error adding task: {e}", 'error')
+
+    return redirect(url_for('manage_plan'))
 
 ################################################################################
 # 9. CONTEXT PROCESSOR & OTHER ROUTES...
@@ -1201,28 +1359,49 @@ def manage_plan():
     if current_user.role != 'parent':
         flash("You don't have permission to view this page.", "error")
         return redirect(url_for('personal_dashboard'))
+    
     family_oid = ObjectId(current_user.family_id)
     active_plan = famjam_plans_collection.find_one({'family_id': family_oid, 'status': 'active'})
+
     if not active_plan:
         flash("No active FamJam plan to manage.", "error")
         return redirect(url_for('personal_dashboard'))
+
     sort_by = request.args.get('sort_by', 'due_date')
     order = ASCENDING if request.args.get('order', 'asc') == 'asc' else DESCENDING
+
     start_date_aware = start_of_day_est(active_plan['start_date'].date())
     end_date_aware = start_of_day_est(active_plan['end_date'].date())
-    tasks_cursor = events_collection.find({'family_id': family_oid, 'due_date': {'$gte': start_date_aware, '$lte': end_date_aware}}).sort(sort_by, order)
+
+    tasks_cursor = events_collection.find({
+        'family_id': family_oid, 
+        'due_date': {'$gte': start_date_aware, '$lte': end_date_aware}
+    }).sort(sort_by, order)
+
     family_members = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}))
-    member_map = {str(m['_id']): m['username'] for m in family_members}
+    
+    # ✨ FIX 1: Convert each member's ObjectId to a string before passing to the template.
+    for member in family_members:
+        member['_id'] = str(member['_id'])
+
+    member_map = {m['_id']: m['username'] for m in family_members}
+
     tasks = []
     for task in tasks_cursor:
         task['assigned_to_username'] = member_map.get(str(task.get('assigned_to')), 'N/A')
-        task['json_string'] = json.dumps(task, cls=MongoJsonEncoder)
+        # ✨ FIX 2: Use default=str to handle non-serializable types like ObjectId and datetime.
+        task['json_string'] = json.dumps(task, default=str)
         tasks.append(task)
-    return render_template(
-        'index.html', page='manage_plan', plan=active_plan, tasks=tasks,
-        family_members=family_members, current_sort={'by': sort_by, 'order': request.args.get('order', 'asc')}
-    )
 
+    return render_template(
+        'index.html', 
+        page='manage_plan', 
+        plan=active_plan, 
+        tasks=tasks,
+        family_members=family_members, 
+        current_sort={'by': sort_by, 'order': request.args.get('order', 'asc')},
+        TIMEZONE=TIMEZONE
+    )
 @app.route('/plan/edit_name/<plan_id>', methods=['POST'])
 @login_required
 def edit_plan_name(plan_id):
@@ -1237,6 +1416,45 @@ def edit_plan_name(plan_id):
     )
     flash("Plan name updated.", "success")
     return redirect(url_for('manage_plan'))
+
+
+@app.route('/api/reward/suggest', methods=['POST'])
+@login_required
+def suggest_rewards():
+    """AI-powered endpoint for parents to get reward suggestions."""
+    if current_user.role != 'parent' or not openai_client:
+        return jsonify({"error": "Not authorized or AI not configured."}), 403
+
+    theme = request.get_json().get('theme', 'general motivation and fun activities')
+    children = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}, {'username': 1, '_id': 0}))
+    child_names = [c['username'] for c in children]
+    child_info = f"for children named {', '.join(child_names)}" if child_names else "for children"
+    
+    system_prompt = f"""
+    You are an expert in child development and positive reinforcement.
+    Generate a JSON object containing a key "suggested_rewards".
+    This key should hold an array of 5-7 creative and engaging reward ideas {child_info}.
+    The theme for the rewards is: "{theme}".
+    Each reward object in the array must have two keys:
+    1. "name": A short, descriptive string for the reward (e.g., "Extra 30 Minutes of Screen Time").
+    2. "cost": An integer representing the point cost, ranging from 50 to 1000, scaled appropriately to the reward's value.
+    Ensure the output is a valid JSON object.
+    """
+    
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "Generate the reward suggestions."}
+            ]
+        )
+        suggestions = json.loads(response.choices[0].message.content)
+        return jsonify(suggestions)
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate reward suggestions: {str(e)}"}), 500
+
 
 @app.route('/api/famjam/suggest', methods=['POST'])
 @login_required
