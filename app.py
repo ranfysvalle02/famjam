@@ -428,6 +428,7 @@ def personal_dashboard():
         
         # ✨ NEW: Fetch Pending Reward Requests
         pending_rewards = list(rewards_collection.find({
+            'family_id': family_oid,
             'status': 'pending',
         }).sort('requested_at', DESCENDING))
         
@@ -624,7 +625,10 @@ def resolve_reward_request(request_id):
         return redirect(url_for('personal_dashboard'))
 
     action = request.form.get('action') # Should be 'approve' or 'deny'
-    reward_request = rewards_collection.find_one({'_id': ObjectId(request_id)})
+    reward_request = rewards_collection.find_one({
+        '_id': ObjectId(request_id),
+        'family_id': ObjectId(current_user.family_id)
+    })
     
     if not reward_request:
         flash("Reward request not found.", "error")
@@ -658,14 +662,15 @@ def resolve_reward_request(request_id):
         flash(f"Request for '{reward_request['reward_name']}' denied. Points have been refunded.", "info")
 
     return redirect(url_for('personal_dashboard'))
-@app.route('/reward/request/<reward_id>', methods=['POST'])
+@app.route('/reward/request', methods=['POST'])
 @login_required
-def request_reward(reward_id):
+def request_reward():
     """Allows a child to request a reward from the store using their points."""
     if current_user.role != 'child':
         flash("Only children can request rewards.", "error")
         return redirect(url_for('personal_dashboard'))
-
+    
+    reward_id = request.form.get('reward_id')
     reward = store_rewards_collection.find_one({
         '_id': ObjectId(reward_id),
         'family_id': ObjectId(current_user.family_id)
@@ -687,6 +692,7 @@ def request_reward(reward_id):
     )
 
     rewards_collection.insert_one({
+        'family_id': ObjectId(current_user.family_id),
         'requested_by_id': ObjectId(current_user.id),
         'reward_name': reward['name'],
         'cost': reward['cost'],
@@ -985,20 +991,31 @@ def add_task_to_plan(plan_id):
 def inject_global_vars():
     if not current_user.is_authenticated:
         return {}
+    
+    # These queries might be heavy on every request. Consider optimizing if performance is an issue.
     family_members = list(users_collection.find({'family_id': current_user.family_id}))
+    personal_notes = list(notes_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', DESCENDING))
+    personal_todos = list(personal_todos_collection.find({'user_id': ObjectId(current_user.id)}).sort('created_at', ASCENDING))
+    
     parent = {}
     family_doc = families_collection.find_one({'_id': ObjectId(current_user.family_id)})
     primary_parent_oid = family_doc['parent_ids'][0] if family_doc and family_doc.get('parent_ids') else None
+    
     for member in family_members:
         member['_id'] = str(member['_id'])
         if primary_parent_oid and member['_id'] == str(primary_parent_oid):
             parent = member
+            
     unread_messages_exist = direct_messages_collection.find_one({
         'recipient_id': ObjectId(current_user.id), 'is_read': False
     }) is not None
+    
     return {
-        'family_members': family_members, 'parent': parent,
-        'unread_messages_exist': unread_messages_exist
+        'family_members': family_members, 
+        'parent': parent,
+        'unread_messages_exist': unread_messages_exist,
+        'personal_notes': personal_notes,
+        'personal_todos': personal_todos
     }
 
 # All other routes from your file are included below...
@@ -1222,6 +1239,64 @@ def mark_messages_read():
         {'$set': {'is_read': True}}
     )
     return jsonify({"status": "success", "modified_count": result.modified_count})
+
+# ✨ NEW API ROUTE TO GET A CHILD'S DAY VIEW
+@app.route('/api/child-day/<child_id>')
+@login_required
+def api_get_child_day(child_id):
+    """API endpoint for a parent to view a child's day."""
+    if current_user.role != 'parent':
+        return jsonify({"error": "Unauthorized"}), 403
+
+    try:
+        child_user_oid = ObjectId(child_id)
+        # Verify the child belongs to the parent's family
+        child = users_collection.find_one({
+            '_id': child_user_oid,
+            'family_id': current_user.family_id
+        })
+        if not child:
+            return jsonify({"error": "Child not found in your family"}), 404
+    except Exception:
+        return jsonify({"error": "Invalid child ID"}), 400
+
+    today = today_est()
+    start_of_today_naive = datetime.combine(today, datetime.min.time())
+    end_of_today_naive = start_of_today_naive + timedelta(days=1)
+    start_of_today_utc = start_of_day_est(today).astimezone(timezone.utc) # For overdue check
+
+    # Fetch Overdue Events
+    overdue_events = list(events_collection.find({
+        'assigned_to': child_user_oid, 'type': 'chore',
+        'status': 'assigned', 'due_date': {'$lt': start_of_today_utc}
+    }).sort('due_date', ASCENDING))
+
+    # Fetch Today's Events
+    todays_events_cursor = events_collection.find({
+        'assigned_to': child_user_oid,
+        'due_date': {'$gte': start_of_today_naive, '$lt': end_of_today_naive}
+    }).sort('type', DESCENDING)
+
+    todays_events = []
+    for event in todays_events_cursor:
+        event['can_checkin'] = False
+        if event.get('type') == 'habit':
+            last_completed = event.get('last_completed')
+            last_completed_date = last_completed.astimezone(TIMEZONE).date() if last_completed else None
+            if not (last_completed_date and last_completed_date == today):
+                event['can_checkin'] = True
+        todays_events.append(event)
+
+    # Use json_util to handle BSON types like ObjectId and datetime
+    return Response(
+        json_util.dumps({
+            'child_username': child.get('username', 'Unknown'),
+            'overdue_events': overdue_events,
+            'todays_events': todays_events
+        }),
+        mimetype='application/json'
+    )
+
 
 @app.route('/child/edit/<child_id>', methods=['POST'])
 @login_required

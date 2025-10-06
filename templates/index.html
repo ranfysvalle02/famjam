@@ -703,193 +703,206 @@
       {% elif page == 'dashboard_parent' %}
       <div class="space-y-8">
 
-          <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-              <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">FamJam Plan Management</h3>
-              <p class="text-gray-600 dark:text-gray-300 mb-6">View, edit, or delete tasks from your active plan, or generate a brand new AI-powered plan for the upcoming quarter.</p>
-              <div class="flex flex-col sm:flex-row gap-4">
-                  <a href="{{ url_for('manage_plan') }}" class="flex-1 text-center px-6 py-3 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
-                      Manage Active Plan
-                  </a>
-                  <button onclick="openFamJamModal()" class="flex-1 px-6 py-3 font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
-                      Generate New AI Plan
-                  </button>
-              </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-6">
-              <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Assign a New Task</h2>
-              <form method="POST" action="{{ url_for('create_event') }}">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div class="md:col-span-2">
-                    <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Task Name</label>
-                    <input type="text" name="name" placeholder="e.g. Clean your room" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
-                  </div>
-                  <div>
-                    <label for="type" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Type</label>
-                    <select name="type" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                      <option value="chore">Chore</option>
-                      <option value="habit">Habit</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label for="points" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Points Value</label>
-                    <input type="number" name="points" min="1" placeholder="e.g. 50" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
-                  </div>
-                  <div>
-                    <label for="assigned_to" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Assign To</label>
-                    <select name="assigned_to" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
-                      <option value="">Select a child...</option>
-                      <option value="__ALL__">All Children</option>
-                      <option value="__ROUND_ROBIN__">Round Robin</option>
-                      {% for member in family_members if member.role == 'child' %}
-                      <option value="{{ member._id }}">{{ member.username }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div>
-                    <label for="recurrence" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Recurrence</label>
-                    <select name="recurrence" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                      <option value="none">Does not repeat</option>
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                    </select>
-                  </div>
-                  <div class="md:col-span-2">
-                    <label for="due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Start/Due Date</label>
-                    <input type="date" name="due_date" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
-                  </div>
-                </div>
-                <button type="submit" class="w-full md:w-auto mt-8 py-3 px-8 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg">
-                  Add Task
-                </button>
-              </form>
-            </div>
-            <div class="lg:col-span-1 space-y-8">
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
-                  <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">This Week's Stats</h3>
-                  <div class="space-y-3">
-                    <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <span class="font-medium text-gray-600 dark:text-gray-300">Total Points Assigned</span>
-                        <span class="font-bold text-lg text-blue-600 dark:text-blue-400">{{ weekly_stats.total_points_assigned }} pts</span>
-                    </div>
-                    <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        <span class="font-medium text-gray-600 dark:text-gray-300">Tasks Pending Approval</span>
-                        <span class="font-bold text-lg text-yellow-600 dark:text-yellow-400">{{ pending_events|length }}</span>
-                    </div>
-                  </div>
-              </div>
-                
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Pending Task Approvals</h3>
-                    {% if pending_events %}
-                    <button id="approve-all-btn" class="px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded-full hover:bg-green-700 transition">
-                        Approve All
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+                <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">FamJam Plan Management</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-6">View, edit, or delete tasks from your active plan, or generate a brand new AI-powered plan for the upcoming quarter.</p>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <a href="{{ url_for('manage_plan') }}" class="flex-1 text-center px-6 py-3 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                        Manage Active Plan
+                    </a>
+                    <button onclick="openFamJamModal()" class="flex-1 px-6 py-3 font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                        Generate New AI Plan
                     </button>
-                    {% endif %}
                 </div>
-                <div id="pending-approvals-container">
-                    {% if pending_events %}
-                    <div class="space-y-4 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                        {% for event in pending_events %}
-                        <div data-event-id="{{ event._id }}" class="pending-event-item flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow">
-                            <div>
-                                <p class="font-semibold text-gray-800 dark:text-gray-100">{{ event.name }}</p>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">
-                                    by <span class="font-medium">{{ member_map.get(event.assigned_to|string, 'Unknown') }}</span>
-                                     <span class="font-bold text-green-600 dark:text-green-400">{{ event.points }} pts</span>
-                                </p>
-                            </div>
-                            <a href="{{ url_for('approve_event', event_id=event._id) }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110" title="Approve this task">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </a>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <p class="text-center py-8 text-gray-500 dark:text-gray-400">No tasks are pending approval.</p>
-                    {% endif %}
-                </div>
-              </div>
-
-              <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-                  <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Pending Reward Requests</h3>
-                  <div class="space-y-4 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                      {% if pending_rewards %}
-                          {% for req in pending_rewards %}
-                              <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                  <div class="flex flex-col sm:flex-row justify-between sm:items-center">
-                                      <div>
-                                          <p class="font-semibold text-gray-800 dark:text-gray-100">{{ req.reward_name }}</p>
-                                          <p class="text-sm text-gray-500 dark:text-gray-400">
-                                              Requested by <span class="font-medium">{{ req.username }}</span>
-                                               <span class="font-bold text-yellow-600 dark:text-yellow-400">{{ req.cost }} pts</span>
-                                          </p>
-                                      </div>
-                                      <form action="{{ url_for('resolve_reward_request', request_id=req._id) }}" method="POST" class="flex items-center gap-2 mt-3 sm:mt-0">
-                                          <button type="submit" name="action" value="approve" class="px-3 py-1 text-xs font-semibold text-white bg-green-500 rounded-full hover:bg-green-600 transition">Approve</button>
-                                          <button type="submit" name="action" value="deny" class="px-3 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition">Deny</button>
-                                      </form>
-                                  </div>
-                              </div>
-                          {% endfor %}
-                      {% else %}
-                          <p class="text-center py-8 text-gray-500 dark:text-gray-300">No reward requests are pending.</p>
-                      {% endif %}
-                  </div>
-              </div>
-
             </div>
-          </div>
 
-          <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-              <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
-                  <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Manage Reward Store</h3>
-                  <button id="suggest-rewards-btn" class="flex-shrink-0 w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition shadow">
-                      <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538.921l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-.921l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                      Get Reward Ideas with AI
-                  </button>
-              </div>
-              <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div class="lg:col-span-1">
-                      <form action="{{ url_for('add_store_reward') }}" method="POST" class="space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
-                          <h4 class="font-semibold">Add a New Reward</h4>
-                            <div>
-                              <label for="reward-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Reward Name</label>
-                              <input type="text" name="name" id="reward-name" required class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-6">
+                    <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Assign a New Task</h2>
+                    <form method="POST" action="{{ url_for('create_event') }}">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Task Name</label>
+                                <input type="text" name="name" placeholder="e.g. Clean your room" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
                             </div>
                             <div>
-                              <label for="reward-cost" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Point Cost</label>
-                              <input type="number" name="cost" id="reward-cost" min="1" required class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+                                <label for="type" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Type</label>
+                                <select name="type" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="chore">Chore</option>
+                                    <option value="habit">Habit</option>
+                                </select>
                             </div>
-                            <button type="submit" class="w-full py-2.5 font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition">Add to Store</button>
-                      </form>
-                  </div>
-                  <div class="lg:col-span-2">
-                      <h4 class="font-semibold mb-4">Available Rewards</h4>
-                        <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
-                          {% for reward in available_rewards %}
-                            <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center">
-                                <div>
-                                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ reward.name }}</p>
-                                    <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">{{ reward.cost }} pts</p>
-                                </div>
-                                <a href="{{ url_for('delete_store_reward', reward_id=reward._id) }}" onclick="return confirm('Are you sure you want to delete this reward from the store?')" class="p-2 text-red-500 bg-red-100 dark:bg-red-900/50 rounded-full hover:bg-red-200 dark:hover:bg-red-800 transition" title="Delete Reward">
-                                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
-                                </a>
+                            <div>
+                                <label for="points" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Points Value</label>
+                                <input type="number" name="points" min="1" placeholder="e.g. 50" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
                             </div>
-                          {% else %}
-                              <p class="text-center py-8 text-gray-500 dark:text-gray-300">Your reward store is empty. Add a reward to get started!</p>
-                          {% endfor %}
+                            <div>
+                                <label for="assigned_to" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Assign To</label>
+                                <select name="assigned_to" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required>
+                                    <option value="">Select a child...</option>
+                                    <option value="__ALL__">All Children</option>
+                                    <option value="__ROUND_ROBIN__">Round Robin</option>
+                                    {% for member in family_members if member.role == 'child' %}
+                                    <option value="{{ member._id }}">{{ member.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label for="recurrence" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Recurrence</label>
+                                <select name="recurrence" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="none">Does not repeat</option>
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label for="due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Start/Due Date</label>
+                                <input type="date" name="due_date" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500" required />
+                            </div>
                         </div>
-                  </div>
-              </div>
-          </div>
-      </div>
+                        <button type="submit" class="w-full md:w-auto mt-8 py-3 px-8 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg">
+                            Add Task
+                        </button>
+                    </form>
+                </div>
+
+                <div class="lg:col-span-1 space-y-8">
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl space-y-4">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">This Week's Stats</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <span class="font-medium text-gray-600 dark:text-gray-300">Total Points Assigned</span>
+                                <span class="font-bold text-lg text-blue-600 dark:text-blue-400">{{ weekly_stats.total_points_assigned }} pts</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                <span class="font-medium text-gray-600 dark:text-gray-300">Tasks Pending Approval</span>
+                                <span class="font-bold text-lg text-yellow-600 dark:text-yellow-400">{{ pending_events|length }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Pending Task Approvals</h3>
+                            {% if pending_events %}
+                            <button id="approve-all-btn" class="px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded-full hover:bg-green-700 transition">
+                                Approve All
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div id="pending-approvals-container">
+                            {% if pending_events %}
+                            <div class="space-y-4 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                                {% for event in pending_events %}
+                                <div data-event-id="{{ event._id }}" class="pending-event-item flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow">
+                                    <div>
+                                        <p class="font-semibold text-gray-800 dark:text-gray-100">{{ event.name }}</p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                                            by <span class="font-medium">{{ member_map.get(event.assigned_to|string, 'Unknown') }}</span>
+                                            <span class="font-bold text-green-600 dark:text-green-400">{{ event.points }} pts</span>
+                                        </p>
+                                    </div>
+                                    <a href="{{ url_for('approve_event', event_id=event._id) }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110" title="Approve this task">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-center py-8 text-gray-500 dark:text-gray-400">No tasks are pending approval.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+                        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Pending Reward Requests</h3>
+                        <div class="space-y-4 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+                            {% if pending_rewards %}
+                                {% for req in pending_rewards %}
+                                    <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                        <div class="flex flex-col sm:flex-row justify-between sm:items-center">
+                                            <div>
+                                                <p class="font-semibold text-gray-800 dark:text-gray-100">{{ req.reward_name }}</p>
+                                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                    Requested by <span class="font-medium">{{ req.username }}</span>
+                                                    <span class="font-bold text-yellow-600 dark:text-yellow-400">{{ req.cost }} pts</span>
+                                                </p>
+                                            </div>
+                                            <form action="{{ url_for('resolve_reward_request', request_id=req._id) }}" method="POST" class="flex items-center gap-2 mt-3 sm:mt-0">
+                                                <button type="submit" name="action" value="approve" class="px-3 py-1 text-xs font-semibold text-white bg-green-500 rounded-full hover:bg-green-600 transition">Approve</button>
+                                                <button type="submit" name="action" value="deny" class="px-3 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition">Deny</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-center py-8 text-gray-500 dark:text-gray-300">No reward requests are pending.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+                <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Manage Reward Store</h3>
+                    <button id="suggest-rewards-btn" class="flex-shrink-0 w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition shadow">
+                        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538.921l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-.921l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        Get Reward Ideas with AI
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-1">
+                        <form action="{{ url_for('add_store_reward') }}" method="POST" class="space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                            <h4 class="font-semibold">Add a New Reward</h4>
+                                <div>
+                                    <label for="reward-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Reward Name</label>
+                                    <input type="text" name="name" id="reward-name" required class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+                                </div>
+                                <div>
+                                    <label for="reward-cost" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Point Cost</label>
+                                    <input type="number" name="cost" id="reward-cost" min="1" required class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+                                </div>
+                                <button type="submit" class="w-full py-2.5 font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition">Add to Store</button>
+                        </form>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <h4 class="font-semibold mb-4">Available Rewards</h4>
+                            <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+                                {% for reward in available_rewards %}
+                                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center">
+                                        <div>
+                                            <p class="font-semibold text-gray-800 dark:text-gray-100">{{ reward.name }}</p>
+                                            <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">{{ reward.cost }} pts</p>
+                                        </div>
+                                        <a href="{{ url_for('delete_store_reward', reward_id=reward._id) }}" onclick="return confirm('Are you sure you want to delete this reward from the store?')" class="p-2 text-red-500 bg-red-100 dark:bg-red-900/50 rounded-full hover:bg-red-200 dark:hover:bg-red-800 transition" title="Delete Reward">
+                                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+                                        </a>
+                                    </div>
+                                {% else %}
+                                    <p class="text-center py-8 text-gray-500 dark:text-gray-300">Your reward store is empty. Add a reward to get started!</p>
+                                {% endfor %}
+                            </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="child-day-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
+            <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl mx-auto flex flex-col" style="max-height: 90vh;">
+                <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h3 id="child-day-modal-title" class="text-2xl font-bold text-gray-900 dark:text-gray-100">Child's Day View</h3>
+                    <button onclick="closeModal('child-day-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div id="child-day-modal-content" class="p-6 overflow-y-auto custom-scrollbar">
+                    </div>
+            </div>
+        </div>
       
       {% elif page == 'dashboard_child' %}
       <div class="space-y-8">
@@ -2501,16 +2514,12 @@
         }
     
         // Calendar page
-        // ==========================================
-        // --- START: CALENDAR SCRIPT (CORRECTED) ---
-        // ==========================================
         if (document.getElementById('calendar')) {
             const calendarModal = document.getElementById('event-details-modal');
             const closeModalBtn = document.getElementById('modal-close-btn');
             const applyFiltersBtn = document.getElementById('apply-filters');
             const calendarEl = document.getElementById('calendar');
 
-            // Close modal functionality
             closeModalBtn.onclick = () => calendarModal.classList.add('hidden');
             calendarModal.addEventListener('click', (e) => {
                 if (e.target === calendarModal) {
@@ -2535,7 +2544,6 @@
                     right: 'dayGridMonth,timeGridWeek,listWeek'
                 },
                 events: getEventSourceUrl(),
-                //  CORRECTED PART HERE
                 eventClassNames: function(arg) {
                     if (arg.event.extendedProps.status === 'approved') {
                         return ['event-strikethrough'];
@@ -2558,9 +2566,8 @@
                     const statusText = eProps.status.charAt(0).toUpperCase() + eProps.status.slice(1);
                     document.getElementById('modal-status').innerHTML = `<strong>Status:</strong> <span class="px-2 py-0.5 ml-1 rounded-full text-xs font-semibold ${statusColors[eProps.status]}">${statusText}</span>`;
 
-                    // --- ACTIONS LOGIC ---
                     const actionsContainer = document.getElementById('modal-actions');
-                    actionsContainer.innerHTML = ''; // Clear previous actions
+                    actionsContainer.innerHTML = ''; 
 
                     if (USER_ROLE === 'parent') {
                         if (eProps.status === 'completed') {
@@ -2570,20 +2577,17 @@
                         if (eProps.type === 'chore' && eProps.status === 'assigned') {
                             actionsContainer.innerHTML += `<a href="/event/complete/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition">Mark as Done</a>`;
                         } else if (eProps.type === 'habit' && eProps.can_checkin) {
-                            actionsContainer.innerHTML += `<a href="/habit/checkin/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition">Check-in Today</a>`;
+                            actionsContainer.innerHTML += `<a href="/event/habit/checkin/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition">Check-in Today</a>`;
                         }
                     }
 
                     calendarModal.classList.remove('hidden');
-                    // 4.  NEW: Smoothly scroll to the modal
-                    // We use a short timeout to make sure the modal is fully
-                    // rendered in the DOM before we try to scroll to it.
                     setTimeout(() => {
                         calendarModal.scrollIntoView({
                             behavior: 'smooth',
-                            block: 'center' // This centers the modal vertically in the viewport
+                            block: 'center'
                         });
-                    }, 100); // A 100ms delay is usually sufficient
+                    }, 100);
                 },
                 height: 'auto',
                 progressiveEventRendering: true
@@ -2595,159 +2599,54 @@
                 calendar.addEventSource(getEventSourceUrl());
             });
         }
-        // --- Logic for the "Approve All" button ---
-    const approveAllBtn = document.getElementById('approve-all-btn');
-    if (approveAllBtn) {
-        approveAllBtn.addEventListener('click', async () => {
-            const pendingItems = document.querySelectorAll('.pending-event-item');
-            const eventIds = Array.from(pendingItems).map(item => item.dataset.eventId);
-
-            if (eventIds.length === 0) {
-                alert("No items to approve.");
-                return;
-            }
-
-            // Provide visual feedback and prevent multiple clicks
-            approveAllBtn.disabled = true;
-            approveAllBtn.textContent = 'Approving...';
-
-            try {
-                const response = await fetch('/event/bulk_approve', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ event_ids: eventIds })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Approval request failed.');
-                }
-
-                // On success, reload the page to update all stats and lists.
-                window.location.reload();
-
-            } catch (error) {
-                console.error('Bulk approval error:', error);
-                alert('An error occurred while approving tasks. Please try again.');
-                approveAllBtn.disabled = false;
-                approveAllBtn.textContent = 'Approve All';
-            }
-        });
-    }
-
-    // --- Logic for the "Suggest Rewards with AI" feature ---
-    const suggestRewardsBtn = document.getElementById('suggest-rewards-btn');
-    if (suggestRewardsBtn) {
-        suggestRewardsBtn.addEventListener('click', () => {
-            setSuggestRewardsModalState('start');
-            openModal('suggest-rewards-modal');
-        });
-    }
-
-    const generateSuggestionsBtn = document.getElementById('generate-suggestions-btn');
-    if(generateSuggestionsBtn) {
-        generateSuggestionsBtn.addEventListener('click', async () => {
-            setSuggestRewardsModalState('loading');
-            const theme = document.getElementById('reward-theme-input').value.trim();
-            const suggestionsContainer = document.getElementById('suggestions-container');
-            suggestionsContainer.innerHTML = ''; // Clear previous results
-
-            try {
-                const response = await fetch('/api/reward/suggest', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ theme: theme })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Could not fetch suggestions from the AI service.');
-                }
-
-                const data = await response.json();
-
-                if (data.suggested_rewards && data.suggested_rewards.length > 0) {
-                    data.suggested_rewards.forEach(reward => {
-                        const rewardEl = document.createElement('div');
-                        rewardEl.className = 'p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center';
-                        
-                        // Sanitize the name for use in the onclick attribute
-                        const sanitizedName = reward.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-
-                        rewardEl.innerHTML = `
-                            <div>
-                                <p class="font-semibold text-gray-800 dark:text-gray-100">${reward.name}</p>
-                                <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">${reward.cost} pts</p>
-                            </div>
-                            <button onclick="addSuggestedReward(this, '${sanitizedName}', ${reward.cost})" class="px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
-                                Add to Store
-                            </button>
-                        `;
-                        suggestionsContainer.appendChild(rewardEl);
-                    });
-                } else {
-                    suggestionsContainer.innerHTML = '<p class="text-center text-gray-500">The AI could not generate suggestions. Please try again with a different theme.</p>';
-                }
-
-                setSuggestRewardsModalState('results');
-
-            } catch (error) {
-                console.error("Error generating reward suggestions:", error);
-                setSuggestRewardsModalState('start');
-                alert(error.message);
-            }
-        });
-    }
-        
-    
-        
     });
+
     // Function to control the visibility of different states within the AI rewards modal
-function setSuggestRewardsModalState(state) {
-    const states = ['start', 'loading', 'results'];
-    states.forEach(s => {
-        const el = document.getElementById(`suggest-rewards-${s}`);
-        if (el) el.classList.add('hidden');
-    });
-    const activeEl = document.getElementById(`suggest-rewards-${state}`);
-    if (activeEl) activeEl.classList.remove('hidden');
-}
-
-// Function called by the "Add to Store" buttons on suggested rewards
-async function addSuggestedReward(button, name, cost) {
-    const originalText = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = 'Adding...';
-
-    try {
-        const response = await fetch("{{ url_for('add_store_reward') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            // The backend route expects form data, so we format it this way
-            body: new URLSearchParams({
-                'name': name,
-                'cost': cost
-            })
+    function setSuggestRewardsModalState(state) {
+        const states = ['start', 'loading', 'results'];
+        states.forEach(s => {
+            const el = document.getElementById(`suggest-rewards-${s}`);
+            if (el) el.classList.add('hidden');
         });
-
-        if (!response.ok) {
-            throw new Error('Failed to add the reward to the store.');
-        }
-        
-        button.innerHTML = 'Added!';
-        button.classList.remove('bg-green-600', 'hover:bg-green-700');
-        button.classList.add('bg-gray-500', 'cursor-not-allowed');
-
-    } catch (error) {
-        console.error('Error adding suggested reward:', error);
-        button.innerHTML = 'Error';
-        // Reset the button after a delay so the user can try again
-        setTimeout(() => {
-            button.innerHTML = originalText;
-            button.disabled = false;
-        }, 2000);
+        const activeEl = document.getElementById(`suggest-rewards-${state}`);
+        if (activeEl) activeEl.classList.remove('hidden');
     }
-}
+
+    // Function called by the "Add to Store" buttons on suggested rewards
+    async function addSuggestedReward(button, name, cost) {
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = 'Adding...';
+
+        try {
+            const response = await fetch("{{ url_for('add_store_reward') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'name': name,
+                    'cost': cost
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to add the reward to the store.');
+            }
+            
+            button.innerHTML = 'Added!';
+            button.classList.remove('bg-green-600', 'hover:bg-green-700');
+            button.classList.add('bg-gray-500', 'cursor-not-allowed');
+
+        } catch (error) {
+            console.error('Error adding suggested reward:', error);
+            button.innerHTML = 'Error';
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 2000);
+        }
+    }
     
     // --- JINJA-DEPENDENT SCRIPT BLOCKS ---
     {% if page == 'family_dashboard' and stats is defined %}
@@ -2800,6 +2699,215 @@ async function addSuggestedReward(button, name, cost) {
             }
         });
     }
+    {% endif %}
+
+    {% if page == 'dashboard_parent' %}
+        // Logic for the "Approve All" button
+        const approveAllBtn = document.getElementById('approve-all-btn');
+        if (approveAllBtn) {
+            approveAllBtn.addEventListener('click', async () => {
+                const pendingItems = document.querySelectorAll('.pending-event-item');
+                const eventIds = Array.from(pendingItems).map(item => item.dataset.eventId);
+
+                if (eventIds.length === 0) {
+                    alert("No items to approve.");
+                    return;
+                }
+                approveAllBtn.disabled = true;
+                approveAllBtn.textContent = 'Approving...';
+
+                try {
+                    const response = await fetch('/event/bulk_approve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ event_ids: eventIds })
+                    });
+                    if (!response.ok) {
+                        throw new Error('Approval request failed.');
+                    }
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Bulk approval error:', error);
+                    alert('An error occurred while approving tasks. Please try again.');
+                    approveAllBtn.disabled = false;
+                    approveAllBtn.textContent = 'Approve All';
+                }
+            });
+        }
+        
+        // Logic for the "Suggest Rewards with AI" feature
+        const suggestRewardsBtn = document.getElementById('suggest-rewards-btn');
+        if (suggestRewardsBtn) {
+            suggestRewardsBtn.addEventListener('click', () => {
+                setSuggestRewardsModalState('start');
+                openModal('suggest-rewards-modal');
+            });
+        }
+
+        const generateSuggestionsBtn = document.getElementById('generate-suggestions-btn');
+        if(generateSuggestionsBtn) {
+            generateSuggestionsBtn.addEventListener('click', async () => {
+                setSuggestRewardsModalState('loading');
+                const theme = document.getElementById('reward-theme-input').value.trim();
+                const suggestionsContainer = document.getElementById('suggestions-container');
+                suggestionsContainer.innerHTML = '';
+
+                try {
+                    const response = await fetch('/api/reward/suggest', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ theme: theme })
+                    });
+                    if (!response.ok) {
+                        throw new Error('Could not fetch suggestions from the AI service.');
+                    }
+                    const data = await response.json();
+                    if (data.suggested_rewards && data.suggested_rewards.length > 0) {
+                        data.suggested_rewards.forEach(reward => {
+                            const rewardEl = document.createElement('div');
+                            rewardEl.className = 'p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center';
+                            const sanitizedName = reward.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                            rewardEl.innerHTML = `
+                                <div>
+                                    <p class="font-semibold text-gray-800 dark:text-gray-100">${reward.name}</p>
+                                    <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">${reward.cost} pts</p>
+                                </div>
+                                <button onclick="addSuggestedReward(this, '${sanitizedName}', ${reward.cost})" class="px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
+                                    Add to Store
+                                </button>
+                            `;
+                            suggestionsContainer.appendChild(rewardEl);
+                        });
+                    } else {
+                        suggestionsContainer.innerHTML = '<p class="text-center text-gray-500">The AI could not generate suggestions. Please try again with a different theme.</p>';
+                    }
+                    setSuggestRewardsModalState('results');
+                } catch (error) {
+                    console.error("Error generating reward suggestions:", error);
+                    setSuggestRewardsModalState('start');
+                    alert(error.message);
+                }
+            });
+        }
+
+        // ✨ NEW: Logic for the "View Child's Day" Modal
+        const familyMembersPanel = document.getElementById('family-members-panel');
+        if (familyMembersPanel) {
+            familyMembersPanel.addEventListener('click', e => {
+                const viewButton = e.target.closest('.view-child-day-btn');
+                if (viewButton) {
+                    const childId = viewButton.dataset.childId;
+                    const childName = viewButton.dataset.childName;
+                    openChildDayView(childId, childName);
+                }
+            });
+        }
+
+        async function openChildDayView(childId, childName) {
+            const modal = document.getElementById('child-day-modal');
+            const titleEl = document.getElementById('child-day-modal-title');
+            const contentEl = document.getElementById('child-day-modal-content');
+
+            titleEl.textContent = `Viewing ${childName}'s Day`;
+            contentEl.innerHTML = `
+                <div class="text-center py-10">
+                    <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-4 text-gray-500 dark:text-gray-400">Fetching tasks...</p>
+                </div>`;
+            openModal('child-day-modal');
+
+            try {
+                const response = await fetch(`/api/child-day/${childId}`);
+                if (!response.ok) {
+                    throw new Error('Could not fetch child data.');
+                }
+                const data = await response.json();
+                renderChildTasks(contentEl, data);
+            } catch (error) {
+                console.error("Error fetching child's day:", error);
+                contentEl.innerHTML = `<p class="text-center text-red-500 dark:text-red-400">${error.message}</p>`;
+            }
+        }
+
+        function renderChildTasks(container, data) {
+            let overdueHtml = `
+                <h3 class="text-xl font-bold mb-4 flex items-center gap-3 text-gray-900 dark:text-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
+                    Overdue
+                </h3>
+                <div class="space-y-3">`;
+
+            if (data.overdue_events && data.overdue_events.length > 0) {
+                data.overdue_events.forEach(event => {
+                    const dueDate = new Date(event.due_date.$date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    overdueHtml += `
+                        <div class="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-gray-800 dark:text-gray-100">${event.name}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">Due: ${dueDate}</p>
+                            </div>
+                            <span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Assigned</span>
+                        </div>`;
+                });
+            } else {
+                overdueHtml += `<p class="text-center py-4 text-gray-500 dark:text-gray-300">No overdue chores!</p>`;
+            }
+            overdueHtml += `</div>`;
+
+
+            let todayHtml = `
+                <h3 class="text-2xl font-bold mt-8 mb-4 flex items-center gap-3 text-gray-900 dark:text-gray-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+                    Today's Focus
+                </h3>
+                <div class="space-y-4">`;
+
+            if (data.todays_events && data.todays_events.length > 0) {
+                data.todays_events.forEach(event => {
+                    const pointsHtml = `<div class="mt-2 text-sm font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-full inline-block">+${event.points} pts</div>`;
+                    let statusHtml = '';
+                    
+                    if (event.type === 'chore') {
+                        if (event.status === 'assigned') statusHtml = `<span class="px-3 py-1 text-sm font-semibold text-yellow-800 bg-yellow-100 dark:bg-yellow-900 dark:text-yellow-300 rounded-full">Assigned</span>`;
+                        else if (event.status === 'completed') statusHtml = `<span class="px-3 py-1 text-sm font-semibold text-indigo-800 bg-indigo-100 dark:bg-indigo-900 dark:text-indigo-300 rounded-full">Awaiting Approval</span>`;
+                        else if (event.status === 'approved') statusHtml = `<span class="px-3 py-1 text-sm font-semibold text-green-800 bg-green-100 dark:bg-green-900 dark:text-green-300 rounded-full">Approved!</span>`;
+
+                        todayHtml += `
+                            <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100">${event.name}</h4>
+                                    ${pointsHtml}
+                                </div>
+                                ${statusHtml}
+                            </div>`;
+
+                    } else if (event.type === 'habit') {
+                        const streakHtml = `<span class="font-semibold text-orange-600 dark:text-orange-300 bg-orange-100 dark:bg-orange-900 px-2 py-0.5 rounded-full flex items-center gap-1">Streak: ${event.streak || 0}</span>`;
+                        if (event.can_checkin) statusHtml = `<span class="px-3 py-1 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-full">Pending Check-in</span>`;
+                        else statusHtml = `<span class="px-3 py-1 text-sm font-semibold text-green-800 bg-green-100 dark:bg-green-900 dark:text-green-300 rounded-full">Done for Today!</span>`;
+
+                        todayHtml += `
+                            <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center">
+                                <div>
+                                    <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100">${event.name}</h4>
+                                     <div class="flex items-center gap-2 mt-2 text-sm">
+                                        ${pointsHtml.replace('mt-2', '')} ${streakHtml}
+                                     </div>
+                                </div>
+                                ${statusHtml}
+                            </div>`;
+                    }
+                });
+            } else {
+                todayHtml += `<p class="text-center py-8 text-gray-500 dark:text-gray-300">Nothing scheduled for today. Great job!</p>`;
+            }
+            todayHtml += `</div>`;
+
+            container.innerHTML = overdueHtml + todayHtml;
+        }
     {% endif %}
     
     {% if current_user.is_authenticated and current_user.role == 'parent' %}
@@ -3009,7 +3117,6 @@ async function addSuggestedReward(button, name, cost) {
         const res = await fetch(`/api/mood/personal?date=${dateStr}&period=${period}`);
         if (res.ok) {
           const data = await res.json();
-          // FIX: Check if data and a mood emoji exist before trying to update the UI
           if (data && data.mood_emoji) {
             cell.querySelector('textarea').value = data.note || '';
             const sele = cell.querySelector(`button[data-emoji="${data.mood_emoji}"]`);
@@ -3156,6 +3263,6 @@ async function addSuggestedReward(button, name, cost) {
         }
     });
     {% endif %}
-  </script>
+</script>
 </body>
 </html>
