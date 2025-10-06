@@ -1528,35 +1528,35 @@
          <a href="{{ url_for('manage_plan', sort_by='name', order='desc' if current_sort.by == 'name' and current_sort.order == 'asc' else 'asc') }}"
           class="hover:text-blue-500">
           Task Name
-          {% if current_sort.by == 'name' %}{{ '🔼' if current_sort.order == 'asc' else '🔽'|safe }}{% endif %}
+          {% if current_sort.by == 'name' %}{{ '' if current_sort.order == 'asc' else ''|safe }}{% endif %}
          </a>
         </th>
         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
          <a href="{{ url_for('manage_plan', sort_by='assigned_to', order='desc' if current_sort.by == 'assigned_to' and current_sort.order == 'asc' else 'asc') }}"
           class="hover:text-blue-500">
           Assigned To
-          {% if current_sort.by == 'assigned_to' %}{{ '🔼' if current_sort.order == 'asc' else '🔽'|safe }}{% endif %}
+          {% if current_sort.by == 'assigned_to' %}{{ '' if current_sort.order == 'asc' else ''|safe }}{% endif %}
          </a>
         </th>
         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
          <a href="{{ url_for('manage_plan', sort_by='due_date', order='desc' if current_sort.by == 'due_date' and current_sort.order == 'asc' else 'asc') }}"
           class="hover:text-blue-500">
           Due Date
-          {% if current_sort.by == 'due_date' %}{{ '🔼' if current_sort.order == 'asc' else '🔽'|safe }}{% endif %}
+          {% if current_sort.by == 'due_date' %}{{ '' if current_sort.order == 'asc' else ''|safe }}{% endif %}
          </a>
         </th>
         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
          <a href="{{ url_for('manage_plan', sort_by='points', order='desc' if current_sort.by == 'points' and current_sort.order == 'asc' else 'asc') }}"
           class="hover:text-blue-500">
           Points
-          {% if current_sort.by == 'points' %}{{ '🔼' if current_sort.order == 'asc' else '🔽'|safe }}{% endif %}
+          {% if current_sort.by == 'points' %}{{ '' if current_sort.order == 'asc' else ''|safe }}{% endif %}
          </a>
         </th>
         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
          <a href="{{ url_for('manage_plan', sort_by='status', order='desc' if current_sort.by == 'status' and current_sort.order == 'asc' else 'asc') }}"
           class="hover:text-blue-500">
           Status
-          {% if current_sort.by == 'status' %}{{ '🔼' if current_sort.order == 'asc' else '🔽'|safe }}{% endif %}
+          {% if current_sort.by == 'status' %}{{ '' if current_sort.order == 'asc' else ''|safe }}{% endif %}
          </a>
         </th>
         <th scope="col" class="relative px-6 py-3">
@@ -3005,15 +3005,20 @@ async function addSuggestedReward(button, name, cost) {
                     fetchMoodForCell(cell, chosenDate, period);
                 });
             };
-            const fetchMoodForCell = async(cell, dateStr, period) => {
-                const res = await fetch(`/api/mood/personal?date=${dateStr}&period=${period}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    cell.querySelector('textarea').value = data.note || '';
-                    const sele = cell.querySelector(`button[data-emoji="${data.mood_emoji}"]`);
-                    if (sele) sele.classList.add('bg-blue-200', 'dark:bg-blue-800', 'ring-2', 'ring-blue-500');
-                }
-            };
+            const fetchMoodForCell = async (cell, dateStr, period) => {
+        const res = await fetch(`/api/mood/personal?date=${dateStr}&period=${period}`);
+        if (res.ok) {
+          const data = await res.json();
+          // FIX: Check if data and a mood emoji exist before trying to update the UI
+          if (data && data.mood_emoji) {
+            cell.querySelector('textarea').value = data.note || '';
+            const sele = cell.querySelector(`button[data-emoji="${data.mood_emoji}"]`);
+            if (sele) {
+              sele.classList.add('bg-blue-200', 'dark:bg-blue-800', 'ring-2', 'ring-blue-500');
+            }
+          }
+        }
+      };
             moodGrid.addEventListener('click', async e => {
                 const cell = e.target.closest('.mood-grid-cell');
                 if (!cell) return;
