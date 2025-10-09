@@ -12,6 +12,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Bitcount+Single+Ink:wght@100..900&display=swap" rel="stylesheet"/>
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#3b82f6"/>
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
   
   <script>
     tailwind.config = {
@@ -3296,5 +3299,21 @@
     });
     {% endif %}
 </script>
+
+<script>
+      if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+              navigator.serviceWorker.register("{{ url_for('service_worker') }}")
+                  .then(registration => {
+                      console.log('Minimal Service Worker registered for installability.');
+                  })
+                  .catch(err => {
+                      console.error('Service Worker registration failed:', err);
+                  });
+          });
+      }
+  </script>
+
+
 </body>
 </html>

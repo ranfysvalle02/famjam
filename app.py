@@ -530,6 +530,10 @@ def personal_dashboard():
             TIMEZONE=TIMEZONE
         )
 
+@app.route('/service-worker.js')
+def service_worker():
+    return app.send_static_file('service-worker.js')
+
 @app.route('/family-dashboard')
 @login_required
 def family_dashboard():
