@@ -1,0 +1,421 @@
+{% if current_user.is_authenticated and current_user.role == 'parent' %}
+<button onclick="openModal('manageFamilyModal')"
+        class="fab-flow fixed bottom-8 right-8 z-[60] w-16 h-16 bg-blue-600 text-white rounded-full
+               flex items-center justify-center shadow-lg hover:bg-blue-700 transition
+               focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        title="Manage Family">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+    <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3
+            3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1
+            a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11
+            a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path>
+  </svg>
+</button>
+{% endif %}
+
+{% if current_user.is_authenticated %}
+<button onclick="openModal('personalStuffModal')"
+        class="fab-flow fixed bottom-8 left-8 z-[60] w-16 h-16 bg-pink-600 text-white rounded-full
+        flex items-center justify-center shadow-lg hover:bg-pink-700 transition
+        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
+        title="My Personal Space">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
+    <path fill-rule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l7 7A1 1 0 0117 11h-1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-3a1 1 0 00-1-1H9a1 1 0 00-1 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-6H3a1 1 0 01-.707-1.707l7-7z" clip-rule="evenodd" />
+  </svg>
+  {# Check if unread_messages_exist is passed and True #}
+  {% if unread_messages_exist %}
+  <span class="absolute top-0 right-0 block h-4 w-4 transform -translate-y-1/2 translate-x-1/2 rounded-full ring-2 ring-white dark:ring-pink-700 bg-red-500"></span>
+  {% endif %}
+</button>
+
+<div id="personalStuffModal" class="side-modal fixed inset-0 z-[70] hidden">
+  <div data-modal-overlay onclick="closeModal('personalStuffModal')"
+    class="absolute inset-0 bg-gray-900/60 dark:bg-black/80"></div>
+  <div data-modal-panel data-side="left"
+    class="panel-transition absolute top-0 left-0 h-full w-full max-w-lg bg-white dark:bg-gray-800
+           shadow-2xl transform -translate-x-full flex flex-col">
+    <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">My Personal Space</h3>
+      <button onclick="closeModal('personalStuffModal')"
+          class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="flex flex-col h-full">
+      <div class="border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <nav class="-mb-px flex space-x-6 px-6" aria-label="Tabs">
+          <button data-tab="messages-panel" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600 dark:text-blue-400">
+            Messages
+            {# Badge for unread messages #}
+            <span id="modal-message-badge" class="ml-2 py-0.5 px-2 rounded-full text-xs font-medium bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 {% if not unread_messages_exist %}hidden{% endif %}">
+              New
+            </span>
+          </button>
+          <button data-tab="notes-panel" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200">
+            My Notes
+          </button>
+          <button data-tab="todos-panel" class="tab-btn whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200">
+            My To-Dos
+          </button>
+        </nav>
+      </div>
+      <div class="flex-grow overflow-y-auto custom-scrollbar">
+        <div id="messages-panel" class="tab-panel p-6">
+          <div class="mb-4">
+            <button id="compose-message-btn" class="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+              Compose New Message
+            </button>
+          </div>
+          <div id="compose-message-form-container" class="hidden p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 mb-4 transition-all duration-300">
+            <form id="parent-compose-form" method="POST" action="{{ url_for('send_message') }}">
+              <div class="mb-2">
+                <label for="recipient_id" class="block text-sm font-medium text-gray-700 dark:text-gray-200">To:</label>
+                <select name="recipient_id" id="recipient_id" required class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                  <option value="">Select a family member...</option>
+                  {# Populate options dynamically, excluding current user #}
+                  {% for member in family_members if member._id != current_user.id %}
+                    <option value="{{ member._id }}">{{ member.username }} ({{ member.role|capitalize }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="mb-2">
+                <label for="message_content_compose" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Message:</label>
+                <textarea name="message_content" id="message_content_compose" required rows="3" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+              </div>
+              <div class="flex justify-end gap-2">
+                <button type="button" id="cancel-compose-btn" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500">Cancel</button>
+                <button type="submit" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Send</button>
+              </div>
+            </form>
+          </div>
+
+          <div id="conversation-accordion-container" class="space-y-2">
+            {# Conversations will be loaded here by JavaScript #}
+            <div class="text-center text-gray-500 dark:text-gray-400 p-8">Loading conversations...</div>
+          </div>
+        </div>
+        <div id="notes-panel" class="tab-panel p-6 hidden">
+          <div class="space-y-4">
+            <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">My Personal Notes</h3>
+            <form method="POST" action="{{ url_for('create_note') }}" class="space-y-2">
+              <textarea name="note_content" rows="2" class="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600" placeholder="Write a quick note..."></textarea>
+              <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Add Note</button>
+            </form>
+            <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+              {% if personal_notes %}
+                {% for note in personal_notes|sort(attribute='_id', reverse=true) %} {# Show newest first #}
+                <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg flex justify-between items-start">
+                  <p class="text-gray-800 dark:text-gray-100 break-words mr-4">{{ note.content }}</p>
+                  <a href="{{ url_for('delete_note', note_id=note._id) }}" onclick="return confirm('Delete this note?')" class="flex-shrink-0 text-red-500 hover:text-red-700 dark:hover:text-red-400 transition text-sm">Delete</a>
+                </div>
+                {% endfor %}
+              {% else %}
+                <p class="text-center text-gray-500 dark:text-gray-300 py-4">No notes yet.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div id="todos-panel" class="tab-panel p-6 hidden">
+          <div class="space-y-4">
+            <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">My Personal To-Do List</h3>
+            <form method="POST" action="{{ url_for('create_todo') }}" class="flex gap-2">
+              <input type="text" name="todo_title" class="flex-grow p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600" placeholder="New to-do item..." required>
+              <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">Add</button>
+            </form>
+            <div class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+              {% if personal_todos %}
+                {% for todo in personal_todos|sort(attribute='is_done')|sort(attribute='_id', reverse=true) %} {# Show newest incomplete first #}
+                <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg flex justify-between items-center">
+                  <label class="flex items-center text-gray-800 dark:text-gray-100 flex-grow mr-4 cursor-pointer">
+                    <input type="checkbox" class="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-3 shrink-0"
+                           {% if todo.is_done %}checked{% endif %}
+                           onchange="window.location='{{ url_for('toggle_todo', todo_id=todo._id) }}'">
+                    <span class="break-words {% if todo.is_done %}line-through text-gray-500 dark:text-gray-400{% endif %}">{{ todo.title }}</span>
+                  </label>
+                  <a href="{{ url_for('delete_todo', todo_id=todo._id) }}" onclick="return confirm('Delete this to-do?')" class="ml-2 flex-shrink-0 text-red-500 hover:text-red-700 dark:hover:text-red-400 transition text-sm">Delete</a>
+                </div>
+                {% endfor %}
+              {% else %}
+                <p class="text-center text-gray-500 dark:text-gray-300 py-4">No to-do items yet.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.is_authenticated and current_user.role == 'parent' %}
+<div id="manageFamilyModal" class="side-modal fixed inset-0 z-[70] hidden">
+  <div data-modal-overlay onclick="closeModal('manageFamilyModal')"
+      class="absolute inset-0 bg-gray-900/60 dark:bg-black/80"></div>
+  <div data-modal-panel data-side="right"
+      class="panel-transition absolute top-0 right-0 h-full w-full max-w-lg bg-white dark:bg-gray-800
+             shadow-2xl transform translate-x-full flex flex-col">
+    <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Manage Family</h3>
+      <button onclick="closeModal('manageFamilyModal')"
+          class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="flex flex-col h-full">
+      <div class="border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <nav class="-mb-px flex space-x-6 px-6 overflow-x-auto" aria-label="Tabs">
+          <button data-tab="family-members-panel"
+                  class="tab-btn-family whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600 dark:text-blue-400">
+            Family Members
+          </button>
+          <button data-tab="add-child-panel"
+                  class="tab-btn-family whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200">
+            Add Child
+          </button>
+          <button data-tab="add-parent-panel"
+                  class="tab-btn-family whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200">
+            Add Co-Parent
+          </button>
+          <button data-tab="account-panel"
+                  class="tab-btn-family whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200">
+            My Account
+          </button>
+        </nav>
+      </div>
+      <div class="flex-grow overflow-y-auto custom-scrollbar">
+        <div id="family-members-panel" class="tab-panel-family p-6">
+          <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">Parents & Guardians</h4>
+          <div class="space-y-4 mb-6">
+            {% set parents = family_members|selectattr("role", "equalto", "parent")|list %}
+            {% if parents %}
+              {% for member in parents %}
+              <div class="modal-content-item flex items-center justify-between p-4 bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <div class="flex items-center space-x-4">
+                  <div class="w-10 h-10 rounded-full bg-green-200 dark:bg-green-900 flex items-center justify-center font-bold text-green-700 dark:text-green-300 text-lg">
+                    {{ member.username[0]|upper }}
+                  </div>
+                  <div>
+                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ member.username }} {% if member._id == current_user.id %}(You){% endif %}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Role: Parent</p>
+                  </div>
+                </div>
+                {# Optionally add remove/edit actions for OTHER parents if needed #}
+              </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-2 gap-2">
+            <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-100">Children</h4>
+            <button onclick="openFamJamModal()" class="flex-shrink-0 flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-secondary-600 rounded-lg hover:bg-secondary-700 transition group">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 group-hover:animate-pulse" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538.921l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-.921l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" clip-rule="evenodd" />
+              </svg>
+              Generate FamJam Plan
+            </button>
+          </div>
+          <div class="space-y-4">
+            {% set children = family_members|selectattr("role", "equalto", "child")|list %}
+            {% if children %}
+              {% for member in children %}
+              <div class="modal-content-item flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-white dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 transition-all gap-3">
+                <div class="flex items-center space-x-4 flex-grow">
+                  <div class="w-10 h-10 rounded-full bg-blue-200 dark:bg-blue-900 flex items-center justify-center font-bold text-blue-700 dark:text-blue-300 text-lg flex-shrink-0">
+                    {{ member.username[0]|upper }}
+                  </div>
+                  <div>
+                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ member.username }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-300">Points: {{ member.points }}</p>
+                  </div>
+                </div>
+                <div class="flex space-x-2 self-end sm:self-center">
+                  <button onclick="openEditModal('{{ member._id }}', '{{ member.username }}')" class="p-2 text-gray-500 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-full hover:bg-gray-200 dark:hover:bg-gray-500 transition" title="Edit Child Name">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"> <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+                  </button>
+                  <button onclick="openResetChildPasswordModal('{{ member._id }}', '{{ member.username }}')" class="p-2 text-gray-500 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-full hover:bg-gray-200 dark:hover:bg-gray-500 transition" title="Reset Password">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>
+                  </button>
+                  <a href="{{ url_for('remove_child', child_id=member._id) }}" onclick="return confirm('WARNING: Are you sure you want to remove {{ member.username }}? This action is permanent and will delete their account and all associated tasks and points.')" class="p-2 text-red-500 bg-red-100 dark:bg-red-900/50 rounded-full hover:bg-red-200 dark:hover:bg-red-800 transition" title="Remove Child">
+                     <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+                  </a>
+                </div>
+              </div>
+              {% endfor %}
+            {% else %}
+              <div class="modal-content-item text-center py-8 text-gray-500 dark:text-gray-300 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                No children have been added yet. Use the 'Add Child' tab.
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div id="add-child-panel" class="tab-panel-family p-6 hidden">
+          <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Add a Child Account</h4>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Quickly create a new account for your child. They can log in immediately with these details.
+          </p>
+          <form method="POST" action="{{ url_for('create_child_direct') }}" class="space-y-4">
+            <div>
+              <label for="child-username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Child's Username</label>
+              <input type="text" name="username" id="child-username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>
+            </div>
+            <div>
+              <label for="child-password" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Temporary Password</label>
+              <input type="password" name="password" id="child-password" required minlength="6" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Min 6 characters. They should change this after logging in.</p>
+            </div>
+            <div class="pt-2">
+              <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 shadow-lg">
+                Create Child Account
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="add-parent-panel" class="tab-panel-family p-6 hidden">
+          <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Add a Co-Parent</h4>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Create an account for another parent or guardian to help manage tasks and approvals.
+          </p>
+          <form method="POST" action="{{ url_for('create_another_parent') }}" class="space-y-4">
+            <div>
+              <label for="parent-username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">New Parent's Username</label>
+              <input type="text" name="username" id="parent-username" required class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>
+            </div>
+            <div>
+              <label for="parent-email" class="block text-sm font-medium text-gray-700 dark:text-gray-200">New Parent's Email</label>
+              <input type="email" name="email" id="parent-email" required class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>
+            </div>
+            <div>
+              <label for="parent-password" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Temporary Password</label>
+              <input type="password" name="password" id="parent-password" required minlength="8" class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 transition"/>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Min 8 characters. They should change this after logging in.</p>
+            </div>
+            <div class="pt-2">
+              <button type="submit" class="w-full py-3 px-4 font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-transform transform hover:scale-105 shadow-lg">
+                Create Co-Parent Account
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="account-panel" class="tab-panel-family p-6 hidden">
+          <h4 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">My Account Settings</h4>
+          <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Manage your own login credentials.
+          </p>
+          <button onclick="openModal('change-parent-password-modal')"
+                  class="modal-content-item w-full text-left flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition group">
+            <span
+              class="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg text-yellow-600 dark:text-yellow-300 group-hover:scale-110 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.629 5.858a6 6 0 01-8.23-8.23A6 6 0 0115 7z" />
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M15 7a2 2 0 00-2-2m0 0a2 2 0 00-2 2m2 2a2 2 0 002 2m-2 2a2 2 0 00-2 2" />
+              </svg>
+            </span>
+            <div>
+              <p class="font-semibold text-gray-800 dark:text-gray-100">Change My Password</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Update your login credentials.</p>
+            </div>
+          </button>
+           {# Add Delete Account Button - Use with Caution! #}
+           <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+               <h4 class="text-lg font-semibold text-red-700 dark:text-red-400 mb-2">Danger Zone</h4>
+               <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                   Deleting your account is permanent and will remove all associated family data, tasks, and points. This cannot be undone.
+               </p>
+                <a href="{{ url_for('delete_account') }}"
+                   onclick="return confirm('WARNING: Are you absolutely sure you want to delete your account and all associated family data? This action is irreversible.')"
+                   class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition shadow-md">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                     <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 3.001-1.742 3.001H4.42c-1.53 0-2.493-1.667-1.743-3.001l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1.75-5.75a.75.75 0 00-1.5 0v3a.75.75 0 001.5 0v-3z" clip-rule="evenodd" />
+                   </svg>
+                   Delete My Account Permanently
+                </a>
+           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+
+{# FamJam AI Plan Modal #}
+<div id="famjam-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 dark:bg-black dark:bg-opacity-80 z-[80] hidden flex items-center justify-center p-4">
+  <div class="relative p-6 border w-full max-w-2xl shadow-2xl rounded-2xl bg-white dark:bg-gray-800 dark:text-gray-100 modal-content flex flex-col" style="max-height: 90vh;">
+    <div class="flex-shrink-0">
+      <button onclick="closeModal('famjam-modal')" class="absolute top-4 right-4 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 text-3xl">&times;</button>
+      <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Generate a FamJam Plan</h3>
+    </div>
+    <div id="famjam-start">
+      <p class="text-gray-600 dark:text-gray-300 mb-4">
+        Let AI help you create a balanced, recurring chore plan for the next quarter. Describe a goal for your family (e.g., "keeping the kitchen tidy," "learning responsibility," etc.) or leave it blank for a general plan.
+      </p>
+      <div class="space-y-4">
+        <textarea id="famjam-goal-input" class="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600" rows="3" placeholder="e.g., focus on teamwork and keeping common areas clean..."></textarea>
+        <button onclick="generateFamJamPlan()" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-transform transform hover:scale-105 shadow-lg">
+          Generate Plan with AI
+        </button>
+      </div>
+    </div>
+    <div id="famjam-loading" class="hidden text-center py-10">
+      <svg class="animate-spin h-10 w-10 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-200">Generating your plan...</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">This might take a moment, especially the first time.</p>
+    </div>
+    <div id="famjam-review" class="hidden flex flex-col flex-grow min-h-0">
+       <div class="mb-4 flex-shrink-0">
+         <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Plan Name:</label>
+         <input id="famjam-plan-name-input" type="text" class="w-full mt-1 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 font-bold text-lg">
+         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Plan Period: <span id="famjam-date-range"></span></p>
+       </div>
+       <div id="famjam-plan-content" class="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-2 pb-2 border-t border-b border-gray-200 dark:border-gray-700 pt-3">
+         {# Plan items will be loaded here #}
+       </div>
+       <div class="mt-4 pt-4 flex-shrink-0 flex items-center justify-between gap-2">
+         <button onclick="addChoreToPlan()" class="px-4 py-2 text-sm font-semibold text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800 transition">
+           + Add Chore Manually
+         </button>
+         <div class="flex gap-2">
+            <button onclick="openFamJamModal()" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition">
+              Discard & Regenerate
+            </button>
+            <button id="famjam-accept-btn" class="px-6 py-2 font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition shadow">
+              Accept & Apply Plan
+            </button>
+         </div>
+       </div>
+    </div>
+    <div id="famjam-applying" class="hidden text-center py-10">
+       <svg class="animate-spin h-10 w-10 text-blue-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle> <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path> </svg>
+      <p class="text-lg font-semibold">Applying plan and scheduling chores...</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Please wait.</p>
+    </div>
+    <div id="famjam-success" class="hidden text-center py-10">
+      <div class="mx-auto w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-4">
+        <svg class="w-8 h-8 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+      </div>
+      <p id="famjam-success-message" class="text-lg font-semibold text-green-700 dark:text-green-300">Plan applied successfully!</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400">Reloading dashboard...</p>
+    </div>
+    <div id="famjam-error" class="hidden text-center py-10">
+       <div class="mx-auto w-12 h-12 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center mb-4">
+          <svg class="w-8 h-8 text-red-600 dark:text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+       </div>
+      <p class="text-lg font-semibold text-red-700 dark:text-red-400">Oops, something went wrong!</p>
+      <p id="famjam-error-message" class="mt-2 text-gray-600 dark:text-gray-300 bg-red-50 dark:bg-red-900/50 p-3 rounded-md"></p>
+      <button onclick="openFamJamModal()" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Try Again</button>
+    </div>
+  </div>
+</div>

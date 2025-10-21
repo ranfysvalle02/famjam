@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Log In - FAMJAM{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[calc(100vh-200px)] py-12"> {# Adjusted min-height and added padding #}
+  <div class="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl hover-lift">
+    <div class="text-center">
+      <h1 class="text-4xl font-extrabold gradient-text font-brand">Welcome Back</h1>
+      <p class="mt-2 text-gray-600 dark:text-gray-300">Log in to manage your family's tasks.</p> {# Updated text color for dark mode #}
+    </div>
+    <form method="POST" action="{{ url_for('login') }}" class="space-y-6">
+      <div>
+        <label for="email_or_username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Email or Username</label>
+        <input type="text" name="email_or_username" id="email_or_username" required
+               class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                      border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm
+                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"/> {# Improved focus style #}
+      </div>
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Password</label>
+        <input type="password" name="password" id="password" required
+               class="mt-1 block w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                      border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm
+                      focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"/> {# Improved focus style #}
+      </div>
+      <button type="submit"
+              class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700
+                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800
+                     transition-transform transform hover:scale-105 shadow-lg">
+      Log In
+      </button>
+    </form>
+    <p class="text-center text-sm text-gray-600 dark:text-gray-400 mt-4"> {# Adjusted text color and margin #}
+    Don't have an account?
+    <a href="{{ url_for('register_parent') }}" class="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 hover:underline">
+      Register as a Parent
+    </a>
+    </p>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+<div id="mobileMenu" class="side-modal fixed inset-0 z-[70] hidden">
+  <div data-modal-overlay onclick="closeModal('mobileMenu')" class="absolute inset-0 bg-gray-900/60 dark:bg-black/80"></div>
+  <div data-modal-panel data-side="left"
+       class="panel-transition absolute top-0 left-0 h-full w-full max-w-xs bg-white dark:bg-gray-800 shadow-2xl transform -translate-x-full">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-8">
+        <svg class="w-8 h-8" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+           <style>
+              /* Scoped styles for the mobile menu logo SVG */
+              #mobileMenu svg .logo-group-outer { animation: rotate_outer 12s linear infinite; transform-origin: center; }
+              #mobileMenu svg .logo-group-inner { animation: rotate_inner 10s linear infinite; transform-origin: center; }
+              #mobileMenu svg .logo-path { stroke-dasharray: 500; animation: dash_flow 8s ease-in-out infinite alternate; }
+              #mobileMenu svg #stop1Mobile { animation: color_shift 6s linear infinite; }
+              #mobileMenu svg #stop2Mobile { animation: color_shift2 6s linear infinite; }
+            </style>
+          <defs>
+            <linearGradient id="fluidGradientMobile" gradientTransform="rotate(45)">
+              <stop id="stop1Mobile" offset="0%" />
+              <stop id="stop2Mobile" offset="100%" />
+            </linearGradient>
+            <filter id="glowMobile" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+              <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <circle cx="32" cy="32" r="30" fill="url(#fluidGradientMobile)" fill-opacity="0.1" />
+          <g filter="url(#glowMobile)" opacity="0.9">
+            <g class="logo-group-outer">
+              <path class="logo-path"
+              d="M 52 24 C 40 12, 24 12, 12 24 C 0 36, 0 40, 12 52 C 24 64, 40 64, 52 52 C 64 40, 64 36, 52 24 Z"
+              fill="none" stroke="url(#fluidGradientMobile)" stroke-width="3.5" stroke-linecap="round" />
+            </g>
+            <g class="logo-group-inner">
+              <path class="logo-path"
+              d="M 24 12 C 36 0, 40 0, 52 12 C 64 24, 64 40, 52 52 C 40 64, 24 64, 12 52 C 0 40, 0 24, 12 12"
+              fill="none" stroke="url(#fluidGradientMobile)" stroke-width="2" stroke-linecap="round" style="animation-delay: -4s;" />
+            </g>
+          </g>
+        </svg>
+        <span class="text-2xl font-brand gradient-text">FAMJAM</span>
+        <button onclick="closeModal('mobileMenu')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-2">
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('family_dashboard') }}" onclick="closeModal('mobileMenu')"
+             class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+           Family Hub
+          </a>
+          <a href="{{ url_for('personal_dashboard') }}" onclick="closeModal('mobileMenu')"
+             class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+             {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Day{% endif %}
+          </a>
+          <a href="{{ url_for('calendar_focus') }}" onclick="closeModal('mobileMenu')"
+             class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+           Calendar
+          </a>
+          <a href="{{ url_for('mood_dashboard_personal') }}" onclick="closeModal('mobileMenu')"
+             class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+           Mood Tracker
+          </a>
+          <a href="{{ url_for('logout') }}" onclick="closeModal('mobileMenu')"
+             class="block px-3 py-3 rounded-md text-lg font-medium text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-700">
+           Log Out
+          </a>
+        {% else %}
+          <a href="{{ url_for('login') }}" onclick="closeModal('mobileMenu')"
+             class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+           Log In
+          </a>
+          <a href="{{ url_for('register_parent') }}" onclick="closeModal('mobileMenu')"
+             class="block px-3 py-3 rounded-md text-lg font-medium text-white bg-blue-600 hover:bg-blue-700">
+           Register
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

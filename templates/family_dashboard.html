@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Family Hub - FAMJAM{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+  {# Stat Cards #}
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift flex items-center space-x-4 transition-transform">
+      <div class="flex-shrink-0 bg-green-100 dark:bg-green-900 p-4 rounded-2xl">
+        <svg class="w-8 h-8 text-green-600 dark:text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-300">Tasks Completed This Week</p>
+        <p class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ stats.completed_this_week }}</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift flex items-center space-x-4 transition-transform">
+      <div class="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900 p-4 rounded-2xl">
+        <svg class="w-8 h-8 text-yellow-600 dark:text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-300">Pending Approval</p>
+        <p class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ stats.pending_approval }}</p>
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift flex items-center space-x-4 transition-transform">
+      <div class="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-4 rounded-2xl">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600 dark:text-blue-300" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538.921l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-.921l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-gray-500 dark:text-gray-300">Total Points Awarded</p>
+        <p class="text-3xl font-bold text-gray-900 dark:text-gray-100">{{ stats.total_points_awarded }}</p>
+      </div>
+    </div>
+  </div>
+
+  {# Chart and Leaderboard #}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift">
+      <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Weekly Task Completion</h3>
+      <div class="h-80 relative"> {# Added relative positioning for chart responsiveness #}
+        <canvas id="weeklyCompletionChart"></canvas>
+      </div>
+    </div>
+    <div class="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift">
+      <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Family Leaderboard</h3>
+      <div class="space-y-4">
+        {# Sort children by points descending #}
+        {% set sorted_children = family_members|selectattr("role", "equalto", "child")|sort(attribute='points', reverse=true) %}
+        {% if sorted_children %}
+          {% for member in sorted_children %}
+          <div class="flex items-center justify-between p-3 rounded-lg transition-colors duration-150
+               {% if loop.index == 1 %} bg-yellow-100 dark:bg-yellow-900/50 border-l-4 border-yellow-400 {% elif loop.index == 2 %} bg-gray-100 dark:bg-gray-700/50 border-l-4 border-gray-400 {% elif loop.index == 3 %} bg-orange-100 dark:bg-orange-900/40 border-l-4 border-orange-400 {% else %} bg-gray-50 dark:bg-gray-700/30 {% endif %}">
+            <div class="flex items-center space-x-3">
+              <span class="text-lg font-bold w-6 text-center
+                     {% if loop.index == 1 %} text-yellow-600 dark:text-yellow-300
+                     {% elif loop.index == 2 %} text-gray-500 dark:text-gray-400
+                     {% elif loop.index == 3 %} text-orange-600 dark:text-orange-400
+                     {% else %} text-gray-400 dark:text-gray-500 {% endif %}">
+                {{ loop.index }}
+              </span>
+              <div class="w-8 h-8 rounded-full bg-blue-200 dark:bg-blue-900 flex items-center justify-center
+                          font-bold text-blue-700 dark:text-blue-300 flex-shrink-0">
+                {{ member.username[0]|upper }}
+              </div>
+              <span class="font-medium text-gray-800 dark:text-gray-100 truncate">{{ member.username }}</span> {# Added truncate #}
+            </div>
+            <span class="font-bold text-blue-600 dark:text-blue-300 flex-shrink-0 ml-2">{{ member.points }} pts</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-center text-gray-500 dark:text-gray-400 py-6">Invite children to start the leaderboard!</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Family Timers #}
+  <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift">
+    <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Family Timers ⏳</h3>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+      Everyone can create a timer to count down to a special day or event.
+    </p>
+    {# Add Timer Form #}
+    <form method="POST" action="{{ url_for('create_timer') }}" class="flex flex-col md:flex-row gap-3 mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+      <input type="text" name="name" placeholder="Timer Name (e.g. 'Vacation Day!')"
+             class="flex-grow px-4 py-2 bg-white dark:bg-gray-700 dark:text-gray-100
+                    border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required>
+      <input type="date" name="end_date"
+             class="px-4 py-2 bg-white dark:bg-gray-700 dark:text-gray-100
+                    border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required
+             min="{{ now.strftime('%Y-%m-%d') }}"> {# Prevent selecting past dates #}
+      <button type="submit"
+              class="px-5 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-lg
+                     transition font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 flex-shrink-0">
+        Add Timer
+      </button>
+    </form>
+    {# List of Timers #}
+    <div class="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+      {% if timers %}
+        {% for timer in timers|sort(attribute='end_datetime') %} {# Sort by end date #}
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50
+                     border border-gray-200 dark:border-gray-600 rounded-lg
+                     hover:shadow-md transition-shadow gap-2">
+          <div>
+            <p class="font-semibold text-gray-800 dark:text-gray-100">
+              {{ timer.name }}
+            </p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Created by {{ timer.creator_name }} &bull; Ends on <strong>{{ timer.end_date }}</strong>
+            </p>
+          </div>
+          <div class="flex items-center gap-2 mt-2 sm:mt-0">
+             <span class="text-sm font-bold bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200 px-3 py-1 rounded-full whitespace-nowrap">
+               {{ timer.time_left }}
+             </span>
+             {# Add delete button, maybe only for creator or parents #}
+             {% if timer.creator_id == current_user.id or current_user.role == 'parent' %}
+                <a href="{{ url_for('delete_timer', timer_id=timer._id) }}"
+                   onclick="return confirm('Delete this timer?')"
+                   class="p-1.5 text-red-500 bg-red-100 dark:bg-red-900/50 rounded-full hover:bg-red-200 dark:hover:bg-red-800 transition" title="Delete Timer">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                 </a>
+             {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-center py-6 text-gray-500 dark:text-gray-300">
+          No timers have been created yet. Add one above!
+        </p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Recent Activity Feed #}
+  <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift">
+    <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Recent Activity ✨</h3>
+    <div class="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+      {% if recent_events %}
+        {% for event in recent_events %}
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg gap-2">
+          <div class="flex items-center gap-3 flex-grow min-w-0"> {# Added min-w-0 #}
+            <span class="text-green-500 dark:text-green-400 flex-shrink-0"> {# Adjusted color #}
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5"
+                   fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293
+                         a1 1 0 00-1.414-1.414L9 10.586l-1.293-1.293
+                         a1 1 0 00-1.414 1.414l2 2
+                         a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+            </span>
+            <p class="text-sm text-gray-800 dark:text-gray-200"> {# Adjusted color #}
+              <span class="font-semibold">{{ event.assigned_to_username }}</span>
+              earned <span class="font-semibold text-green-700 dark:text-green-300">{{ event.points }} points</span>
+              for completing <span class="font-semibold truncate">{{ event.name }}</span>. {# Added truncate #}
+            </p>
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap flex-shrink-0 self-end sm:self-center"> {# Adjusted color and alignment #}
+            {{ event.approved_at_pretty }}
+          </p>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-center text-gray-500 dark:text-gray-400 py-6">No tasks have been approved recently.</p> {# Adjusted color #}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+{# Page-specific JavaScript for the Chart #}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const chartElement = document.getElementById('weeklyCompletionChart');
+  if (chartElement) {
+    const weeklyCtx = chartElement.getContext('2d');
+    // Ensure stats and weekly data are passed from the route
+    try {
+        const weeklyData = {{ stats.weekly_completion_data | tojson | safe }}; // Use safe filter cautiously
+        if (!weeklyData || !weeklyData.labels || !weeklyData.data) {
+            throw new Error("Weekly completion data is missing or malformed.");
+        }
+
+        const gradient = weeklyCtx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.6)'); // Slightly darker gradient start
+        gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)'); // Lighter end
+
+        new Chart(weeklyCtx, {
+            type: 'line',
+            data: {
+                labels: weeklyData.labels,
+                datasets: [{
+                    label: 'Tasks Completed',
+                    data: weeklyData.data,
+                    backgroundColor: gradient,
+                    borderColor: '#3b82f6',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#2563eb', // Darker point
+                    pointBorderColor: '#ffffff',
+                    pointHoverBackgroundColor: '#ffffff',
+                    pointHoverBorderColor: '#1d4ed8',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    tension: 0.4, // Smoother curve
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0, // Only show whole numbers
+                            color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#6b7280' // Adapt tick color
+                        },
+                        grid: {
+                            drawBorder: false,
+                            color: document.documentElement.classList.contains('dark') ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)' // Adapt grid color
+                        }
+                    },
+                    x: {
+                         ticks: {
+                            color: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#6b7280' // Adapt tick color
+                        },
+                        grid: {
+                            display: false // Hide x-axis grid lines
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false // Hide legend
+                    },
+                    tooltip: {
+                        backgroundColor: document.documentElement.classList.contains('dark') ? '#374151' : '#ffffff', // Adapt tooltip bg
+                        titleColor: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#1f2937', // Adapt title color
+                        bodyColor: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#4b5563', // Adapt body color
+                        borderColor: document.documentElement.classList.contains('dark') ? '#4b5563' : '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 4
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
+            }
+        });
+    } catch (e) {
+        console.error("Error initializing weekly completion chart:", e);
+        // Optionally display an error message in the chart container
+        if(chartElement && chartElement.parentElement) {
+            chartElement.parentElement.innerHTML = '<p class="text-center text-red-500 dark:text-red-400 py-10">Could not load chart data.</p>';
+        }
+    }
+  }
+});
+</script>
+{% endblock %}

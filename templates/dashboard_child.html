@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}My Day - FAMJAM{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+  {# Welcome Banner & Points #}
+  <div class="relative bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-8 text-white overflow-hidden">
+    <div class="relative z-10">
+      <h1 class="text-4xl font-bold">Welcome, {{ current_user.username }}! 👋</h1> {# Added emoji #}
+      <p class="mt-2 text-lg text-blue-100 dark:text-blue-200">Here's what's on your plate for today.</p> {# Adjusted dark mode color #}
+    </div>
+    <div class="absolute top-0 right-0 z-10 p-6 text-right">
+      <p class="text-sm font-medium text-blue-100 dark:text-blue-200">My Points</p>
+      <p class="text-5xl font-extrabold tracking-tight">{{ current_user.points }} ✨</p> {# Added emoji #}
+    </div>
+    {# Decorative elements #}
+    <div class="absolute -bottom-12 -right-12 w-48 h-48 bg-white/10 rounded-full opacity-50"></div>
+    <div class="absolute -bottom-4 -left-16 w-32 h-32 bg-white/10 rounded-full opacity-50"></div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+    {# Left/Main Column: Progress, Summary, Today's Focus #}
+    <div class="lg:col-span-2 space-y-8">
+
+      {# Today's Progress Bar #}
+      {% set total_tasks = todays_events|length %}
+      {% set completed_tasks = todays_events|selectattr('status', 'in', ['completed', 'approved'])|list|length %}
+      {% set progress_percent = (completed_tasks / total_tasks * 100)|round|int if total_tasks > 0 else 100 %}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex justify-between items-center mb-3">
+             <h3 class="font-bold text-xl text-gray-900 dark:text-gray-100">Today's Progress</h3>
+             <span class="font-semibold text-gray-700 dark:text-gray-200">{{ completed_tasks }}/{{ total_tasks }} Done</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700 overflow-hidden"> {# Added overflow-hidden #}
+          <div class="bg-green-500 h-4 rounded-full transition-all duration-500 ease-out" style="width: {{ progress_percent }}%"></div> {# Added ease-out #}
+        </div>
+      </div>
+
+      {# Weekly Summary (if stats available) #}
+      {% if child_stats %}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h3 class="font-bold text-xl text-gray-900 dark:text-gray-100 mb-4">This Week's Summary</h3>
+        <div class="grid grid-cols-2 gap-4 text-center">
+         <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg">
+           <p class="text-sm text-red-700 dark:text-red-300">Missed Tasks</p>
+           <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ child_stats.weekly_missed_count }}</p>
+         </div>
+         <div class="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+           <p class="text-sm text-orange-700 dark:text-orange-300">Penalties Incurred</p>
+           <p class="text-2xl font-bold text-orange-600 dark:text-orange-400">
+             {% if child_stats.weekly_penalty_incurred > 0 %}-{% endif %}{{ child_stats.weekly_penalty_incurred }} pts
+           </p>
+         </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Today's Focus List #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3 text-gray-900 dark:text-gray-100"> {# Increased margin #}
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+          Today's Focus
+        </h2>
+        <div class="space-y-4">
+          {% if todays_events %}
+            {% for event in todays_events %}
+              {# Chore Card #}
+              {% if event.type == 'chore' %}
+              <div class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
+              {% if event.status == 'approved' or event.status == 'completed' %} border-green-500
+              {% elif event.status == 'missed' %} border-red-500
+              {% else %} border-blue-500 {% endif %}">
+                <div class="flex items-start gap-4 flex-1">
+                  {# Icon could vary based on chore? Future idea. #}
+                  <div class="text-purple-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg></div>
+                  <div class="flex-1 min-w-0"> {# Added min-w-0 for text wrapping #}
+                     <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'approved' or event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
+                     {# Conditionally display description if it exists #}
+                     {% if event.description %}
+                     <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'approved' or event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
+                     {% endif %}
+                     <div class="mt-2 text-sm font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-full inline-block {% if event.status == 'approved' or event.status == 'missed' %}opacity-70{% endif %}">+{{ event.points }} pts</div>
+                  </div>
+                </div>
+                <div class="w-full sm:w-auto flex justify-end flex-shrink-0">
+                  {% if event.status == 'assigned' %}
+                    <a href="{{ url_for('complete_event', event_id=event._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-transform transform hover:scale-105 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800">Mark as Done</a>
+                  {% elif event.status == 'completed' %}
+                    <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-indigo-800 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900 rounded-lg cursor-default">Awaiting Approval</span>
+                  {% elif event.status == 'approved' %}
+                    <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900 rounded-lg cursor-default">Approved! ✅</span>
+                  {% elif event.status == 'missed' %}
+                    <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-red-800 dark:text-red-300 bg-red-100 dark:bg-red-900 rounded-lg cursor-default">Missed ❌</span>
+                  {% endif %}
+                </div>
+              </div>
+              {# Habit Card #}
+              {% elif event.type == 'habit' %}
+              <div class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
+              {% if event.status == 'missed' %} border-red-500
+              {% elif event.can_checkin %} border-blue-500
+              {% else %} border-green-500 {% endif %}">
+                <div class="flex items-start gap-4 flex-1">
+                   <div class="text-pink-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg></div>
+                   <div class="flex-1 min-w-0"> {# Added min-w-0 #}
+                      <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
+                      {% if event.description %}
+                      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
+                      {% endif %}
+                      <div class="flex items-center gap-3 mt-2 text-sm {% if event.status == 'missed' %}opacity-70{% endif %}">
+                        <span class="font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900 px-2 py-0.5 rounded-full">+{{ event.points }} pts</span>
+                        <span class="font-semibold text-orange-600 dark:text-orange-300 bg-orange-100 dark:bg-orange-900 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.934l-6.75 12.25a1 1 0 001.64.905l1.852 -1.069a1 1 0 011.23.372l3.22 4.705a1 1 0 001.64-.905l-1.852 -1.069a1 1 0 01-.001-1.422l6.75 -12.25a1 1 0 00-.385-1.45z" clip-rule="evenodd"/></svg>
+                          Streak: {{ event.streak|default(0) }}
+                        </span>
+                      </div>
+                   </div>
+                </div>
+                <div class="w-full sm:w-auto flex justify-end flex-shrink-0">
+                   {% if event.status == 'missed' %}
+                    <span class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-red-800 dark:text-red-300 bg-red-100 dark:bg-red-900 rounded-lg cursor-default">Missed ❌</span>
+                   {% elif event.can_checkin %}
+                    <a href="{{ url_for('checkin_habit', event_id=event._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition-transform transform hover:scale-105 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800">Check-in Today 👍</a>
+                   {% else %}
+                    <span class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg cursor-default">Done for Today! 🎉</span>
+                   {% endif %}
+                </div>
+              </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div class="text-center py-12 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-200 dark:border-gray-600">
+               <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"> <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /> </svg>
+              <p class="mt-2 text-gray-600 dark:text-gray-300 font-medium">Nothing scheduled for today. Great job!</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Enjoy your free time!</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Right Column: Overdue, Reward Store, Challenges #}
+    <div class="lg:col-span-1 space-y-8">
+      {# Overdue Tasks Card #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-3 text-gray-900 dark:text-gray-100">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
+          Overdue Tasks
+        </h2>
+        <div class="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+         {% if overdue_events %}
+           {% for event in overdue_events %}
+           <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg flex justify-between items-center border-l-4 border-red-400"> {# Added border #}
+             <div>
+               <p class="font-semibold text-gray-800 dark:text-gray-100 line-through opacity-80">{{ event.name }}</p> {# Strikethrough #}
+               {# Use TIMEZONE variable from base.html #}
+               <p class="text-sm text-gray-500 dark:text-gray-400">Due: {{ event.due_date.astimezone(TIMEZONE).strftime('%b %d') }}</p>
+             </div>
+             {# Link to complete the overdue task #}
+             <a href="{{ url_for('complete_event', event_id=event._id) }}" class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-1 focus:ring-blue-500">Done</a>
+           </div>
+           {% endfor %}
+         {% else %}
+           <p class="text-center py-4 text-gray-500 dark:text-gray-300">No overdue chores! 👍</p>
+         {% endif %}
+        </div>
+      </div>
+
+      {# Reward Store Card #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Reward Store 🎁</h3>
+        <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+          {% if available_rewards %}
+            {% for reward in available_rewards|sort(attribute='cost') %} {# Sort by cost #}
+              <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div class="flex flex-col sm:flex-row justify-between items-start gap-2">
+                  <div class="flex-grow">
+                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ reward.name }}</p>
+                    <p class="text-sm text-yellow-600 dark:text-yellow-400 font-bold">{{ reward.cost }} pts</p>
+                  </div>
+                  <form action="{{ url_for('request_reward') }}" method="POST" class="w-full sm:w-auto">
+                    <input type="hidden" name="reward_id" value="{{ reward._id }}">
+                    <button type="submit"
+                            class="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition disabled:bg-gray-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-secondary-500"
+                            {% if current_user.points < reward.cost %}disabled title="Not enough points"{% endif %}>
+                      Redeem
+                    </button>
+                  </form>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-sm text-center py-4 text-gray-500 dark:text-gray-300">Your parents haven't added any rewards yet.</p>
+          {% endif %}
+        </div>
+        {# Reward History Section #}
+        <hr class="my-6 border-gray-200 dark:border-gray-700">
+        <h4 class="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">My Reward History</h4>
+        <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+          {% if rewards %}
+            {% for reward in rewards|sort(attribute='_id', reverse=true) %} {# Show newest first #}
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <div>
+                <p class="text-sm font-semibold pr-2 text-gray-800 dark:text-gray-100">{{ reward.reward_name }} ({{ reward.cost }} pts)</p>
+                {# Add resolved time if available #}
+                {% if reward.resolved_at_pretty %}<p class="text-xs text-gray-500 dark:text-gray-400">Resolved {{ reward.resolved_at_pretty }}</p>{% endif %}
+              </div>
+              <span class="flex-shrink-0 px-2.5 py-0.5 text-xs font-medium rounded-full
+              {% if reward.status == 'pending' %}bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300{% endif %}
+              {% if reward.status == 'approved' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300{% endif %}
+              {% if reward.status == 'denied' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300{% endif %}">
+              {{ reward.status|capitalize }}</span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-sm text-center py-4 text-gray-500 dark:text-gray-300">No reward history yet.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Family Challenges Card #}
+       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+         <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Family Challenges 🏆</h3>
+         <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+           {% if challenges %}
+             {% for c in challenges %}
+             <div class="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+               <div class="flex flex-col sm:flex-row justify-between items-start gap-2">
+                 <div>
+                   <p class="font-semibold text-gray-800 dark:text-gray-100">{{ c.title }}</p>
+                   <p class="text-sm text-yellow-600 dark:text-yellow-400 font-semibold">{{ c.points }} pts</p>
+                 </div>
+                 {# Action Buttons #}
+                 <div class="flex-shrink-0 w-full sm:w-auto">
+                     {% if c.status == 'open' %}
+                         <a href="{{ url_for('claim_challenge', challenge_id=c._id) }}" class="block sm:inline-block w-full text-center px-4 py-2 text-sm font-semibold bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-1 focus:ring-blue-500">Claim</a>
+                     {% elif c.status == 'in_progress' and c.claimed_by_id|string == current_user.id %}
+                         <a href="{{ url_for('complete_challenge', challenge_id=c._id) }}" class="block sm:inline-block w-full text-center px-4 py-2 text-sm font-semibold bg-green-500 text-white rounded-lg hover:bg-green-600 transition focus:outline-none focus:ring-1 focus:ring-green-500">Mark Complete</a>
+                     {% elif c.status == 'in_progress' %}
+                          <span class="block sm:inline-block w-full text-center px-4 py-2 text-sm font-semibold bg-gray-300 text-gray-600 dark:bg-gray-600 dark:text-gray-300 rounded-lg cursor-not-allowed">Claimed</span>
+                     {% elif c.status == 'completed' %}
+                          <span class="block sm:inline-block w-full text-center px-4 py-2 text-sm font-semibold bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-lg cursor-default">Completed</span>
+                     {% endif %}
+                 </div>
+               </div>
+               <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">{{ c.description }}</p>
+               <p class="text-xs mt-3 text-gray-400 dark:text-gray-500">
+                   Status: <span class="font-medium">{{ c.status|capitalize }}</span>
+                   {% if c.claimer_username %}
+                       &middot; Claimed by {{ c.claimer_username }}
+                       {% if c.status == 'completed' and c.completed_at_pretty %} &middot; Completed {{ c.completed_at_pretty }} {% endif %}
+                   {% endif %}
+               </p>
+             </div>
+             {% endfor %}
+           {% else %}
+             <p class="text-center text-gray-500 dark:text-gray-300 py-6">No active challenges right now.</p>
+           {% endif %}
+         </div>
+       </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

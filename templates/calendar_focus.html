@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Family Calendar - FAMJAM{% endblock %}
+
+{% block head_extra %}
+{# FullCalendar CSS might need specific handling if you customize heavily #}
+{# Basic FullCalendar styles are usually handled by its JS, but add custom overrides here if needed #}
+{% endblock %}
+
+{% block content %}
+{# Event Details Modal (Specific to this page) #}
+<div id="event-details-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black bg-opacity-60 hidden p-4 backdrop-blur-sm"> {# Added backdrop blur #}
+  <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg mx-auto">
+    <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+      <h3 id="modal-title" class="text-xl font-bold text-gray-900 dark:text-gray-100">Event Details</h3> {# Adjusted size #}
+      <button id="modal-close-btn" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-6 space-y-4">
+      <p id="modal-description" class="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">Description goes here.</p> {# Adjusted size and leading #}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm"> {# Reduced gap #}
+        <div id="modal-assignee" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+        <div id="modal-points" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+        <div id="modal-status" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+        <div id="modal-extra-info" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+      </div>
+    </div>
+    <div id="modal-actions" class="px-6 pb-6 pt-2 text-right space-x-2"> {# Adjusted padding #}
+      {# Action buttons loaded by JS #}
+    </div>
+  </div>
+</div>
+
+{# Main Calendar Card #}
+<div class="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-xl">
+   <div class="md:flex justify-between items-center mb-6 gap-4"> {# Added gap #}
+     <h2 class="text-2xl font-bold mb-4 md:mb-0 text-gray-900 dark:text-gray-100 flex-shrink-0">Family Calendar</h2>
+     {# Filter Controls #}
+     <div class="grid grid-cols-1 sm:grid-cols-2 md:flex items-center gap-3 w-full md:w-auto"> {# Adjusted gap and width #}
+       <input type="text" id="filter-search" placeholder="Search by name..."
+              class="w-full md:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                     border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm
+                     focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"/>
+       <select id="filter-member"
+               class="w-full md:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                      border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm
+                      focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+         <option value="">All Members</option>
+         {% for member in family_members if member.role == 'child' %}
+         {# Pre-select current user if they are a child #}
+         <option value="{{ member._id }}" {% if current_user.role == 'child' and member._id == current_user.id %}selected{% endif %}>
+           {{ member.username }}
+         </option>
+         {% endfor %}
+       </select>
+       <select id="filter-type"
+               class="w-full md:w-auto px-3 py-2 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                      border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm
+                      focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+         <option value="">All Types</option>
+         <option value="chore">Chores</option>
+         <option value="habit">Habits</option>
+       </select>
+       <button id="apply-filters"
+               class="w-full sm:col-span-2 md:w-auto px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
+         Apply Filters
+       </button>
+     </div>
+   </div>
+   {# Calendar Container #}
+   <div id="calendar" class="text-sm md:text-base">
+       {# Calendar will be rendered here by JS #}
+   </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# Page-specific JavaScript for FullCalendar #}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const calendarEl = document.getElementById('calendar');
+    const calendarModal = document.getElementById('event-details-modal');
+    const closeModalBtn = document.getElementById('modal-close-btn');
+    const applyFiltersBtn = document.getElementById('apply-filters');
+
+    if (!calendarEl || !calendarModal || !closeModalBtn || !applyFiltersBtn) {
+        console.error("Calendar elements not found!");
+        return;
+    }
+
+    closeModalBtn.onclick = () => calendarModal.classList.add('hidden');
+    // Close modal if clicking outside the content
+    calendarModal.addEventListener('click', (e) => {
+        if (e.target === calendarModal) {
+            calendarModal.classList.add('hidden');
+        }
+    });
+
+    const getEventSourceUrl = () => {
+        const params = new URLSearchParams({
+            search: document.getElementById('filter-search').value,
+            member: document.getElementById('filter-member').value,
+            type: document.getElementById('filter-type').value
+        });
+        // Ensure your API endpoint exists and works with these params
+        return `/api/events?${params.toString()}`;
+    };
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth', // Default view
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listWeek' // Available views
+        },
+        events: getEventSourceUrl(), // Initial event source
+        editable: false, // Prevent dragging/resizing by default
+        selectable: false, // Prevent date selection by default
+        dayMaxEvents: true, // Allow "more" link when too many events
+
+        // Apply strikethrough for completed/approved events
+        eventClassNames: function(arg) {
+            const status = arg.event.extendedProps.status;
+            let classes = [];
+             if (status === 'approved' || status === 'completed') {
+                  // classes.push('opacity-70'); // Optional: slightly dim completed
+             }
+             if (status === 'approved') {
+                  classes.push('event-strikethrough'); // Use the class from main.css
+             }
+            // Add color based on type (optional)
+            if (arg.event.extendedProps.type === 'habit') {
+                 classes.push('fc-event-habit'); // Define this class in main.css if needed
+            } else {
+                 classes.push('fc-event-chore'); // Define this class in main.css if needed
+            }
+            return classes;
+        },
+
+        // Handle event click to show modal
+        eventClick: function(info) {
+            const eProps = info.event.extendedProps;
+            const modalTitle = document.getElementById('modal-title');
+            const modalDesc = document.getElementById('modal-description');
+            const modalAssignee = document.getElementById('modal-assignee');
+            const modalPoints = document.getElementById('modal-points');
+            const modalStatus = document.getElementById('modal-status');
+            const modalExtra = document.getElementById('modal-extra-info');
+            const modalActions = document.getElementById('modal-actions');
+
+            if (!modalTitle || !modalDesc || !modalAssignee || !modalPoints || !modalStatus || !modalExtra || !modalActions) return;
+
+            modalTitle.innerText = info.event.title || 'Event Details';
+            modalDesc.innerText = eProps.description || 'No description provided.';
+            modalAssignee.innerHTML = `<strong>Assigned to:</strong> ${eProps.assignee_name || 'N/A'}`;
+            modalPoints.innerHTML = `<strong>Points:</strong> ${eProps.points || 0}`;
+             modalExtra.innerHTML = `<strong>Type:</strong> ${eProps.type ? eProps.type.charAt(0).toUpperCase() + eProps.type.slice(1) : 'N/A'}`;
+
+            // Status Badge
+            const statusColors = {
+                assigned: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                completed: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300',
+                approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                missed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+            };
+            const statusText = eProps.status ? eProps.status.charAt(0).toUpperCase() + eProps.status.slice(1) : 'Unknown';
+            modalStatus.innerHTML = `<strong>Status:</strong> <span class="px-2 py-0.5 ml-1 rounded-full text-xs font-semibold ${statusColors[eProps.status] || 'bg-gray-100 text-gray-800'}">${statusText}</span>`;
+
+            // Action Buttons (based on USER_ROLE and event state)
+            modalActions.innerHTML = ''; // Clear previous actions
+            if (USER_ROLE === 'parent') {
+                if (eProps.status === 'completed') {
+                    modalActions.innerHTML += `<a href="/event/approve/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition focus:outline-none focus:ring-1 focus:ring-green-500">Approve</a>`;
+                }
+                 // Add Edit/Delete for parents (link to manage_plan or direct actions)
+                 modalActions.innerHTML += `<a href="/manage-plan#event-${eProps._id}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition">Manage</a>`;
+
+            } else if (USER_ROLE === 'child' && eProps.assigned_to === currentUserId) {
+                // Actions for the assigned child
+                if (eProps.type === 'chore' && eProps.status === 'assigned') {
+                    modalActions.innerHTML += `<a href="/event/complete/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-1 focus:ring-blue-500">Mark as Done</a>`;
+                } else if (eProps.type === 'habit' && eProps.can_checkin) { // Check if habit can be checked in
+                    modalActions.innerHTML += `<a href="/event/habit/checkin/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition focus:outline-none focus:ring-1 focus:ring-green-500">Check-in Today</a>`;
+                }
+            }
+
+            calendarModal.classList.remove('hidden');
+             // Optional: slightly delay scrollIntoView if needed for animations
+             // setTimeout(() => calendarModal.firstElementChild.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+        },
+
+        // Style adjustments
+        height: 'auto', // Adjust height automatically
+        aspectRatio: 1.8, // Adjust aspect ratio for better look on different screens
+        progressiveEventRendering: true // Load events progressively
+    });
+
+    calendar.render();
+
+    // Filter button functionality
+    applyFiltersBtn.addEventListener('click', () => {
+        calendar.removeAllEventSources(); // Remove old source
+        calendar.addEventSource(getEventSourceUrl()); // Add new source with updated params
+        calendar.refetchEvents(); // Explicitly refetch
+    });
+
+     // Optional: Refetch events when dark mode changes if colors depend on it
+     const darkModeToggle = document.getElementById("darkModeToggle");
+     if (darkModeToggle) {
+         darkModeToggle.addEventListener("click", () => {
+             // Delay refetch slightly to allow theme update
+             setTimeout(() => {
+                 calendar.refetchEvents();
+             }, 100);
+         });
+     }
+
+});
+</script>
+{% endblock %}

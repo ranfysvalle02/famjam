@@ -1,0 +1,155 @@
+<nav class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md shadow-sm sticky top-0 z-50 transition-colors duration-300">
+  <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between items-center h-16">
+      <div class="flex items-center space-x-8">
+        <a href="{{ url_for('index') }}" class="flex items-center space-x-2 text-3xl font-brand">
+          <svg id="logo-animated" class="w-8 h-8" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <style>
+              /* Scoped styles for the logo SVG - these can stay here */
+              @keyframes rotate_outer {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              @keyframes rotate_inner {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(-360deg); }
+              }
+              @keyframes dash_flow {
+                0% { stroke-dashoffset: 1000; }
+                100% { stroke-dashoffset: 0; }
+              }
+              @keyframes color_shift {
+                0% { stop-color: #818cf8; }
+                33% { stop-color: #60a5fa; }
+                66% { stop-color: #34d399; }
+                100% { stop-color: #818cf8; }
+              }
+              @keyframes color_shift2 {
+                0% { stop-color: #f472b6; }
+                33% { stop-color: #c084fc; }
+                66% { stop-color: #fb923c; }
+                100% { stop-color: #f472b6; }
+              }
+              #logo-animated .logo-group-outer { /* Target within the SVG */
+                animation: rotate_outer 12s linear infinite;
+                transform-origin: center;
+              }
+              #logo-animated .logo-group-inner {
+                animation: rotate_inner 10s linear infinite;
+                transform-origin: center;
+              }
+              #logo-animated .logo-path {
+                stroke-dasharray: 500;
+                animation: dash_flow 8s ease-in-out infinite alternate;
+              }
+              #logo-animated #stop1 {
+                animation: color_shift 6s linear infinite;
+              }
+              #logo-animated #stop2 {
+                animation: color_shift2 6s linear infinite;
+              }
+              /* .event-strikethrough should be in main.css */
+            </style>
+            <defs>
+              <linearGradient id="fluidGradientNav" gradientTransform="rotate(45)">
+                <stop id="stop1Nav" offset="0%" />
+                <stop id="stop2Nav" offset="100%" />
+              </linearGradient>
+              <filter id="glowNav" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                <feMerge>
+                  <feMergeNode in="coloredBlur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <circle cx="32" cy="32" r="30" fill="url(#fluidGradientNav)" fill-opacity="0.1" />
+            <g filter="url(#glowNav)" opacity="0.9">
+              <g class="logo-group-outer">
+                <path class="logo-path"
+                d="M 52 24 C 40 12, 24 12, 12 24 C 0 36, 0 40, 12 52 C 24 64, 40 64, 52 52 C 64 40, 64 36, 52 24 Z"
+                fill="none" stroke="url(#fluidGradientNav)" stroke-width="3.5" stroke-linecap="round" />
+              </g>
+              <g class="logo-group-inner">
+                <path class="logo-path"
+                d="M 24 12 C 36 0, 40 0, 52 12 C 64 24, 64 40, 52 52 C 40 64, 24 64, 12 52 C 0 40, 0 24, 12 12"
+                fill="none" stroke="url(#fluidGradientNav)" stroke-width="2" stroke-linecap="round" style="animation-delay: -4s;" />
+              </g>
+            </g>
+             <style>
+              /* Need to re-scope these animations specifically for the nav version */
+              #fluidGradientNav #stop1Nav { animation: color_shift 6s linear infinite; }
+              #fluidGradientNav #stop2Nav { animation: color_shift2 6s linear infinite; }
+            </style>
+          </svg>
+          <span class="gradient-text">FAMJAM</span>
+        </a>
+      </div>
+
+      <div class="hidden sm:flex items-center space-x-2">
+        {% if current_user.is_authenticated %}
+          <div class="flex items-center space-x-1 bg-gray-100 dark:bg-gray-700 rounded-full p-1">
+            <a href="{{ url_for('family_dashboard') }}"
+               class="px-3 py-1 text-sm font-medium rounded-full transition-colors
+               {% if request.endpoint == 'family_dashboard' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+               {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+              Family Hub
+            </a>
+            <a href="{{ url_for('personal_dashboard') }}"
+               class="px-3 py-1 text-sm font-medium rounded-full transition-colors
+               {% if request.endpoint == 'personal_dashboard' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+               {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+               {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Day{% endif %}
+            </a>
+            <a href="{{ url_for('calendar_focus') }}"
+               class="px-3 py-1 text-sm font-medium rounded-full transition-colors
+               {% if request.endpoint == 'calendar_focus' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+               {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+              Calendar
+            </a>
+            <a href="{{ url_for('mood_dashboard_personal') }}"
+               class="px-3 py-1 text-sm font-medium rounded-full transition-colors
+               {% if request.endpoint == 'mood_dashboard_personal' or request.endpoint == 'mood_dashboard_family' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
+               {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+              Mood Tracker
+            </a>
+          </div>
+          <div class="flex items-center space-x-4 ml-4">
+            <a href="{{ url_for('logout') }}"
+               class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition shadow-sm">
+            Log Out
+            </a>
+          </div>
+        {% else %}
+          <a href="{{ url_for('login') }}"
+             class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+          Log In
+          </a>
+          <a href="{{ url_for('register_parent') }}"
+             class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 transition shadow-sm">
+          Register
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button id="darkModeToggle" class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center space-x-2">
+          <svg id="themeIconSun" class="hidden w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+            d="M12 3v2M12 19v2M8.22 8.22l1.42 1.42M14.36 14.36l1.42 1.42M3 12h2M19 12h2M8.22 15.78l1.42-1.42M14.36 9.64l1.42-1.42M12 7a5 5 0 010 10 5 5 0 010-10z"/>
+          </svg>
+          <svg id="themeIconMoon" class="hidden w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+            d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+          </svg>
+          <span id="themeIconText" class="text-gray-600 dark:text-gray-300 text-sm font-semibold"></span>
+        </button>
+        <button id="mobile-menu-button" class="p-2 rounded-md text-gray-600 dark:text-gray-300 sm:hidden">
+          <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>

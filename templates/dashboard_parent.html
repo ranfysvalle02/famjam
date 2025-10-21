@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Tasks - FAMJAM{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+  {# FamJam Plan Management Card #}
+  <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+    <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">FamJam Plan Management</h3>
+    <p class="text-gray-600 dark:text-gray-300 mb-6">
+      View your active plan, edit tasks, or generate a brand new AI-powered plan for the upcoming quarter.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4">
+      <a href="{{ url_for('manage_plan') }}" class="flex-1 text-center px-6 py-3 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+        Manage Active Plan
+      </a>
+      <button onclick="openFamJamModal()" class="flex-1 px-6 py-3 font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+        Generate New AI Plan
+      </button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    {# Left Column: Family Overview #}
+    <div class="lg:col-span-2 space-y-6">
+      <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Family Overview</h2>
+      {% if child_dashboard_data %}
+        {% for child in child_dashboard_data %}
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift transition-all">
+          <div class="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
+            <div>
+              <h3 class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ child.username }}</h3>
+              <p class="text-lg font-semibold text-blue-600 dark:text-blue-400">{{ child.points }} points</p>
+            </div>
+            {# Pass data attributes directly to the button #}
+            <button onclick="openChildDayView('{{ child._id }}', '{{ child.username }}')"
+                    class="view-child-day-btn w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition">
+              View Day's Tasks
+            </button>
+          </div>
+          <div class="mt-6 space-y-4">
+            <div>
+              <div class="flex justify-between mb-1 items-center">
+                <span class="text-base font-medium text-gray-700 dark:text-gray-200">Today's Progress</span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ child.today.completed }}/{{ child.today.total }} Done</span>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                <div class="bg-green-500 h-2.5 rounded-full transition-all duration-500" style="width: {{ child.today.progress }}%"></div>
+              </div>
+              <div class="mt-2 flex items-center justify-end gap-3 text-xs">
+                {% if child.today.overdue > 0 %}
+                <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 font-medium">{{ child.today.overdue }} Overdue</span>
+                {% endif %}
+                {% if child.today.missed > 0 %}
+                <span class="px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300 font-medium">{{ child.today.missed }} Missed Today</span>
+                {% endif %}
+              </div>
+            </div>
+             <div class="grid grid-cols-2 gap-4 text-center">
+               <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                 <p class="text-sm text-gray-500 dark:text-gray-400">Tasks This Week</p>
+                 <p class="text-xl font-bold text-gray-800 dark:text-gray-100">{{ child.week.total_tasks }}</p>
+               </div>
+               <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                 <p class="text-sm text-gray-500 dark:text-gray-400">Potential Points</p>
+                 <p class="text-xl font-bold text-green-600 dark:text-green-400">{{ child.week.potential_points }}</p>
+               </div>
+               <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg">
+                 <p class="text-sm text-red-700 dark:text-red-300">Missed This Week</p>
+                 <p class="text-xl font-bold text-red-600 dark:text-red-400">{{ child.week.missed_count }}</p>
+               </div>
+               <div class="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+                 <p class="text-sm text-orange-700 dark:text-orange-300">Penalty Incurred</p>
+                 <p class="text-xl font-bold text-orange-600 dark:text-orange-400">
+                   {% if child.week.penalty_incurred > 0 %}-{% endif %}{{ child.week.penalty_incurred }} pts
+                 </p>
+               </div>
+             </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border-2 border-dashed border-gray-300 dark:border-gray-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"> <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> </svg>
+          <h3 class="mt-2 text-xl font-semibold text-gray-700 dark:text-gray-200">No Children Found</h3>
+          <p class="text-gray-500 dark:text-gray-400 mt-1">Add a child via the 'Manage Family' button to start assigning tasks!</p>
+        </div>
+      {% endif %}
+    </div>
+
+    {# Right Column: Quick Add, Approvals, Rewards #}
+    <div class="lg:col-span-1 space-y-8">
+      {# Quick Add Task Form #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Assign a New Task</h2>
+        <form method="POST" action="{{ url_for('create_event') }}" class="space-y-4">
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Task Name</label>
+            <input type="text" name="name" placeholder="e.g. Clean your room" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required />
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="type" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Type</label>
+              <select name="type" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition">
+                <option value="chore">Chore</option>
+                <option value="habit">Habit</option>
+              </select>
+            </div>
+            <div>
+              <label for="points" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Points</label>
+              <input type="number" name="points" min="1" placeholder="50" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required />
+            </div>
+          </div>
+          <div>
+            <label for="assigned_to" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Assign To</label>
+            <select name="assigned_to" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required>
+              <option value="">Select a child...</option>
+              <option value="__ALL__">All Children</option>
+              <option value="__ROUND_ROBIN__">Round Robin (Auto)</option>
+              {% for member in family_members if member.role == 'child' %}
+              <option value="{{ member._id }}">{{ member.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="recurrence" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Repeats</label>
+              <select name="recurrence" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition">
+                <option value="none">Never (One-time)</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div>
+              <label for="due_date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Due Date</label>
+              <input type="date" name="due_date" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required />
+            </div>
+          </div>
+          <button type="submit" class="w-full mt-4 py-2.5 px-6 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-transform transform hover:scale-105 shadow focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800">
+            Add Task
+          </button>
+        </form>
+      </div>
+
+      {# Pending Approvals Card #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Pending Approvals ({{ pending_events|length }})</h3>
+          {% if pending_events %}
+          <button id="approve-all-btn" class="px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded-full hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500">
+            Approve All
+          </button>
+          {% endif %}
+        </div>
+        <div id="pending-approvals-container">
+          {% if pending_events %}
+          <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2"> {# Adjusted spacing #}
+            {% for event in pending_events %}
+            <div data-event-id="{{ event._id }}" class="pending-event-item flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow">
+              <div>
+                <p class="font-semibold text-gray-800 dark:text-gray-100">{{ event.name }}</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  by <span class="font-medium">{{ member_map.get(event.assigned_to|string, 'Unknown') }}</span>
+                  <span class="font-bold text-green-600 dark:text-green-400 ml-2">{{ event.points }} pts</span> {# Added margin #}
+                </p>
+              </div>
+              <a href="{{ url_for('approve_event', event_id=event._id) }}" class="p-2 text-white bg-green-500 rounded-full hover:bg-green-600 transition-transform transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500" title="Approve this task">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </a>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="text-center py-8 text-gray-500 dark:text-gray-400">No tasks are pending approval.</p>
+          {% endif %}
+        </div>
+      </div>
+
+       {# Pending Reward Requests Card #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Pending Reward Requests</h3>
+        <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2"> {# Adjusted spacing #}
+          {% if pending_rewards %}
+            {% for req in pending_rewards %}
+              <div class="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2"> {# Added gap #}
+                  <div>
+                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ req.reward_name }}</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      Requested by <span class="font-medium">{{ req.username }}</span>
+                      <span class="font-bold text-yellow-600 dark:text-yellow-400 ml-2">{{ req.cost }} pts</span> {# Added margin #}
+                    </p>
+                  </div>
+                  {# Ensure this form submits correctly #}
+                  <form action="{{ url_for('resolve_reward_request', request_id=req._id) }}" method="POST" class="flex items-center gap-2 mt-3 sm:mt-0 flex-shrink-0">
+                    <button type="submit" name="action" value="approve" class="px-3 py-1 text-xs font-semibold text-white bg-green-500 rounded-full hover:bg-green-600 transition focus:outline-none focus:ring-1 focus:ring-green-500">Approve</button>
+                    <button type="submit" name="action" value="deny" class="px-3 py-1 text-xs font-semibold text-gray-700 bg-gray-200 rounded-full hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition focus:outline-none focus:ring-1 focus:ring-gray-400">Deny</button>
+                  </form>
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="text-center py-8 text-gray-500 dark:text-gray-300">No reward requests are pending.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Reward Store Management Card #}
+  <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+    <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Manage Reward Store</h3>
+      <button id="suggest-rewards-btn" class="flex-shrink-0 w-full md:w-auto flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-secondary-500 rounded-lg hover:bg-secondary-600 transition shadow focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary-500 dark:focus:ring-offset-gray-800">
+        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.538.921l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.783.57-1.838-.197-1.538-.921l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+        Get Reward Ideas with AI
+      </button>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {# Add New Reward Form #}
+      <div class="lg:col-span-1">
+        <form action="{{ url_for('add_store_reward') }}" method="POST" class="space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30"> {# Added subtle background #}
+          <h4 class="font-semibold text-gray-800 dark:text-gray-100">Add a New Reward</h4>
+            <div>
+              <label for="reward-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Reward Name</label>
+              <input type="text" name="name" id="reward-name" required class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition">
+            </div>
+            <div>
+              <label for="reward-cost" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Point Cost</label>
+              <input type="number" name="cost" id="reward-cost" min="1" required class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition">
+            </div>
+            <button type="submit" class="w-full py-2.5 font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800">Add to Store</button>
+        </form>
+      </div>
+      {# Available Rewards List #}
+      <div class="lg:col-span-2">
+        <h4 class="font-semibold mb-4 text-gray-800 dark:text-gray-100">Available Rewards</h4>
+          <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+            {% if available_rewards %}
+              {% for reward in available_rewards|sort(attribute='cost') %} {# Sort by cost #}
+                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center">
+                  <div>
+                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ reward.name }}</p>
+                    <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">{{ reward.cost }} pts</p>
+                  </div>
+                   {# Ensure delete confirmation works #}
+                  <a href="{{ url_for('delete_store_reward', reward_id=reward._id) }}" onclick="return confirm('Are you sure you want to delete this reward [{{ reward.name }}] from the store?')" class="p-2 text-red-500 bg-red-100 dark:bg-red-900/50 rounded-full hover:bg-red-200 dark:hover:bg-red-800 transition focus:outline-none focus:ring-1 focus:ring-red-400" title="Delete Reward">
+                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+                  </a>
+                </div>
+              {% endfor %}
+            {% else %}
+              <p class="text-center py-8 text-gray-500 dark:text-gray-300">Your reward store is empty. Add a reward using the form!</p>
+            {% endif %}
+          </div>
+      </div>
+    </div>
+  </div>
+
+  {# Modals specific to this page #}
+  {# Suggest Rewards Modal #}
+  <div id="suggest-rewards-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 dark:bg-black dark:bg-opacity-80 z-[80] hidden flex items-center justify-center p-4">
+    <div class="relative p-6 border w-full max-w-lg shadow-2xl rounded-2xl bg-white dark:bg-gray-800 dark:text-gray-100 modal-content flex flex-col" style="max-height: 90vh;">
+      <div class="flex-shrink-0">
+        <button onclick="closeModal('suggest-rewards-modal')" class="absolute top-4 right-4 text-gray-400 dark:text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 text-3xl">&times;</button>
+        <h3 class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">AI Reward Ideas</h3>
+      </div>
+      <div id="suggest-rewards-start">
+        <p class="text-gray-600 dark:text-gray-300 mb-4">
+          Tell the AI a theme for reward ideas (e.g., "outdoor activities", "screen time", "family fun") or leave it blank for general suggestions.
+        </p>
+        <div class="space-y-4">
+          <input type="text" id="reward-theme-input" class="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Optional: Enter a theme...">
+          <button id="generate-suggestions-btn" class="w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800">
+            Get Suggestions
+          </button>
+        </div>
+      </div>
+      <div id="suggest-rewards-loading" class="hidden text-center py-10">
+        <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="mt-4 text-gray-700 dark:text-gray-200">Generating ideas...</p>
+      </div>
+      <div id="suggest-rewards-results" class="hidden flex flex-col flex-grow min-h-0">
+        <h4 class="text-lg font-semibold mb-3 flex-shrink-0 text-gray-800 dark:text-gray-100">Suggested Rewards:</h4>
+        <div id="suggestions-container" class="space-y-3 overflow-y-auto custom-scrollbar flex-grow pr-2 pb-2">
+           {# Suggestions loaded here by JS #}
+        </div>
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 flex justify-between">
+          <button onclick="setSuggestRewardsModalState('start')" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition">
+            &larr; Back
+          </button>
+          {# Reloads the page to show newly added rewards in the main list #}
+          <button onclick="closeModal('suggest-rewards-modal'); window.location.reload();" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Child Day View Modal #}
+  <div id="child-day-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
+    <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl mx-auto flex flex-col" style="max-height: 90vh;">
+      <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <h3 id="child-day-modal-title" class="text-2xl font-bold text-gray-900 dark:text-gray-100">Child's Day View</h3>
+        <button onclick="closeModal('child-day-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="child-day-modal-content" class="p-6 overflow-y-auto custom-scrollbar">
+          {# Content loaded dynamically by JS #}
+          <div class="text-center py-10 text-gray-500 dark:text-gray-400">Loading tasks...</div>
+      </div>
+    </div>
+  </div>
+
+</div> {# End main space-y-8 container #}
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Approve All Button Logic ---
+    const approveAllBtn = document.getElementById('approve-all-btn');
+    if (approveAllBtn) {
+        approveAllBtn.addEventListener('click', async () => {
+            const pendingItems = document.querySelectorAll('.pending-event-item');
+            const eventIds = Array.from(pendingItems).map(item => item.dataset.eventId).filter(id => id); // Filter out potential undefined ids
+
+            if (eventIds.length === 0) {
+                // Optionally show a small notification instead of alert
+                console.log("No items to approve.");
+                return;
+            }
+            approveAllBtn.disabled = true;
+            approveAllBtn.textContent = 'Approving...';
+
+            try {
+                const response = await fetch('/event/bulk_approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ event_ids: eventIds })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Approval request failed.');
+                }
+                // Instead of full reload, dynamically remove approved items or update UI
+                pendingItems.forEach(item => item.remove());
+                // Update the count display if you have one
+                const countElement = approveAllBtn.previousElementSibling; // Assuming h3 is sibling
+                 if (countElement && countElement.textContent.includes('Pending Approvals')) {
+                    countElement.textContent = 'Pending Approvals (0)';
+                 }
+                approveAllBtn.remove(); // Remove the button itself
+                 document.getElementById('pending-approvals-container').innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400">All tasks approved!</p>';
+
+                // Add a success message briefly
+                // flashMessage('All pending tasks approved!', 'success'); // Assuming you have a flash message function
+
+            } catch (error) {
+                console.error('Bulk approval error:', error);
+                alert(`An error occurred: ${error.message}`);
+                approveAllBtn.disabled = false;
+                approveAllBtn.textContent = 'Approve All';
+            }
+        });
+    }
+
+    // --- AI Reward Suggestion Logic ---
+    const suggestRewardsBtn = document.getElementById('suggest-rewards-btn');
+    if (suggestRewardsBtn) {
+        suggestRewardsBtn.addEventListener('click', () => {
+            setSuggestRewardsModalState('start'); // Ensure start state
+            openModal('suggest-rewards-modal');
+        });
+    }
+
+    const generateSuggestionsBtn = document.getElementById('generate-suggestions-btn');
+    if(generateSuggestionsBtn) {
+        generateSuggestionsBtn.addEventListener('click', async () => {
+            setSuggestRewardsModalState('loading');
+            const theme = document.getElementById('reward-theme-input').value.trim();
+            const suggestionsContainer = document.getElementById('suggestions-container');
+            if (!suggestionsContainer) return; // Guard clause
+            suggestionsContainer.innerHTML = ''; // Clear previous
+
+            try {
+                const response = await fetch('/api/reward/suggest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ theme: theme || null }) // Send null if empty
+                });
+                 if (!response.ok) {
+                     const errorData = await response.json().catch(() => ({}));
+                     throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+                 }
+                const data = await response.json();
+
+                if (data.suggested_rewards && data.suggested_rewards.length > 0) {
+                    data.suggested_rewards.forEach(reward => {
+                        if (!reward.name || typeof reward.cost !== 'number') {
+                             console.warn("Skipping invalid reward suggestion:", reward);
+                             return; // Skip malformed suggestions
+                        }
+                        const rewardEl = document.createElement('div');
+                        rewardEl.className = 'p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center gap-2';
+                        // Sanitize name for JS function call (basic example)
+                        const sanitizedName = reward.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        rewardEl.innerHTML = `
+                            <div>
+                                <p class="font-semibold text-gray-800 dark:text-gray-100">${reward.name}</p>
+                                <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">${reward.cost} pts</p>
+                            </div>
+                            <button onclick="addSuggestedReward(this, '${sanitizedName}', ${reward.cost})" class="px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition focus:outline-none focus:ring-1 focus:ring-green-400">
+                                Add to Store
+                            </button>
+                        `;
+                        suggestionsContainer.appendChild(rewardEl);
+                    });
+                } else {
+                    suggestionsContainer.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 py-4">The AI could not generate suggestions based on that theme. Try being more general or specific.</p>';
+                }
+                setSuggestRewardsModalState('results');
+            } catch (error) {
+                console.error("Error generating reward suggestions:", error);
+                 // Show error within the modal
+                 const errorContainer = document.getElementById('suggest-rewards-start'); // Re-use start container for error
+                 if (errorContainer) {
+                     errorContainer.innerHTML = `<p class="text-red-500 dark:text-red-400 p-4 bg-red-100 dark:bg-red-900/50 rounded-md">Error: ${error.message}</p>
+                      <button onclick="setSuggestRewardsModalState('start')" class="mt-4 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition">Try Again</button>`;
+                     setSuggestRewardsModalState('start'); // Show the container with the error
+                 } else {
+                      alert(`Error generating suggestions: ${error.message}`); // Fallback alert
+                      setSuggestRewardsModalState('start');
+                 }
+            }
+        });
+    } // end generateSuggestionsBtn check
+
+}); // End DOMContentLoaded for page-specific scripts
+
+// --- Child Day View Functions (can be defined outside DOMContentLoaded) ---
+async function openChildDayView(childId, childName) {
+    const modal = document.getElementById('child-day-modal');
+    const titleEl = document.getElementById('child-day-modal-title');
+    const contentEl = document.getElementById('child-day-modal-content');
+    if (!modal || !titleEl || !contentEl) return;
+
+    titleEl.textContent = `Viewing ${childName}'s Tasks for Today`;
+    contentEl.innerHTML = `
+        <div class="text-center py-10">
+            <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-4 text-gray-500 dark:text-gray-400">Fetching tasks...</p>
+        </div>`;
+    openModal('child-day-modal');
+
+    try {
+        const response = await fetch(`/api/child-day/${childId}`); // Ensure this API endpoint exists and returns the correct data structure
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Could not fetch child data (Status: ${response.status})`);
+        }
+        const data = await response.json();
+        renderChildTasksForParent(contentEl, data); // Use a specific rendering function
+    } catch (error) {
+        console.error("Error fetching child's day:", error);
+        contentEl.innerHTML = `<p class="text-center text-red-500 dark:text-red-400 p-6">${error.message}</p>`;
+    }
+}
+
+function renderChildTasksForParent(container, data) {
+    let overdueHtml = `
+        <div class="mb-6">
+            <h4 class="text-lg font-semibold mb-3 flex items-center gap-2 text-red-600 dark:text-red-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
+                Overdue Tasks
+            </h4>
+            <div class="space-y-3">`;
+
+    if (data.overdue_events && data.overdue_events.length > 0) {
+        data.overdue_events.forEach(event => {
+            // Use Intl.DateTimeFormat for better date formatting based on locale
+            const dueDate = event.due_date?.$date ? new Date(event.due_date.$date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'N/A';
+            overdueHtml += `
+                <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg flex justify-between items-center border-l-4 border-red-400">
+                    <div>
+                        <p class="font-semibold text-gray-800 dark:text-gray-100">${event.name || 'Unnamed Task'}</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Was due: ${dueDate} &middot; ${event.points || 0} pts</p>
+                    </div>
+                    <span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Assigned</span>
+                </div>`;
+        });
+    } else {
+        overdueHtml += `<p class="text-sm text-center py-4 text-gray-500 dark:text-gray-400">No overdue tasks. Well done!</p>`;
+    }
+    overdueHtml += `</div></div>`;
+
+    let todayHtml = `
+        <div>
+            <h4 class="text-lg font-semibold mb-3 flex items-center gap-2 text-green-600 dark:text-green-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
+                Today's Tasks
+            </h4>
+            <div class="space-y-3">`;
+
+    if (data.todays_events && data.todays_events.length > 0) {
+        data.todays_events.forEach(event => {
+            const pointsHtml = `<span class="font-semibold text-blue-600 dark:text-blue-400">${event.points || 0} pts</span>`;
+            let statusHtml = '';
+            let borderColorClass = 'border-gray-400 dark:border-gray-500'; // Default border
+
+            if (event.type === 'chore') {
+                if (event.status === 'assigned') {
+                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Assigned</span>`;
+                    borderColorClass = 'border-yellow-400 dark:border-yellow-500';
+                } else if (event.status === 'completed') {
+                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300">Pending Approval</span>`;
+                     borderColorClass = 'border-indigo-400 dark:border-indigo-500';
+                } else if (event.status === 'approved') {
+                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Approved</span>`;
+                     borderColorClass = 'border-green-400 dark:border-green-500';
+                } else if (event.status === 'missed') {
+                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Missed</span>`;
+                     borderColorClass = 'border-red-400 dark:border-red-500';
+                }
+
+                todayHtml += `
+                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center border-l-4 ${borderColorClass}">
+                        <div>
+                            <p class="font-semibold text-gray-800 dark:text-gray-100 ${event.status === 'approved' || event.status === 'missed' ? 'line-through opacity-70' : ''}">${event.name || 'Unnamed Chore'}</p>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">${pointsHtml}</p>
+                        </div>
+                        ${statusHtml}
+                    </div>`;
+
+            } else if (event.type === 'habit') {
+                const streakHtml = `<span class="text-sm font-medium text-orange-600 dark:text-orange-400">Streak: ${event.streak || 0}</span>`;
+                 if (event.status === 'missed') {
+                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Missed</span>`;
+                     borderColorClass = 'border-red-400 dark:border-red-500';
+                 }
+                else if (event.can_checkin) { // Assuming 'can_checkin' indicates it's available today and not done
+                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-300">Pending Check-in</span>`;
+                    borderColorClass = 'border-gray-400 dark:border-gray-500';
+                } else { // Assumed completed for the day
+                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Checked In</span>`;
+                     borderColorClass = 'border-green-400 dark:border-green-500';
+                }
+
+                todayHtml += `
+                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center border-l-4 ${borderColorClass}">
+                        <div>
+                             <p class="font-semibold text-gray-800 dark:text-gray-100 ${event.status === 'missed' ? 'line-through opacity-70' : ''}">${event.name || 'Unnamed Habit'}</p>
+                             <div class="flex items-center gap-3 mt-1">
+                                 <p class="text-sm text-gray-600 dark:text-gray-400">${pointsHtml}</p>
+                                 ${streakHtml}
+                             </div>
+                        </div>
+                        ${statusHtml}
+                    </div>`;
+            }
+        });
+    } else {
+        todayHtml += `<p class="text-sm text-center py-4 text-gray-500 dark:text-gray-400">No tasks scheduled for today.</p>`;
+    }
+    todayHtml += `</div></div>`;
+
+    container.innerHTML = overdueHtml + todayHtml;
+}
+
+</script>
+{% endblock %}

@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Plan - {{ plan.plan_data.plan_name }}{% endblock %}
+
+{% block content %}
+
+{# Add Task Modal (Specific to this page) #}
+<div id="add-task-to-plan-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black bg-opacity-60 hidden p-4 backdrop-blur-sm"> {# Added backdrop #}
+   <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg mx-auto">
+     <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+       <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Add Task to Plan</h3> {# Adjusted size #}
+       <button onclick="closeModal('add-task-to-plan-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+       </button>
+     </div>
+     <form method="POST" action="{{ url_for('add_task_to_plan', plan_id=plan._id) }}">
+       <div class="p-6 space-y-4">
+         <div>
+           <label for="add-task-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Task Name</label>
+           <input type="text" name="name" id="add-task-name" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Adjusted padding #}
+         </div>
+         {# Optional: Add Description Field? #}
+         <div class="grid grid-cols-2 gap-4">
+             <div>
+               <label for="add-task-points" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Points</label>
+               <input type="number" name="points" id="add-task-points" min="1" value="50" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Added default, adjusted padding #}
+             </div>
+             <div>
+               <label for="add-task-due-date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Due Date</label>
+               <input type="date" name="due_date" id="add-task-due-date" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Adjusted padding #}
+             </div>
+         </div>
+         <div>
+           <label for="add-task-assignee" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Assign To</label>
+           <select name="assigned_to" id="add-task-assignee" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Adjusted padding #}
+             <option value="">Select Child...</option>
+             {% for member in family_members if member.role == 'child' %}
+             <option value="{{ member._id }}">{{ member.username }}</option>
+             {% endfor %}
+           </select>
+         </div>
+         {# Hidden field for source_type #}
+         <input type="hidden" name="source_type" value="manual">
+       </div>
+       <div class="px-6 pb-6 pt-2 text-right"> {# Adjusted padding #}
+         <button type="button" onclick="closeModal('add-task-to-plan-modal')" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition mr-2">Cancel</button>
+         <button type="submit" class="px-6 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">Add Task</button>
+       </div>
+     </form>
+   </div>
+ </div>
+
+{# Edit Task Modal (Specific to this page) #}
+<div id="edit-task-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black bg-opacity-60 hidden p-4 backdrop-blur-sm"> {# Added backdrop #}
+   <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg mx-auto">
+     <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+       <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Edit Task</h3> {# Adjusted size #}
+       <button onclick="closeModal('edit-task-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+       </button>
+     </div>
+     {# Form action set dynamically via JS #}
+     <form id="edit-task-form" method="POST" action="">
+       <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar"> {# Added max-height & scroll #}
+         <div>
+           <label for="edit-task-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Task Name</label>
+           <input type="text" name="name" id="edit-task-name" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Adjusted padding #}
+         </div>
+         <div>
+           <label for="edit-task-description" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Description (Optional)</label>
+           <textarea name="description" id="edit-task-description" rows="3" class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"></textarea> {# Adjusted padding #}
+         </div>
+         <div class="grid grid-cols-2 gap-4">
+             <div>
+               <label for="edit-task-points" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Points</label>
+               <input type="number" name="points" id="edit-task-points" min="1" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Adjusted padding #}
+             </div>
+              <div>
+               <label for="edit-task-due-date" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Due Date</label>
+               <input type="date" name="due_date" id="edit-task-due-date" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Adjusted padding #}
+             </div>
+         </div>
+         <div>
+           <label for="edit-task-assigned-to" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Assign To</label>
+           <select name="assigned_to" id="edit-task-assigned-to" required class="mt-1 block w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition"> {# Adjusted padding #}
+             {% for member in family_members if member.role == 'child' %}
+             <option value="{{ member._id }}">{{ member.username }}</option>
+             {% endfor %}
+           </select>
+         </div>
+       </div>
+       <div class="px-6 pb-6 pt-2 text-right"> {# Adjusted padding #}
+          <button type="button" onclick="closeModal('edit-task-modal')" class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition mr-2">Cancel</button>
+         <button type="submit" class="px-6 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">Save Changes</button>
+       </div>
+     </form>
+   </div>
+ </div>
+
+
+{# Main Page Content #}
+<div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-xl space-y-6">
+  {# Header Section #}
+  <div class="flex flex-col sm:flex-row justify-between sm:items-start gap-4"> {# Allow wrapping #}
+    <div>
+      <h2 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Manage FamJam Plan</h2>
+      {# Plan Name Editing Form #}
+      <form action="{{ url_for('edit_plan_name', plan_id=plan._id) }}" method="POST" class="mt-3 flex items-center gap-2">
+        <label for="plan_name_input" class="sr-only">Plan Name</label>
+        <input type="text" name="plan_name" id="plan_name_input" value="{{ plan.plan_data.plan_name }}"
+               class="flex-grow px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300
+                      dark:border-gray-600 rounded-lg shadow-sm focus:outline-none
+                      focus:ring-1 focus:ring-blue-500 focus:border-blue-500 font-semibold text-lg text-secondary-600 dark:text-secondary-400">
+        <button type="submit"
+                class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700
+                       transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
+          Save Name
+        </button>
+      </form>
+       <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+           Plan Period: {{ plan.start_date.strftime('%b %d, %Y') }} - {{ plan.end_date.strftime('%b %d, %Y') }}
+       </p>
+    </div>
+    {# Action Buttons #}
+    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto flex-shrink-0">
+      <button onclick="openModal('add-task-to-plan-modal')" class="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500">
+        + Add Single Task
+      </button>
+      <a href="{{ url_for('personal_dashboard') }}"
+         class="w-full sm:w-auto text-center px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700
+                rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400">
+        &larr; Back to Dashboard
+      </a>
+    </div>
+  </div>
+
+   {# Filter and Sort Controls #}
+   <div class="my-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+     <form action="{{ url_for('manage_plan') }}" method="GET" class="flex flex-col sm:flex-row items-center flex-wrap gap-3"> {# Added flex-wrap #}
+       <label for="filter-date" class="font-medium text-sm text-gray-700 dark:text-gray-200 shrink-0">Filter by Due Date:</label>
+       <input type="date" name="filter_date" id="filter-date" value="{{ request.args.get('filter_date', '') }}"
+              class="px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500">
+       {# Hidden inputs to preserve sorting order when filtering #}
+       <input type="hidden" name="sort_by" value="{{ request.args.get('sort_by', 'due_date') }}">
+       <input type="hidden" name="order" value="{{ request.args.get('order', 'asc') }}">
+       <button type="submit" class="px-4 py-1.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500">Filter</button>
+       <a href="{{ url_for('manage_plan') }}" class="px-4 py-1.5 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400">Clear Filter</a>
+     </form>
+   </div>
+
+   {# Task Table - Added container for scrolling #}
+   <div class="overflow-x-auto max-h-[65vh] overflow-y-auto custom-scrollbar border border-gray-200 dark:border-gray-700 rounded-lg"> {# Added max-height and border #}
+     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+       <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10"> {# Sticky header #}
+         <tr>
+           {# Sorting Links - Helper Function/Macro could simplify this #}
+           {% set sort_icon = ' <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline-block ml-1 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>' if current_sort.order == 'desc' else ' <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline-block ml-1 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>' %}
+           {% set base_url_params = request.args.to_dict() %}
+
+           <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+             <a href="{{ url_for('manage_plan', **base_url_params|update({'sort_by': 'name', 'order': 'desc' if current_sort.by == 'name' and current_sort.order == 'asc' else 'asc'})) }}"
+                class="hover:text-blue-500 dark:hover:text-blue-400 flex items-center">
+               Task Name
+               {% if current_sort.by == 'name' %}{{ sort_icon|safe }}{% endif %}
+             </a>
+           </th>
+           <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+             <a href="{{ url_for('manage_plan', **base_url_params|update({'sort_by': 'assigned_to', 'order': 'desc' if current_sort.by == 'assigned_to' and current_sort.order == 'asc' else 'asc'})) }}"
+                class="hover:text-blue-500 dark:hover:text-blue-400 flex items-center">
+               Assigned To
+               {% if current_sort.by == 'assigned_to' %}{{ sort_icon|safe }}{% endif %}
+             </a>
+           </th>
+           <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+             <a href="{{ url_for('manage_plan', **base_url_params|update({'sort_by': 'due_date', 'order': 'desc' if current_sort.by == 'due_date' and current_sort.order == 'asc' else 'asc'})) }}"
+                class="hover:text-blue-500 dark:hover:text-blue-400 flex items-center">
+               Due Date
+               {% if current_sort.by == 'due_date' %}{{ sort_icon|safe }}{% endif %}
+             </a>
+           </th>
+           <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+             <a href="{{ url_for('manage_plan', **base_url_params|update({'sort_by': 'points', 'order': 'desc' if current_sort.by == 'points' and current_sort.order == 'asc' else 'asc'})) }}"
+                class="hover:text-blue-500 dark:hover:text-blue-400 flex items-center">
+               Points
+               {% if current_sort.by == 'points' %}{{ sort_icon|safe }}{% endif %}
+             </a>
+           </th>
+           <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+             <a href="{{ url_for('manage_plan', **base_url_params|update({'sort_by': 'status', 'order': 'desc' if current_sort.by == 'status' and current_sort.order == 'asc' else 'asc'})) }}"
+                class="hover:text-blue-500 dark:hover:text-blue-400 flex items-center">
+               Status
+               {% if current_sort.by == 'status' %}{{ sort_icon|safe }}{% endif %}
+             </a>
+           </th>
+           <th scope="col" class="relative px-6 py-3">
+             <span class="sr-only">Actions</span>
+           </th>
+         </tr>
+       </thead>
+       <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+         {% if tasks %}
+             {% for task in tasks %}
+             {# Added id for potential deep linking #}
+             <tr id="event-{{ task._id }}" class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150">
+               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                 {{ task.name }}
+                 {# Indicate manually added tasks #}
+                 {% if task.source_type == 'manual' %}
+                 <span title="Manually Added to Plan"
+                       class="ml-2 text-xs font-semibold bg-blue-100 text-blue-800
+                              dark:bg-blue-900 dark:text-blue-200 px-2 py-0.5 rounded-full">
+                   Added
+                 </span>
+                 {% endif %}
+               </td>
+               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                 {{ task.assigned_to_username }}
+               </td>
+               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                  {# Use TIMEZONE variable #}
+                 {{ task.due_date.astimezone(TIMEZONE).strftime('%a, %b %d') }}
+               </td>
+               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                 {{ task.points }}
+               </td>
+               <td class="px-6 py-4 whitespace-nowrap text-sm">
+                 {# Status Badge with Colors #}
+                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                 {% if task.status == 'approved' %} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200
+                 {% elif task.status == 'completed' %} bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200
+                 {% elif task.status == 'assigned' %} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200
+                  {% elif task.status == 'missed' %} bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200
+                 {% else %} bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200 {% endif %}">
+                   {{ task.status|capitalize }}
+                 </span>
+               </td>
+               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3"> {# Increased spacing #}
+                 {# Pass escaped JSON string to JS function #}
+                 <button onclick="openEditTaskModal('{{ task.json_string | escape }}')"
+                         class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline focus:outline-none">
+                   Edit
+                 </button>
+                 <a href="{{ url_for('delete_event', event_id=task._id) }}"
+                    onclick="return confirm('Are you sure you want to permanently delete this task \'{{ task.name }}\'?')"
+                    class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 hover:underline focus:outline-none">
+                   Delete
+                 </a>
+               </td>
+             </tr>
+             {% endfor %}
+         {% else %}
+           <tr>
+             <td colspan="6" class="text-center py-10 text-gray-500 dark:text-gray-400">
+                {% if request.args.get('filter_date') %}
+                    No tasks found matching the filter criteria.
+                {% else %}
+                    No tasks found in this plan. Use the "Generate New AI Plan" or "Add Single Task" button.
+                {% endif %}
+             </td>
+           </tr>
+         {% endif %}
+       </tbody>
+     </table>
+   </div> {# End scrollable table container #}
+</div> {# End main card container #}
+{% endblock %}
+
+
+{% block scripts %}
+{# Page-specific script already included in main.js (openEditTaskModal) #}
+{# No additional scripts needed here unless you add more dynamic features #}
+{% endblock %}

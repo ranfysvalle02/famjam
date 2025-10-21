@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Join Family - FAMJAM{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[calc(100vh-200px)] py-12"> {# Adjusted min-height and padding #}
+  <div class="w-full max-w-md p-8 sm:p-12 space-y-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl text-center hover-lift"> {# Increased vertical spacing #}
+    <div class="mx-auto bg-blue-100 dark:bg-blue-900 h-16 w-16 rounded-full flex items-center justify-center ring-4 ring-blue-200 dark:ring-blue-700"> {# Added ring #}
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600 dark:text-blue-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.085a2 2 0 00-1.736.97l-1.908 4.293M7 20l-1.5-1.5a2 2 0 010-2.828l3-3a2 2 0 012.828 0l1.5 1.5M7 20h2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h1 class="text-3xl font-extrabold gradient-text font-brand">You're Invited! 🎉</h1> {# Added emoji #}
+    <p class="text-gray-600 dark:text-gray-300 text-lg leading-relaxed"> {# Adjusted text color and line height #}
+      You've been invited to join the family hub for<br/>
+      <strong class="text-xl text-gray-800 dark:text-gray-100">{{ parent_name }}</strong>.
+    </p>
+    <a href="{{ url_for('register_child', invite_code=invite_code) }}"
+       class="inline-block w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700
+              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800
+              transition-transform transform hover:scale-105 shadow-lg">
+      Accept & Create Account
+    </a>
+  </div>
+</div>
+{% endblock %}

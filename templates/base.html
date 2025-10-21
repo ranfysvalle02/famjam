@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en" class="{% if request.cookies.get('theme') == 'dark' %}dark{% elif request.cookies.get('theme') != 'light' and ('prefers-color-scheme: dark' in request.headers.get('Sec-CH-Prefers-Color-Scheme', '').lower()) %}dark{% endif %}"> {# Attempt initial dark mode from cookie or header #}
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  {# Allow title override from child templates, default otherwise #}
+  <title>{% block title %}FAMJAM - Family Management{% endblock %}</title>
+
+  {# External Libraries - Consider local hosting or SRI for production #}
+  <script src="https://cdn.tailwindcss.com"></script>
+  {# Only include libraries if needed globally or move to specific templates #}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.13/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  {# Fonts #}
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Bitcount+Single+Ink:wght@100..900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  {# PWA / Mobile Manifest & Icons #}
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+  <meta name="theme-color" content="#3b82f6"/> {# Primary color #}
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
+   <meta name="apple-mobile-web-app-capable" content="yes">
+   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+   <meta name="apple-mobile-web-app-title" content="FamJam">
+
+
+  {# Tailwind Config (inlined for CDN) #}
+  <script>
+    tailwind.config = {
+      darkMode: 'class', // Use class-based dark mode toggling
+      theme: {
+        extend: {
+          colors: {
+            primary: { /* Your primary colors */
+              '50':  '#eff6ff','100': '#dbeafe','200': '#bfdbfe','300': '#93c5fd','400': '#60a5fa',
+              '500': '#3b82f6','600': '#2563eb','700': '#1d4ed8','800': '#1e40af','900': '#1e3a8a'
+            },
+            secondary: { /* Your secondary colors */
+              '50':  '#fdf2f8','100': '#fce7f3','200': '#fbcfe8','300': '#f9a8d4','400': '#f472b6',
+              '500': '#ec4899','600': '#db2777','700': '#be185d','800': '#9d174d','900': '#831843'
+            }
+          },
+           fontFamily: {
+             sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', '"Noto Sans"', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"'],
+             brand: ["Bitcount Single Ink", 'ui-sans-serif', 'system-ui']
+           }
+        }
+      }
+    }
+  </script>
+
+  {# Link to your main CSS file #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+
+  {# Allow adding extra CSS or meta tags from child templates #}
+  {% block head_extra %}{% endblock %}
+
+</head>
+
+<body class="text-gray-800 antialiased relative transition-colors duration-300 dark:text-gray-200 font-sans" id="body"> {# Added font-sans #}
+  {# Particle background container #}
+  <div id="particle-container" aria-hidden="true"></div>
+
+  {# Include the navigation bar partial #}
+  {% include '_nav.html' %}
+
+  {# Include the mobile menu modal partial #}
+  {% include '_mobile_menu.html' %}
+
+  {# Main content area #}
+  <main class="max-w-screen-xl mx-auto py-8 px-4 sm:px-6 lg:px-8 relative z-10 min-h-[calc(100vh-10rem)]"> {# Added min-height #}
+    {# Global Flashed Messages #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6 space-y-3" role="alert" aria-live="polite"> {# Added role and aria-live #}
+        {% for category, message in messages %}
+          <div class="p-4 text-sm rounded-lg shadow-md border flex items-start gap-3
+          {% if category == 'error' %}
+            bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-300 dark:border-red-700
+          {% elif category == 'success' %}
+             bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-700
+          {% else %} {# Default/Info #}
+             bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700
+          {% endif %}">
+           {# Add appropriate icon based on category #}
+           {% if category == 'error' %}
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /> </svg>
+           {% elif category == 'success' %}
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /> </svg>
+           {% else %}
+             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"> <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /> </svg>
+           {% endif %}
+          <span class="font-medium flex-grow">{{ message }}</span>
+           {# Optional: Add a dismiss button #}
+           <button type="button" class="-mr-1 -my-1 ml-auto p-1 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 {% if category == 'error' %}text-red-500 hover:bg-red-200 dark:hover:bg-red-800/50 focus:ring-red-600 focus:ring-offset-red-100 dark:focus:ring-offset-red-900/50{% elif category == 'success' %}text-green-500 hover:bg-green-200 dark:hover:bg-green-800/50 focus:ring-green-600 focus:ring-offset-green-100 dark:focus:ring-offset-green-900/50{% else %}text-blue-500 hover:bg-blue-200 dark:hover:bg-blue-800/50 focus:ring-blue-600 focus:ring-offset-blue-100 dark:focus:ring-offset-blue-900/50{% endif %}" onclick="this.parentElement.style.display='none';" aria-label="Dismiss">
+               <span class="sr-only">Dismiss</span>
+               <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+           </button>
+        </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {# The main content block, wrapped in the fade-in animation div #}
+    <div class="fade-in">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  {# Include the global FABs and Modals partial #}
+  {% include '_global_modals.html' %}
+
+  {# Pass essential Jinja variables to global JavaScript scope BEFORE loading main.js #}
+  <script>
+    // Make user data available globally for JavaScript
+    const USER_DATA = {
+        isAuthenticated: {{ current_user.is_authenticated|default(false)|tojson }},
+        id: {{ current_user.id|tojson if current_user.is_authenticated else 'null' }},
+        username: {{ current_user.username|tojson if current_user.is_authenticated else 'null' }},
+        role: {{ current_user.role|tojson if current_user.is_authenticated else 'guest' }}
+    };
+    const currentUserId = USER_DATA.id; // Convenience variable
+    const USER_ROLE = USER_DATA.role; // Convenience variable
+
+    // Make family members available if logged in (ensure it's an empty list if not)
+    const FAMILY_MEMBERS = {{ family_members|default([])|tojson }};
+
+    // Pass parent username specifically if user is a child
+    {% if current_user.is_authenticated and current_user.role == 'child' and parent is defined %}
+    const PARENT_USERNAME = {{ parent.username|tojson }};
+    const PARENT_ID = {{ parent._id|tojson }}; {# Pass parent ID if available #}
+    {% else %}
+    const PARENT_USERNAME = null;
+    const PARENT_ID = null;
+    {% endif %}
+
+     // Pass Timezone if available (default to UTC)
+    const TIMEZONE = {{ TIMEZONE|tojson if TIMEZONE else 'UTC' }};
+  </script>
+
+  {# Link to your main JavaScript file #}
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+  {# Block for page-specific scripts (like charts, calendar init) #}
+  {% block scripts %}{% endblock %}
+
+  {# Service Worker registration script #}
+  <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            // Ensure the service worker URL is correct
+            navigator.serviceWorker.register("{{ url_for('service_worker') }}")
+              .then(registration => {
+                  console.log('Service Worker registered successfully. Scope:', registration.scope);
+              })
+              .catch(err => {
+                  console.error('Service Worker registration failed:', err);
+              });
+        });
+      }
+  </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Invite Family - FAMJAM{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[calc(100vh-200px)] py-12"> {# Adjusted min-height and padding #}
+  <div class="bg-white dark:bg-gray-800 p-8 sm:p-12 rounded-2xl shadow-xl text-center max-w-lg mx-auto hover-lift">
+    <div class="mx-auto bg-blue-100 dark:bg-blue-900 h-16 w-16 rounded-full flex items-center justify-center ring-4 ring-blue-200 dark:ring-blue-700"> {# Added ring #}
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600 dark:text-blue-300"
+           fill="none" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20l-1.5-1.5a2 2 0 010-2.828l3-3a2 2 0 012.828 0l1.5 1.5M7 20h2"/>
+      </svg>
+    </div>
+    <h2 class="text-3xl font-extrabold mt-6 text-gray-900 dark:text-gray-100">Invite Your Child</h2> {# Adjusted margin #}
+    <p class="text-gray-600 dark:text-gray-300 mt-2 mb-8 leading-relaxed"> {# Adjusted colors and spacing #}
+      Share this magic link or scan the QR code with their device so they can join your family hub.
+    </p>
+    <div class="mb-8">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Your Magic Invite Link</label> {# Added margin-bottom #}
+      <div class="relative mt-1"> {# Reduced top margin #}
+        <input readonly type="text" id="invite-url-input" value="{{ invite_url }}"
+               class="block w-full p-4 pr-12 bg-gray-100 dark:bg-gray-700 rounded-lg border-0
+                      focus:ring-2 focus:ring-blue-500 font-mono text-sm text-gray-700 dark:text-gray-200 break-all cursor-text"> {# Added cursor style #}
+        <button id="copy-button" class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-300 transition" title="Copy link"> {# Increased padding #}
+          <svg id="copy-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5"
+               viewBox="0 0 20 20" fill="currentColor"> {# Switched to solid icon #}
+            <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM5 11a1 1 0 100 2h4a1 1 0 100-2H5z"/>
+             <path fill-rule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3 1h10v10H5V6z" clip-rule="evenodd"/>
+          </svg>
+          <svg id="check-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600 dark:text-green-400 hidden"
+               viewBox="0 0 20 20" fill="currentColor"> {# Switched to solid icon #}
+            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+      </div>
+       <p id="copy-feedback" class="text-xs text-green-600 dark:text-green-400 mt-1 h-4"></p> {# Feedback area #}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Or Scan with a Phone Camera</label> {# Added margin-bottom #}
+      {# Ensure QR code endpoint exists and generates the image #}
+      <img src="{{ url_for('qr_code') }}" alt="Invite QR Code"
+           class="mx-auto border-4 border-gray-200 dark:border-gray-600 mt-1 p-2 rounded-lg bg-white w-48 h-48 object-contain"/> {# Adjusted styling #}
+    </div>
+     <div class="mt-8">
+         <a href="{{ url_for('family_dashboard') }}" class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+           &larr; Back to Family Hub
+         </a>
+     </div>
+  </div>
+</div>
+{% endblock %}
+
+{# No specific scripts needed here as the copy button logic is in main.js #}
