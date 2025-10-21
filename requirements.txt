@@ -9,4 +9,4 @@ python-dateutil
 gunicorn
 uvicorn
 pytz
-appscheduler
+apscheduler
