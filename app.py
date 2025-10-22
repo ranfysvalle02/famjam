@@ -1985,6 +1985,50 @@ def suggest_username():
         print(f"Error suggesting username: {e}")
         return jsonify({"error": f"Could not generate username suggestions: {str(e)}"}), 500
 
+@app.route('/child/reset-points/<string:child_id>', methods=['POST'])
+@login_required
+def reset_child_points(child_id):
+    """
+    Allows a parent to reset a child's current (spendable) points to 0.
+    This does not affect lifetime_points or cash_balance.
+    """
+    # 1. Check if the current user is a parent
+    if current_user.role != 'parent':
+        flash('You do not have permission to perform this action.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+
+    # 2. Validate the Child's ObjectId
+    try:
+        child_oid = ObjectId(child_id)
+    except Exception:
+        flash('Invalid child ID format.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+
+    # 3. Find the child and ensure they belong to the parent's family
+    child = users_collection.find_one({
+        '_id': child_oid,
+        'family_id': current_user.family_id,
+        'role': 'child'
+    })
+
+    if not child:
+        flash('Child not found in your family.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+
+    # 4. Perform the update
+    try:
+        users_collection.update_one(
+            {'_id': child_oid},
+            {'$set': {'points': 0}}  # Set spendable points to 0
+        )
+        flash(f"Current points for {child.get('username')} have been successfully reset to 0.", 'success')
+    except Exception as e:
+        print(f"Error resetting points for child {child_id}: {e}")
+        flash('An error occurred while trying to reset points.', 'error')
+
+    # 5. Redirect back to the previous page
+    return redirect(request.referrer or url_for('personal_dashboard'))
+
 ################################################################################
 # 13. MAIN EXECUTION
 ################################################################################
