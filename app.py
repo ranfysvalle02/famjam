@@ -435,7 +435,8 @@ def personal_dashboard():
             pending_events=pending_events,
             pending_rewards=pending_rewards,
             available_rewards=available_rewards,
-            TIMEZONE=TIMEZONE_NAME # Pass the name string
+            TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
+            TIMEZONE_OBJ=TIMEZONE   # Pass the pytz object (for Jinja)
         )
     else: # Child Dashboard
         current_user_oid = ObjectId(current_user.id)
@@ -489,7 +490,8 @@ def personal_dashboard():
             available_rewards=available_rewards,
             challenges=challenges,
             parent=parent,
-            TIMEZONE=TIMEZONE_NAME # Pass the name string
+            TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
+            TIMEZONE_OBJ=TIMEZONE   # Pass the pytz object (for Jinja)
         )
 
 @app.route('/family-dashboard')
@@ -1133,7 +1135,8 @@ def manage_plan():
     return render_template(
         'manage_plan.html', plan=active_plan, tasks=tasks,
         family_members=family_members, current_sort={'by': sort_by, 'order': order_str},
-        TIMEZONE=TIMEZONE_NAME # Pass the name string
+        TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
+        TIMEZONE_OBJ=TIMEZONE   # Pass the pytz object (for Jinja)
     )
 
 @app.route('/plan/add_task/<plan_id>', methods=['POST'])
