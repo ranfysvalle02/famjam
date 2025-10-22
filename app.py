@@ -980,6 +980,101 @@ def bulk_approve_events():
             return jsonify({"error": "Failed to update all event statuses"}), 500
     return jsonify({"status": "success", "approved_count": 0}), 200
 
+
+
+
+@app.route('/challenge/claim/<string:challenge_id>')
+@login_required
+def claim_challenge(challenge_id):
+    if current_user.role != 'child':
+        flash("Only children can claim challenges.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    try:
+        challenge_oid = ObjectId(challenge_id)
+        user_oid = ObjectId(current_user.id)
+    except Exception:
+        flash("Invalid challenge ID.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    # Find the challenge and ensure it's 'open'
+    challenge_to_claim = challenges_collection.find_one({
+        '_id': challenge_oid,
+        'family_id': ObjectId(current_user.family_id),
+        'status': 'open'
+    })
+
+    if not challenge_to_claim:
+        flash("This challenge is not available to claim.", "warning")
+        return redirect(url_for('personal_dashboard'))
+    
+    # Claim the challenge
+    challenges_collection.update_one(
+        {'_id': challenge_oid},
+        {'$set': {
+            'status': 'in_progress',
+            'claimed_by_id': user_oid,
+            'claimed_at': now_est()
+        }}
+    )
+    
+    flash(f"You have claimed the challenge: '{challenge_to_claim.get('title')}'!", "success")
+    return redirect(url_for('personal_dashboard'))
+
+
+@app.route('/challenge/complete/<string:challenge_id>')
+@login_required
+def complete_challenge(challenge_id):
+    if current_user.role != 'child':
+        flash("Only children can complete challenges.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    try:
+        challenge_oid = ObjectId(challenge_id)
+        user_oid = ObjectId(current_user.id)
+    except Exception:
+        flash("Invalid challenge ID.", "error")
+        return redirect(url_for('personal_dashboard'))
+
+    # Find the challenge and ensure it was claimed by the current user
+    challenge_to_complete = challenges_collection.find_one({
+        '_id': challenge_oid,
+        'family_id': ObjectId(current_user.family_id),
+        'status': 'in_progress',
+        'claimed_by_id': user_oid
+    })
+
+    if not challenge_to_complete:
+        flash("This challenge is not ready to be completed by you.", "warning")
+        return redirect(url_for('personal_dashboard'))
+
+    points_to_award = challenge_to_complete.get('points', 0)
+
+    # 1. Mark the challenge as completed
+    challenges_collection.update_one(
+        {'_id': challenge_oid},
+        {'$set': {
+            'status': 'completed',
+            'completed_at': now_est()
+        }}
+    )
+    
+    # 2. Award the points to the user
+    if points_to_award > 0:
+        users_collection.update_one(
+            {'_id': user_oid},
+            {'$inc': {
+                'points': points_to_award,
+                'lifetime_points': points_to_award
+            }}
+        )
+    
+    flash(f"Challenge completed! You earned {points_to_award} points!", "success")
+    return redirect(url_for('personal_dashboard'))
+
+
+
+
 ################################################################################
 # 11. PLAN MANAGEMENT ROUTES
 ################################################################################
@@ -1148,7 +1243,7 @@ def inject_global_vars():
     return {
         'family_members': family_members, 'parent': parent, 'unread_messages_exist': unread_messages_exist,
         'personal_notes': personal_notes, 'personal_todos': personal_todos,
-        'TIMEZONE': TIMEZONE_NAME # FIXED: Pass the name string
+        'TIMEZONE': TIMEZONE
     }
 
 @app.route('/child/reset-password/<child_id>', methods=['POST'])
