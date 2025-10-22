@@ -11,10 +11,19 @@
       <h1 class="text-4xl font-bold">Welcome, {{ current_user.username }}! 👋</h1> {# Added emoji #}
       <p class="mt-2 text-lg text-blue-100 dark:text-blue-200">Here's what's on your plate for today.</p> {# Adjusted dark mode color #}
     </div>
-    <div class="absolute top-0 right-0 z-10 p-6 text-right">
-      <p class="text-sm font-medium text-blue-100 dark:text-blue-200">My Points</p>
-      <p class="text-5xl font-extrabold tracking-tight">{{ current_user.points }} ✨</p> {# Added emoji #}
-    </div>
+    <div class="absolute top-0 right-0 z-10 p-6 text-right space-y-2">
+      {# Points Display #}
+      <div>
+          <p class="text-sm font-medium text-blue-100 dark:text-blue-200">My Points ✨</p>
+          <p class="text-4xl font-extrabold tracking-tight">{{ current_user.points }}</p>
+      </div>
+      {# Cash Balance Display #}
+      <div>
+          <p class="text-sm font-medium text-green-100 dark:text-green-200">My Balance 💰</p>
+          {# Assumes cash_balance is passed from Flask route, formatted as currency #}
+          <p class="text-4xl font-extrabold tracking-tight">${{ "%.2f"|format(current_user.cash_balance|default(0.0)) }}</p>
+      </div>
+  </div>
     {# Decorative elements #}
     <div class="absolute -bottom-12 -right-12 w-48 h-48 bg-white/10 rounded-full opacity-50"></div>
     <div class="absolute -bottom-4 -left-16 w-32 h-32 bg-white/10 rounded-full opacity-50"></div>

@@ -32,6 +32,10 @@
             <div>
               <h3 class="text-2xl font-bold text-gray-800 dark:text-gray-100">{{ child.username }}</h3>
               <p class="text-lg font-semibold text-blue-600 dark:text-blue-400">{{ child.points }} points</p>
+              {# Display Current Cash Balance #}
+              <p class="text-lg font-semibold text-green-600 dark:text-green-400 mt-1">
+                  Balance: ${{ "%.2f"|format(child.cash_balance|default(0.0)) }} 💰 {# Added emoji #}
+              </p>
             </div>
             {# Pass data attributes directly to the button #}
             <button onclick="openChildDayView('{{ child._id }}', '{{ child.username }}')"
@@ -39,8 +43,25 @@
               View Day's Tasks
             </button>
           </div>
+
+          {# Form to Update Cash Balance #}
+          <form action="{{ url_for('update_cash_balance', child_id=child._id) }}" method="POST" class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-end gap-2">
+              <div>
+                  <label for="cash_balance_{{ child._id }}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Update Balance ($)</label>
+                  <input type="number" step="0.01" min="0" name="new_balance" id="cash_balance_{{ child._id }}"
+                         placeholder="{{ "%.2f"|format(child.cash_balance|default(0.0)) }}"
+                         required
+                         class="mt-1 block w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-sm">
+              </div>
+              <button type="submit"
+                      class="px-4 py-1.5 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500">
+                  Set
+              </button>
+          </form>
+
           <div class="mt-6 space-y-4">
-            <div>
+            {# ... Today's Progress ... #}
+             <div>
               <div class="flex justify-between mb-1 items-center">
                 <span class="text-base font-medium text-gray-700 dark:text-gray-200">Today's Progress</span>
                 <span class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ child.today.completed }}/{{ child.today.total }} Done</span>
@@ -57,6 +78,8 @@
                 {% endif %}
               </div>
             </div>
+
+            {# ... Weekly Stats ... #}
              <div class="grid grid-cols-2 gap-4 text-center">
                <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                  <p class="text-sm text-gray-500 dark:text-gray-400">Tasks This Week</p>
@@ -79,7 +102,7 @@
              </div>
           </div>
         </div>
-        {% endfor %}
+        {% endfor %} {# End of child loop #}
       {% else %}
         <div class="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border-2 border-dashed border-gray-300 dark:border-gray-600">
           <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"> <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /> </svg>
@@ -353,18 +376,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     const errorData = await response.json().catch(() => ({}));
                     throw new Error(errorData.error || 'Approval request failed.');
                 }
-                // Instead of full reload, dynamically remove approved items or update UI
+                // Instead of full reload, dynamically remove approved items
                 pendingItems.forEach(item => item.remove());
-                // Update the count display if you have one
-                const countElement = approveAllBtn.previousElementSibling; // Assuming h3 is sibling
-                 if (countElement && countElement.textContent.includes('Pending Approvals')) {
-                    countElement.textContent = 'Pending Approvals (0)';
+                // Update the count display in the header
+                const countHeader = approveAllBtn.previousElementSibling; // Assuming h3 is sibling
+                 if (countHeader && countHeader.textContent.includes('Pending Approvals')) {
+                    countHeader.textContent = 'Pending Approvals (0)';
                  }
                 approveAllBtn.remove(); // Remove the button itself
                  document.getElementById('pending-approvals-container').innerHTML = '<p class="text-center py-8 text-gray-500 dark:text-gray-400">All tasks approved!</p>';
 
-                // Add a success message briefly
-                // flashMessage('All pending tasks approved!', 'success'); // Assuming you have a flash message function
+                // Add a success message briefly using a simple banner (you might have a better system)
+                 const mainContent = document.querySelector('main > .fade-in');
+                 if(mainContent) {
+                    const successBanner = document.createElement('div');
+                    successBanner.className = 'p-4 mb-6 text-sm rounded-lg shadow-md bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-700';
+                    successBanner.textContent = 'All pending tasks approved!';
+                    mainContent.insertBefore(successBanner, mainContent.firstChild);
+                    setTimeout(() => successBanner.remove(), 3000); // Remove after 3 seconds
+                 }
+
 
             } catch (error) {
                 console.error('Bulk approval error:', error);
@@ -379,8 +410,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const suggestRewardsBtn = document.getElementById('suggest-rewards-btn');
     if (suggestRewardsBtn) {
         suggestRewardsBtn.addEventListener('click', () => {
-            setSuggestRewardsModalState('start'); // Ensure start state
-            openModal('suggest-rewards-modal');
+             // Reset the modal state to start before opening
+             document.getElementById('reward-theme-input').value = ''; // Clear input
+             setSuggestRewardsModalState('start');
+             openModal('suggest-rewards-modal');
         });
     }
 
@@ -413,14 +446,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                         const rewardEl = document.createElement('div');
                         rewardEl.className = 'p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center gap-2';
-                        // Sanitize name for JS function call (basic example)
-                        const sanitizedName = reward.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                        // Sanitize name for JS function call (more robust)
+                        const sanitizedName = String(reward.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                         rewardEl.innerHTML = `
-                            <div>
-                                <p class="font-semibold text-gray-800 dark:text-gray-100">${reward.name}</p>
+                            <div class="min-w-0"> {# Allow text wrapping #}
+                                <p class="font-semibold text-gray-800 dark:text-gray-100 truncate">${reward.name}</p> {# Add truncate #}
                                 <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">${reward.cost} pts</p>
                             </div>
-                            <button onclick="addSuggestedReward(this, '${sanitizedName}', ${reward.cost})" class="px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition focus:outline-none focus:ring-1 focus:ring-green-400">
+                            <button onclick="addSuggestedReward(this, '${sanitizedName}', ${reward.cost})" class="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition focus:outline-none focus:ring-1 focus:ring-green-400">
                                 Add to Store
                             </button>
                         `;
@@ -432,153 +465,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 setSuggestRewardsModalState('results');
             } catch (error) {
                 console.error("Error generating reward suggestions:", error);
-                 // Show error within the modal
-                 const errorContainer = document.getElementById('suggest-rewards-start'); // Re-use start container for error
+                 // Show error within the modal for better UX
+                 const errorContainer = document.getElementById('suggest-rewards-start'); // Re-use start container
                  if (errorContainer) {
-                     errorContainer.innerHTML = `<p class="text-red-500 dark:text-red-400 p-4 bg-red-100 dark:bg-red-900/50 rounded-md">Error: ${error.message}</p>
-                      <button onclick="setSuggestRewardsModalState('start')" class="mt-4 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition">Try Again</button>`;
-                     setSuggestRewardsModalState('start'); // Show the container with the error
+                     // Put theme input back for retry
+                      errorContainer.innerHTML = `
+                      <p class="text-red-500 dark:text-red-400 p-4 bg-red-100 dark:bg-red-900/50 rounded-md mb-4">Error: ${error.message}</p>
+                      <input type="text" id="reward-theme-input" class="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Optional: Enter a theme...">
+                      <button id="generate-suggestions-btn-retry" class="mt-4 w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">Try Again</button>`;
+                     // Re-add event listener to the new button
+                      const retryBtn = document.getElementById('generate-suggestions-btn-retry');
+                      if(retryBtn) retryBtn.addEventListener('click', generateSuggestionsBtn.onclick); // Re-use original handler
+                     setSuggestRewardsModalState('start'); // Show the container with the error + retry elements
                  } else {
                       alert(`Error generating suggestions: ${error.message}`); // Fallback alert
-                      setSuggestRewardsModalState('start');
+                      closeModal('suggest-rewards-modal'); // Close modal on fallback error
                  }
             }
         });
     } // end generateSuggestionsBtn check
 
+    // Add function definitions needed by inline `onclick` handlers (if not already in main.js)
+    // Ensure setSuggestRewardsModalState is accessible
+    window.setSuggestRewardsModalState = function(state) {
+      const states = ['start', 'loading', 'results'];
+      states.forEach(s => {
+          const el = document.getElementById(`suggest-rewards-${s}`);
+          if (el) el.classList.add('hidden');
+      });
+      const activeEl = document.getElementById(`suggest-rewards-${state}`);
+      if (activeEl) activeEl.classList.remove('hidden');
+    }
+
+    // Ensure addSuggestedReward is accessible
+    window.addSuggestedReward = async function(button, name, cost) {
+      const originalText = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = 'Adding...';
+
+      try {
+          const response = await fetch("{{ url_for('add_store_reward') }}", {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded', // Standard form encoding
+              },
+              body: new URLSearchParams({ // Use URLSearchParams for form encoding
+                  'name': name,
+                  'cost': cost
+              })
+          });
+
+          if (!response.ok) {
+               const errorData = await response.json().catch(() => ({}));
+               throw new Error(errorData.error || 'Failed to add the reward.');
+          }
+
+          button.innerHTML = 'Added!';
+          button.classList.remove('bg-green-600', 'hover:bg-green-700');
+          button.classList.add('bg-gray-400', 'cursor-not-allowed', 'dark:bg-gray-600');
+          // Optionally, visually disable or hide after adding
+
+      } catch (error) {
+          console.error('Error adding suggested reward:', error);
+          button.innerHTML = 'Error';
+           button.classList.remove('bg-green-600', 'hover:bg-green-700');
+           button.classList.add('bg-red-600', 'hover:bg-red-700'); // Show error color briefly
+          setTimeout(() => {
+              button.innerHTML = originalText;
+               button.classList.remove('bg-red-600', 'hover:bg-red-700');
+               button.classList.add('bg-green-600', 'hover:bg-green-700');
+              button.disabled = false;
+          }, 2500);
+      }
+    }
+
+
 }); // End DOMContentLoaded for page-specific scripts
-
-// --- Child Day View Functions (can be defined outside DOMContentLoaded) ---
-async function openChildDayView(childId, childName) {
-    const modal = document.getElementById('child-day-modal');
-    const titleEl = document.getElementById('child-day-modal-title');
-    const contentEl = document.getElementById('child-day-modal-content');
-    if (!modal || !titleEl || !contentEl) return;
-
-    titleEl.textContent = `Viewing ${childName}'s Tasks for Today`;
-    contentEl.innerHTML = `
-        <div class="text-center py-10">
-            <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="mt-4 text-gray-500 dark:text-gray-400">Fetching tasks...</p>
-        </div>`;
-    openModal('child-day-modal');
-
-    try {
-        const response = await fetch(`/api/child-day/${childId}`); // Ensure this API endpoint exists and returns the correct data structure
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `Could not fetch child data (Status: ${response.status})`);
-        }
-        const data = await response.json();
-        renderChildTasksForParent(contentEl, data); // Use a specific rendering function
-    } catch (error) {
-        console.error("Error fetching child's day:", error);
-        contentEl.innerHTML = `<p class="text-center text-red-500 dark:text-red-400 p-6">${error.message}</p>`;
-    }
-}
-
-function renderChildTasksForParent(container, data) {
-    let overdueHtml = `
-        <div class="mb-6">
-            <h4 class="text-lg font-semibold mb-3 flex items-center gap-2 text-red-600 dark:text-red-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
-                Overdue Tasks
-            </h4>
-            <div class="space-y-3">`;
-
-    if (data.overdue_events && data.overdue_events.length > 0) {
-        data.overdue_events.forEach(event => {
-            // Use Intl.DateTimeFormat for better date formatting based on locale
-            const dueDate = event.due_date?.$date ? new Date(event.due_date.$date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'N/A';
-            overdueHtml += `
-                <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg flex justify-between items-center border-l-4 border-red-400">
-                    <div>
-                        <p class="font-semibold text-gray-800 dark:text-gray-100">${event.name || 'Unnamed Task'}</p>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">Was due: ${dueDate} &middot; ${event.points || 0} pts</p>
-                    </div>
-                    <span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Assigned</span>
-                </div>`;
-        });
-    } else {
-        overdueHtml += `<p class="text-sm text-center py-4 text-gray-500 dark:text-gray-400">No overdue tasks. Well done!</p>`;
-    }
-    overdueHtml += `</div></div>`;
-
-    let todayHtml = `
-        <div>
-            <h4 class="text-lg font-semibold mb-3 flex items-center gap-2 text-green-600 dark:text-green-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
-                Today's Tasks
-            </h4>
-            <div class="space-y-3">`;
-
-    if (data.todays_events && data.todays_events.length > 0) {
-        data.todays_events.forEach(event => {
-            const pointsHtml = `<span class="font-semibold text-blue-600 dark:text-blue-400">${event.points || 0} pts</span>`;
-            let statusHtml = '';
-            let borderColorClass = 'border-gray-400 dark:border-gray-500'; // Default border
-
-            if (event.type === 'chore') {
-                if (event.status === 'assigned') {
-                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">Assigned</span>`;
-                    borderColorClass = 'border-yellow-400 dark:border-yellow-500';
-                } else if (event.status === 'completed') {
-                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300">Pending Approval</span>`;
-                     borderColorClass = 'border-indigo-400 dark:border-indigo-500';
-                } else if (event.status === 'approved') {
-                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Approved</span>`;
-                     borderColorClass = 'border-green-400 dark:border-green-500';
-                } else if (event.status === 'missed') {
-                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Missed</span>`;
-                     borderColorClass = 'border-red-400 dark:border-red-500';
-                }
-
-                todayHtml += `
-                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center border-l-4 ${borderColorClass}">
-                        <div>
-                            <p class="font-semibold text-gray-800 dark:text-gray-100 ${event.status === 'approved' || event.status === 'missed' ? 'line-through opacity-70' : ''}">${event.name || 'Unnamed Chore'}</p>
-                            <p class="text-sm text-gray-600 dark:text-gray-400">${pointsHtml}</p>
-                        </div>
-                        ${statusHtml}
-                    </div>`;
-
-            } else if (event.type === 'habit') {
-                const streakHtml = `<span class="text-sm font-medium text-orange-600 dark:text-orange-400">Streak: ${event.streak || 0}</span>`;
-                 if (event.status === 'missed') {
-                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Missed</span>`;
-                     borderColorClass = 'border-red-400 dark:border-red-500';
-                 }
-                else if (event.can_checkin) { // Assuming 'can_checkin' indicates it's available today and not done
-                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-300">Pending Check-in</span>`;
-                    borderColorClass = 'border-gray-400 dark:border-gray-500';
-                } else { // Assumed completed for the day
-                    statusHtml = `<span class="px-2.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Checked In</span>`;
-                     borderColorClass = 'border-green-400 dark:border-green-500';
-                }
-
-                todayHtml += `
-                    <div class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex justify-between items-center border-l-4 ${borderColorClass}">
-                        <div>
-                             <p class="font-semibold text-gray-800 dark:text-gray-100 ${event.status === 'missed' ? 'line-through opacity-70' : ''}">${event.name || 'Unnamed Habit'}</p>
-                             <div class="flex items-center gap-3 mt-1">
-                                 <p class="text-sm text-gray-600 dark:text-gray-400">${pointsHtml}</p>
-                                 ${streakHtml}
-                             </div>
-                        </div>
-                        ${statusHtml}
-                    </div>`;
-            }
-        });
-    } else {
-        todayHtml += `<p class="text-sm text-center py-4 text-gray-500 dark:text-gray-400">No tasks scheduled for today.</p>`;
-    }
-    todayHtml += `</div></div>`;
-
-    container.innerHTML = overdueHtml + todayHtml;
-}
 
 </script>
 {% endblock %}
