@@ -1243,7 +1243,7 @@ def inject_global_vars():
     return {
         'family_members': family_members, 'parent': parent, 'unread_messages_exist': unread_messages_exist,
         'personal_notes': personal_notes, 'personal_todos': personal_todos,
-        'TIMEZONE': TIMEZONE
+        'TIMEZONE': TIMEZONE_NAME
     }
 
 @app.route('/child/reset-password/<child_id>', methods=['POST'])
