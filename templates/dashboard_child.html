@@ -168,8 +168,8 @@
                {# Use TIMEZONE_OBJ variable from route #}
                <p class="text-sm text-gray-500 dark:text-gray-400">Due: {{ event.due_date.astimezone(TIMEZONE_OBJ).strftime('%b %d') }}</p>
              </div>
-             {# Link to complete the overdue task #}
-             <a href="{{ url_for('complete_event', event_id=event._id) }}" class="px-3 py-1.5 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-1 focus:ring-blue-500">Done</a>
+             {# [FIX] Removed the "Done" button and replaced with a static "Missed" tag as per user logic #}
+             <span class="px-3 py-1.5 text-sm font-semibold text-red-800 dark:text-red-300 bg-red-100 dark:bg-red-900 rounded-lg cursor-default">Missed</span>
            </div>
            {% endfor %}
          {% else %}
