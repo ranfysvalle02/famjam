@@ -8,8 +8,8 @@
   {# Welcome Banner & Points #}
   <div class="relative bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-8 text-white overflow-hidden" style="min-height: 15rem;">
     <div class="relative z-10">
-      <h1 class="text-4xl font-bold">Welcome, {{ current_user.username }}! 👋</h1> {# Added emoji #}
-      <p class="mt-2 text-lg text-blue-100 dark:text-blue-200">Here's what's on your plate for today.</p> {# Adjusted dark mode color #}
+      <h1 class="text-4xl font-bold">Welcome, {{ current_user.username }}! 👋</h1>
+      <p class="mt-2 text-lg text-blue-100 dark:text-blue-200">Here's what's on your plate for today.</p>
     </div>
     <div class="absolute top-0 right-0 z-10 p-6 text-right space-y-2">
       {# Points Display #}
@@ -20,7 +20,6 @@
       {# Cash Balance Display #}
       <div>
           <p class="text-sm font-medium text-green-100 dark:text-green-200">My Balance 💰</p>
-          {# Assumes cash_balance is passed from Flask route, formatted as currency #}
           <p class="text-4xl font-extrabold tracking-tight">${{ "%.2f"|format(current_user.cash_balance|default(0.0)) }}</p>
       </div>
   </div>
@@ -31,7 +30,7 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-    {# Left/Main Column: Progress, Summary, Today's Focus #}
+    {# Left/Main Column: Progress, Today's Focus #}
     <div class="lg:col-span-2 space-y-8">
 
       {# Today's Progress Bar #}
@@ -43,33 +42,17 @@
              <h3 class="font-bold text-xl text-gray-900 dark:text-gray-100">Today's Progress</h3>
              <span class="font-semibold text-gray-700 dark:text-gray-200">{{ completed_tasks }}/{{ total_tasks }} Done</span>
         </div>
-        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700 overflow-hidden"> {# Added overflow-hidden #}
-          <div class="bg-green-500 h-4 rounded-full transition-all duration-500 ease-out" style="width: {{ progress_percent }}%"></div> {# Added ease-out #}
+        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700 overflow-hidden">
+          <div class="bg-green-500 h-4 rounded-full transition-all duration-500 ease-out" style="width: {{ progress_percent }}%"></div>
         </div>
       </div>
 
-      {# Weekly Summary (if stats available) #}
-      {% if child_stats %}
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-        <h3 class="font-bold text-xl text-gray-900 dark:text-gray-100 mb-4">This Week's Summary</h3>
-        <div class="grid grid-cols-2 gap-4 text-center">
-         <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg">
-           <p class="text-sm text-red-700 dark:text-red-300">Missed Tasks</p>
-           <p class="text-2xl font-bold text-red-600 dark:text-red-400">{{ child_stats.weekly_missed_count }}</p>
-         </div>
-         <div class="p-3 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
-           <p class="text-sm text-orange-700 dark:text-orange-300">Penalties Incurred</p>
-           <p class="text-2xl font-bold text-orange-600 dark:text-orange-400">
-             {% if child_stats.weekly_penalty_incurred > 0 %}-{% endif %}{{ child_stats.weekly_penalty_incurred }} pts
-           </p>
-         </div>
-        </div>
-      </div>
-      {% endif %}
+      {# [REMOVED] Weekly Summary (if stats available) #}
+      {# This section was removed to reduce focus on past missed tasks and penalties. #}
 
       {# Today's Focus List #}
       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3 text-gray-900 dark:text-gray-100"> {# Increased margin #}
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3 text-gray-900 dark:text-gray-100">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
           Today's Focus
         </h2>
@@ -83,11 +66,9 @@
               {% elif event.status == 'missed' %} border-red-500
               {% else %} border-blue-500 {% endif %}">
                 <div class="flex items-start gap-4 flex-1">
-                  {# Icon could vary based on chore? Future idea. #}
                   <div class="text-purple-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg></div>
-                  <div class="flex-1 min-w-0"> {# Added min-w-0 for text wrapping #}
+                  <div class="flex-1 min-w-0">
                      <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'approved' or event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
-                     {# Conditionally display description if it exists #}
                      {% if event.description %}
                      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'approved' or event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
                      {% endif %}
@@ -114,7 +95,7 @@
               {% else %} border-green-500 {% endif %}">
                 <div class="flex items-start gap-4 flex-1">
                    <div class="text-pink-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg></div>
-                   <div class="flex-1 min-w-0"> {# Added min-w-0 #}
+                   <div class="flex-1 min-w-0">
                       <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
                       {% if event.description %}
                       <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
@@ -151,32 +132,11 @@
       </div>
     </div>
 
-    {# Right Column: Overdue, Reward Store, Challenges #}
+    {# Right Column: Reward Store, Challenges #}
     <div class="lg:col-span-1 space-y-8">
-      {# Overdue Tasks Card #}
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-        <h2 class="text-xl font-bold mb-4 flex items-center gap-3 text-gray-900 dark:text-gray-100">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
-          Overdue Tasks
-        </h2>
-        <div class="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-         {% if overdue_events %}
-           {% for event in overdue_events %}
-           <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg flex justify-between items-center border-l-4 border-red-400"> {# Added border #}
-             <div>
-               <p class="font-semibold text-gray-800 dark:text-gray-100 line-through opacity-80">{{ event.name }}</p> {# Strikethrough #}
-               {# Use TIMEZONE_OBJ variable from route #}
-               <p class="text-sm text-gray-500 dark:text-gray-400">Due: {{ event.due_date.astimezone(TIMEZONE_OBJ).strftime('%b %d') }}</p>
-             </div>
-             {# [FIX] Removed the "Done" button and replaced with a static "Missed" tag as per user logic #}
-             <span class="px-3 py-1.5 text-sm font-semibold text-red-800 dark:text-red-300 bg-red-100 dark:bg-red-900 rounded-lg cursor-default">Missed</span>
-           </div>
-           {% endfor %}
-         {% else %}
-           <p class="text-center py-4 text-gray-500 dark:text-gray-300">No overdue chores! 👍</p>
-         {% endif %}
-        </div>
-      </div>
+      
+      {# [REMOVED] Overdue Tasks Card #}
+      {# This section was removed to reduce focus on past failures. #}
 
       {# Reward Store Card #}
       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
@@ -214,7 +174,6 @@
             <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div>
                 <p class="text-sm font-semibold pr-2 text-gray-800 dark:text-gray-100">{{ reward.reward_name }} ({{ reward.cost }} pts)</p>
-                {# Add resolved time if available #}
                 {% if reward.resolved_at_pretty %}<p class="text-xs text-gray-500 dark:text-gray-400">Resolved {{ reward.resolved_at_pretty }}</p>{% endif %}
               </div>
               <span class="flex-shrink-0 px-2.5 py-0.5 text-xs font-medium rounded-full
