@@ -74,6 +74,19 @@
                     </button>
                 </div>
             </form>
+
+            {# --- THIS IS THE NEW FORM --- #}
+            {# Form to Forgive Missed Tasks #}
+            <form action="{{ url_for('forgive_child_missed_tasks', child_id=child._id) }}" method="POST" class="flex items-end"
+                  onsubmit="return confirm('Are you sure you want to forgive all of {{ child.username }}\'s missed tasks? This clears their penalty count but does NOT restore points.');">
+                <div>
+                    <label for="forgive_missed_{{ child._id }}" class="block text-xs font-medium text-gray-500 dark:text-gray-400">Forgive Tasks</label>
+                    <button type="submit" id="forgive_missed_{{ child._id }}"
+                            class="mt-1 px-4 py-1.5 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 h-[36px]">
+                        Forgive MISSED
+                    </button>
+                </div>
+            </form>
             {# --- End Child Controls --- #}
           </div>
 

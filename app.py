@@ -207,9 +207,12 @@ def mark_missed_tasks():
                 events_collection.bulk_write(event_updates)
                 print(f"Marked {len(event_updates)} tasks as missed.")
             if user_penalties:
-                user_updates = [UpdateOne({'_id': uid}, {'$inc': {'points': -penalty}}) for uid, penalty in user_penalties.items()]
+                # --- MODIFICATION ---
+                # This pipeline update ensures points can never drop below 0
+                user_updates = [UpdateOne({'_id': uid}, [{'$set': {'points': {'$max': [0, {'$subtract': ['$points', penalty]}]}}}]) for uid, penalty in user_penalties.items()]
+                # --- END MODIFICATION ---
                 users_collection.bulk_write(user_updates)
-                print(f"Applied penalties to {len(user_updates)} users.")
+                print(f"Applied penalties to {len(user_updates)} users (floored at 0).")
             if not event_updates and not user_penalties:
                 print("No tasks found to mark as missed.")
         except Exception as e:
@@ -406,10 +409,15 @@ def personal_dashboard():
             todays_missed = sum(1 for t in todays_tasks if t.get('status') == 'missed')
             overdue_count = events_collection.count_documents({'assigned_to': child_id_obj, 'type': 'chore', 'status': 'assigned', 'due_date': {'$lt': start_of_today}})
             weekly_tasks = list(events_collection.find({'assigned_to': child_id_obj, 'due_date': {'$gte': start_of_week, '$lt': end_of_week}}))
+            
+            # Filter for tasks that are *still* 'missed' (not forgiven)
             missed_this_week_tasks = [t for t in weekly_tasks if t.get('status') == 'missed']
+            
             weekly_missed_count = len(missed_this_week_tasks)
             weekly_penalty_incurred = sum(math.floor(t.get('points', 0) * MISSED_TASK_PENALTY_FACTOR) for t in missed_this_week_tasks)
-            weekly_potential_points = sum(t.get('points', 0) for t in weekly_tasks if t.get('status') != 'missed')
+            
+            # Potential points from tasks that are not 'missed' or 'forgiven'
+            weekly_potential_points = sum(t.get('points', 0) for t in weekly_tasks if t.get('status') not in ['missed', 'forgiven'])
 
             child_dashboard_data.append({
                 '_id': str(child_id_obj), 'username': child.get('username'),
@@ -436,7 +444,7 @@ def personal_dashboard():
             pending_rewards=pending_rewards,
             available_rewards=available_rewards,
             TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
-            TIMEZONE_OBJ=TIMEZONE   # Pass the pytz object (for Jinja)
+            TIMEZONE_OBJ=TIMEZONE    # Pass the pytz object (for Jinja)
         )
     else: # Child Dashboard
         current_user_oid = ObjectId(current_user.id)
@@ -461,7 +469,7 @@ def personal_dashboard():
         todays_events = []
         for event in todays_events_cursor:
             event['can_checkin'] = False
-            if event.get('type') == 'habit' and event.get('status') != 'missed':
+            if event.get('type') == 'habit' and event.get('status') not in ['missed', 'forgiven']: # Added forgiven check
                 last_completed = event.get('last_completed') # Get the datetime object
                 last_completed_date = last_completed.astimezone(TIMEZONE).date() if last_completed else None
                 if not last_completed_date or last_completed_date != today:
@@ -491,7 +499,7 @@ def personal_dashboard():
             challenges=challenges,
             parent=parent,
             TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
-            TIMEZONE_OBJ=TIMEZONE   # Pass the pytz object (for Jinja)
+            TIMEZONE_OBJ=TIMEZONE    # Pass the pytz object (for Jinja)
         )
 
 @app.route('/family-dashboard')
@@ -883,8 +891,8 @@ def checkin_habit(event_id):
     if not habit:
         flash("Habit not found or not assigned to you.", "error")
         return redirect(url_for('personal_dashboard'))
-    if habit.get('status') == 'missed':
-        flash("Cannot check in a missed habit.", "error")
+    if habit.get('status') in ['missed', 'forgiven']:
+        flash("Cannot check in a missed or forgiven habit.", "error")
         return redirect(url_for('personal_dashboard'))
     today = today_est()
     last_completed = habit.get('last_completed')
@@ -1136,7 +1144,7 @@ def manage_plan():
         'manage_plan.html', plan=active_plan, tasks=tasks,
         family_members=family_members, current_sort={'by': sort_by, 'order': order_str},
         TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
-        TIMEZONE_OBJ=TIMEZONE   # Pass the pytz object (for Jinja)
+        TIMEZONE_OBJ=TIMEZONE    # Pass the pytz object (for Jinja)
     )
 
 @app.route('/plan/add_task/<plan_id>', methods=['POST'])
@@ -1628,17 +1636,30 @@ def api_events():
         can_checkin = False
         due_date_est = e.get('due_date').astimezone(TIMEZONE).date() if e.get('due_date') else None
         is_due_today = (due_date_est == today) if due_date_est else False
-        if e.get('type') == 'habit' and is_due_today and e.get('status') != 'missed':
+        if e.get('type') == 'habit' and is_due_today and e.get('status') not in ['missed', 'forgiven']: # Added forgiven check
             last_completed_date_est = e.get('last_completed').astimezone(TIMEZONE).date() if e.get('last_completed') else None
             if not (last_completed_date_est and last_completed_date_est == today):
                 can_checkin = True
         start_iso = e.get('due_date').isoformat() if e.get('due_date') else None
+        
+        # Determine status color/display for calendar
+        status = e.get('status')
+        title_prefix = f"({status.capitalize()}) " if status in ['missed', 'completed', 'approved', 'forgiven'] else ""
+        if status == 'approved':
+            color = '#22c55e' # Green
+        elif status == 'completed':
+            color = '#a855f7' # Purple
+        elif status in ['missed', 'forgiven']:
+            color = '#6b7280' # Gray
+        else: # 'assigned'
+            color = child_color_map.get(assigned_to_id_str, '#6b7280')
+
         calendar_events.append({
-            'id': str(e['_id']), 'title': f"{e.get('type', 'Task').capitalize()}: {e['name']}",
-            'start': start_iso, 'allDay': True, 'color': child_color_map.get(assigned_to_id_str, '#6b7280'),
+            'id': str(e['_id']), 'title': f"{title_prefix}{e['name']}",
+            'start': start_iso, 'allDay': True, 'color': color,
             'extendedProps': {
                 '_id': str(e['_id']), 'type': e.get('type'), 'description': e.get('description', ''),
-                'points': e.get('points'), 'status': e.get('status'),
+                'points': e.get('points'), 'status': status,
                 'assignee_name': member_map.get(assigned_to_id_str, 'N/A'),
                 'assigned_to': assigned_to_id_str, 'can_checkin': can_checkin,
                 'streak': e.get('streak', 0) if e.get('type') == 'habit' else None
@@ -1677,7 +1698,7 @@ def api_get_child_day(child_id):
     todays_events = []
     for event in todays_events_cursor:
         event['can_checkin'] = False
-        if event.get('type') == 'habit' and event.get('status') != 'missed':
+        if event.get('type') == 'habit' and event.get('status') not in ['missed', 'forgiven']: # Added forgiven check
             last_completed = event.get('last_completed')
             last_completed_date = last_completed.astimezone(TIMEZONE).date() if last_completed else None
             if not (last_completed_date and last_completed_date == today):
@@ -2126,6 +2147,52 @@ def reset_child_points(child_id):
 
     # 5. Redirect back to the previous page
     return redirect(request.referrer or url_for('personal_dashboard'))
+
+# --- NEW ROUTE ---
+@app.route('/child/forgive-missed/<string:child_id>', methods=['POST'])
+@login_required
+def forgive_child_missed_tasks(child_id):
+    """
+    Allows a parent to change all of a child's 'missed' tasks to 'forgiven'.
+    This provides a "fresh start" for weekly stats without restoring points.
+    """
+    # 1. Check if the current user is a parent
+    if current_user.role != 'parent':
+        flash('You do not have permission to perform this action.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+
+    # 2. Validate the Child's ObjectId
+    try:
+        child_oid = ObjectId(child_id)
+    except Exception:
+        flash('Invalid child ID format.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+
+    # 3. Find the child and ensure they belong to the parent's family
+    child = users_collection.find_one({
+        '_id': child_oid,
+        'family_id': current_user.family_id,
+        'role': 'child'
+    })
+
+    if not child:
+        flash('Child not found in your family.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+
+    # 4. Perform the update: Find all 'missed' tasks and set to 'forgiven'
+    try:
+        result = events_collection.update_many(
+            {'assigned_to': child_oid, 'status': 'missed'},
+            {'$set': {'status': 'forgiven', 'forgiven_at': now_est()}}
+        )
+        flash(f"All ({result.modified_count}) missed tasks for {child.get('username')} have been forgiven.", 'success')
+    except Exception as e:
+        print(f"Error forgiving tasks for child {child_id}: {e}")
+        flash('An error occurred while trying to forgive tasks.', 'error')
+
+    # 5. Redirect back to the previous page
+    return redirect(request.referrer or url_for('personal_dashboard'))
+# --- END NEW ROUTE ---
 
 ################################################################################
 # 13. MAIN EXECUTION
