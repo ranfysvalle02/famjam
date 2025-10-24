@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="{% if request.cookies.get('theme') == 'dark' %}dark{% elif request.cookies.get('theme') != 'light' and ('prefers-color-scheme: dark' in request.headers.get('Sec-CH-Prefers-Color-Scheme', '').lower()) %}dark{% endif %}"> {# Attempt initial dark mode from cookie or header #}
+<html lang="en" class="dark"></html>
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>

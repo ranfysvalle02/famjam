@@ -49,7 +49,6 @@ function openEditModal(childId, username) {
   if (!editModal) return;
   document.getElementById('edit-child-id').value = childId;
   document.getElementById('edit-username').value = username;
-  // document.getElementById('edit-password').value = ''; // This field isn't in your injected modal
   const form = document.getElementById('edit-child-form');
   if (form) {
       form.action = `/child/edit/${childId}`;
@@ -525,75 +524,19 @@ document.addEventListener("DOMContentLoaded", function() {
     const particleContainer = document.getElementById('particle-container');
     if (particleContainer) {
         const numParticles = 20;
-        const pastelColors = ['rgba(255,182,193,0.5)', 'rgba(173,216,230,0.5)', 'rgba(240,230,140,0.5)', 'rgba(144,238,144,0.5)', 'rgba(221,160,221,0.5)'];
+        // Use colors that show up well on the dark background
+        const darkColors = ['rgba(59, 130, 246, 0.3)', 'rgba(236, 72, 153, 0.3)', 'rgba(16, 185, 129, 0.3)', 'rgba(168, 85, 247, 0.3)', 'rgba(245, 158, 11, 0.3)'];
         for (let i = 0; i < numParticles; i++) {
             const p = document.createElement('div');
             p.className = 'particle';
             const size = Math.random() * 10 + 10;
-            p.style.cssText = `width:${size}px; height:${size}px; left:${Math.random()*100}%; top:${Math.random()*100 + 100}vh; animation-duration:${Math.random()*20+20}s; animation-delay: ${Math.random() * -40}s; background-color:${pastelColors[Math.floor(Math.random()*pastelColors.length)]};`;
+            p.style.cssText = `width:${size}px; height:${size}px; left:${Math.random()*100}%; top:${Math.random()*100 + 100}vh; animation-duration:${Math.random()*20+20}s; animation-delay: ${Math.random() * -40}s; background-color:${darkColors[Math.floor(Math.random()*darkColors.length)]};`;
             particleContainer.appendChild(p);
         }
     }
 
-    // --- (FIXED) Dark Mode ---
-    const darkModeToggle = document.getElementById("darkModeToggle");
-    const themeIconSun = document.getElementById("themeIconSun");
-    const themeIconMoon = document.getElementById("themeIconMoon");
-    const themeIconText = document.getElementById("themeIconText");
-
-    // Check if all the required elements exist on the page
-    if (darkModeToggle && themeIconSun && themeIconMoon && themeIconText) {
-
-        /**
-         * Updates the button's icon and text based on the CURRENT state of the <html> tag.
-         */
-        function updateThemeUI() {
-            // The *single source of truth* is the class on the <html> element
-            // This tag is set by the SERVER (base.html) on page load via the cookie.
-            const isDark = document.documentElement.classList.contains("dark");
-
-            if (isDark) {
-                // DARK MODE is active:
-                // Show the SUN icon (to switch to light)
-                themeIconSun.classList.remove('hidden');
-                themeIconMoon.classList.add('hidden');
-                themeIconText.innerText = 'Light'; // Text shows the *action* to take
-            } else {
-                // LIGHT MODE is active:
-                // Show the MOON icon (to switch to dark)
-                themeIconSun.classList.add('hidden');
-                themeIconMoon.classList.remove('hidden');
-                themeIconText.innerText = 'Dark'; // Text shows the *action* to take
-            }
-        }
-
-        // 1. Set the initial state of the icons/text when the page loads.
-        // This reads the class set by your *server* and makes the button match.
-        updateThemeUI();
-
-        // 2. Add the click event listener to the toggle button
-        darkModeToggle.addEventListener("click", () => {
-            // Toggle the class on the <html> element *first*
-            document.documentElement.classList.toggle("dark");
-
-            // Check the NEW state
-            const isNowDark = document.documentElement.classList.contains("dark");
-            const newTheme = isNowDark ? "dark" : "light";
-
-            // A. Update the cookie so the SERVER knows the theme on the next page load
-            // This is the most important fix to prevent the flicker.
-            document.cookie = `theme=${newTheme};path=/;max-age=31536000;SameSite=Lax`; // 1 year cookie
-
-            // B. Update localStorage (good practice, but cookie is key)
-            localStorage.setItem("theme", newTheme);
-
-            // C. Update the button's icons/text to reflect the new state
-            updateThemeUI();
-        });
-
-    } // end if(darkModeToggle)
-
-
+    // --- Dark Mode Logic has been REMOVED ---
+    
     // --- Personal Space Modal Tabs & Compose Logic ---
     const personalStuffModal = document.getElementById('personalStuffModal');
     if (personalStuffModal) {
