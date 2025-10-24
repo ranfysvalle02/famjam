@@ -5,28 +5,38 @@
 {% block content %}
 <div class="space-y-8">
 
-  {# Welcome Banner & Points #}
-  <section role="banner" class="relative bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-8 text-white overflow-hidden" style="min-height: 15rem;">
-    <div class="relative z-10">
-      <h1 class="text-4xl font-bold">Welcome, {{ current_user.username }}! 👋</h1>
-      <p class="mt-2 text-lg text-blue-100 dark:text-blue-200">Here's what's on your plate for today.</p>
+  {# --- UPDATED: Welcome Banner & Points --- #}
+  <section role="banner" class="relative bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-6 sm:p-8 text-white overflow-hidden" style="min-height: 15rem;">
+    {# Use flex to stack on mobile and row on sm+ #}
+    <div class="flex flex-col sm:flex-row justify-between sm:items-start gap-4 relative z-10">
+      
+      {# Welcome Text - takes remaining space on sm+ #}
+      <div class="flex-grow">
+        <h1 class="text-3xl sm:text-4xl font-bold">Welcome, {{ current_user.username }}! 👋</h1>
+        <p class="mt-2 text-lg text-blue-100 dark:text-blue-200">Here's what's on your plate for today.</p>
+      </div>
+
+      {# Points/Balance - stacks on top on mobile (order-first), on right on sm+ (sm:order-last) #}
+      <div class="text-right space-y-2 flex-shrink-0 order-first sm:order-last">
+        {# Points Display #}
+        <div>
+            <p class="text-sm font-medium text-blue-100 dark:text-blue-200">My Points ✨</p>
+            <p class="text-3xl sm:text-4xl font-extrabold tracking-tight">{{ current_user.points }}</p>
+        </div>
+        {# Cash Balance Display #}
+        <div>
+            <p class="text-sm font-medium text-green-100 dark:text-green-200">My Balance 💰</p>
+            <p class="text-3xl sm:text-4xl font-extrabold tracking-tight">${{ "%.2f"|format(current_user.cash_balance|default(0.0)) }}</p>
+        </div>
+      </div>
     </div>
-    <div class="absolute top-0 right-0 z-10 p-6 text-right space-y-2">
-      {# Points Display #}
-      <div>
-          <p class="text-sm font-medium text-blue-100 dark:text-blue-200">My Points ✨</p>
-          <p class="text-4xl font-extrabold tracking-tight">{{ current_user.points }}</p>
-      </div>
-      {# Cash Balance Display #}
-      <div>
-          <p class="text-sm font-medium text-green-100 dark:text-green-200">My Balance 💰</p>
-          <p class="text-4xl font-extrabold tracking-tight">${{ "%.2f"|format(current_user.cash_balance|default(0.0)) }}</p>
-      </div>
-  </div>
+    
     {# Decorative elements #}
     <div class="absolute -bottom-12 -right-12 w-48 h-48 bg-white/10 rounded-full opacity-50" aria-hidden="true"></div>
     <div class="absolute -bottom-4 -left-16 w-32 h-32 bg-white/10 rounded-full opacity-50" aria-hidden="true"></div>
   </section>
+  {# --- END UPDATED Banner --- #}
+
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
