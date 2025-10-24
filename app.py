@@ -386,6 +386,7 @@ def register_child(invite_code):
 def personal_dashboard():
     family_oid = ObjectId(current_user.family_id)
     today = today_est() # Get today's date in EST
+    now = now_est() # *** GET CURRENT TIME HERE ***
 
     if current_user.role == 'parent':
         family_members = list(users_collection.find(
@@ -399,7 +400,7 @@ def personal_dashboard():
         children = [m for m in family_members if m.get('role') == 'child']
 
         # Get timezone-aware start/end times for today and the week
-        now = now_est()
+        # now = now_est() # Moved up
         start_of_today = start_of_day_est(today) # Timezone-aware midnight EST
         end_of_today = start_of_today + timedelta(days=1)
         start_of_week = start_of_day_est(today - timedelta(days=now.weekday()))
@@ -475,10 +476,39 @@ def personal_dashboard():
         user_ids_for_rewards = [r['requested_by_id'] for r in pending_rewards]
         users_for_rewards = {str(u['_id']): u['username'] for u in users_collection.find({'_id': {'$in': user_ids_for_rewards}})}
         for reward_req in pending_rewards:
-             reward_req['username'] = users_for_rewards.get(str(reward_req.get('requested_by_id')), 'Unknown')
+            reward_req['username'] = users_for_rewards.get(str(reward_req.get('requested_by_id')), 'Unknown')
+
+        # --- Fetch Timers ---
+        timers = []
+        for t in timers_collection.find({'family_id': family_oid}).sort('end_date', ASCENDING):
+            end_date_aware = t['end_date'].astimezone(TIMEZONE) # Ensure it's in EST for display and calc
+            delta = end_date_aware - now
+            time_left = "Timer ended"
+            if delta.total_seconds() >= 0:
+                days_left = delta.days
+                if days_left >= 1:
+                    time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
+                else:
+                    seconds_remaining_today = (end_date_aware.replace(hour=23, minute=59, second=59) - now).total_seconds()
+                    if seconds_remaining_today < 0: seconds_remaining_today = 0
+                    hours, rem = divmod(seconds_remaining_today, 3600)
+                    minutes, _ = divmod(rem, 60)
+                    hours, minutes = int(hours), int(minutes)
+                    if hours > 0: time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
+                    elif minutes > 0: time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
+                    else: time_left = "Less than a minute left"
+            timers.append({
+                '_id': str(t['_id']), 'name': t['name'],
+                'end_date': end_date_aware.strftime('%b %d, %Y'),
+                'creator_id': str(t.get('created_by')),
+                'creator_name': member_map.get(str(t.get('created_by')), "Unknown"),
+                'time_left': time_left,
+                'end_datetime': end_date_aware # For sorting if needed, though already sorted by query
+            })
+        # --- End Fetch Timers ---
+
 
         # Render the parent dashboard template
-        # *** FIX: Added MOOD_CONFIG here ***
         return render_template(
             'dashboard_parent.html',
             family_members=family_members, # Used in loops/dropdowns
@@ -487,15 +517,16 @@ def personal_dashboard():
             pending_events=pending_events,
             pending_rewards=pending_rewards,
             available_rewards=available_rewards,
+            timers=timers,                 # *** ADDED TIMERS ***
+            now=now,                       # *** ADDED NOW ***
             TIMEZONE=TIMEZONE_NAME,        # Pass timezone name string
             TIMEZONE_OBJ=TIMEZONE,         # Pass pytz object for filters if needed
-            MOOD_CONFIG=MOOD_CONFIG        # *** ADDED THIS LINE ***
+            MOOD_CONFIG=MOOD_CONFIG
         )
 
     else: # Child Dashboard
-        # ... (child dashboard logic remains unchanged) ...
         current_user_oid = ObjectId(current_user.id)
-        now = now_est()
+        # now = now_est() # Moved up
         start_of_today = start_of_day_est(today)
         start_of_week = start_of_day_est(today - timedelta(days=now.weekday()))
         end_of_week = start_of_week + timedelta(days=7)
@@ -531,9 +562,44 @@ def personal_dashboard():
         family_members = list(users_collection.find({'family_id': str(family_oid)}))
         member_map = {str(m['_id']): m['username'] for m in family_members}
         challenges = list(challenges_collection.find({'family_id': family_oid, 'status': {'$in': ['open', 'in_progress', 'completed']}}).sort('created_at', DESCENDING))
-        for c in challenges: c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
+        for c in challenges:
+             c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
+             # Add pretty completion time
+             if c.get('completed_at'):
+                delta = now - c['completed_at'].astimezone(TIMEZONE)
+                if delta.days > 0: c['completed_at_pretty'] = f"{delta.days}d ago"
+                elif (h := delta.seconds // 3600) > 0: c['completed_at_pretty'] = f"{h}h ago"
+                else: c['completed_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
 
-        # *** FIX: Added MOOD_CONFIG here ***
+        # --- Fetch Timers ---
+        timers = []
+        for t in timers_collection.find({'family_id': family_oid}).sort('end_date', ASCENDING):
+            end_date_aware = t['end_date'].astimezone(TIMEZONE) # Ensure it's in EST for display and calc
+            delta = end_date_aware - now
+            time_left = "Timer ended"
+            if delta.total_seconds() >= 0:
+                days_left = delta.days
+                if days_left >= 1:
+                    time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
+                else:
+                    seconds_remaining_today = (end_date_aware.replace(hour=23, minute=59, second=59) - now).total_seconds()
+                    if seconds_remaining_today < 0: seconds_remaining_today = 0
+                    hours, rem = divmod(seconds_remaining_today, 3600)
+                    minutes, _ = divmod(rem, 60)
+                    hours, minutes = int(hours), int(minutes)
+                    if hours > 0: time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
+                    elif minutes > 0: time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
+                    else: time_left = "Less than a minute left"
+            timers.append({
+                '_id': str(t['_id']), 'name': t['name'],
+                'end_date': end_date_aware.strftime('%b %d, %Y'),
+                'creator_id': str(t.get('created_by')),
+                'creator_name': member_map.get(str(t.get('created_by')), "Unknown"),
+                'time_left': time_left,
+                'end_datetime': end_date_aware # For sorting if needed
+            })
+        # --- End Fetch Timers ---
+
         return render_template(
             'dashboard_child.html',
             todays_events=todays_events,
@@ -542,11 +608,17 @@ def personal_dashboard():
             rewards=rewards,
             available_rewards=available_rewards,
             challenges=challenges,
+            timers=timers,                 # *** ADDED TIMERS ***
+            now=now,                       # *** ADDED NOW ***
             parent=parent,
             TIMEZONE=TIMEZONE_NAME,
             TIMEZONE_OBJ=TIMEZONE,
-            MOOD_CONFIG=MOOD_CONFIG        # *** ADDED THIS LINE ***
+            MOOD_CONFIG=MOOD_CONFIG
         )
+
+
+
+
 
 @app.route('/family-dashboard')
 @login_required
