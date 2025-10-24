@@ -93,19 +93,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure mood_config is passed correctly from your Flask route
     const MOOD_CONFIG = {{ mood_config.moods | tojson | safe }};
     const PERIODS = ['Morning', 'Afternoon', 'Evening'];
-    const formatDate = d => d.toISOString().split('T')[0]; // Simple YYYY-MM-DD format
+    
+    // --- THIS FUNCTION IS THE FIX ---
+    /**
+     * Gets the current date as a 'YYYY-MM-DD' string *in the app's designated timezone*.
+     * This avoids issues where the user's local time (e.g., 11 PM) is converted to
+     * the next day in UTC by toISOString().
+     * @returns {string} YYYY-MM-DD
+     */
+    const getAppTodayString = () => {
+        try {
+            // TIMEZONE is globally defined in base.html
+            const options = { timeZone: TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit' };
+            const formatter = new Intl.DateTimeFormat('en-US', options);
+            const parts = formatter.formatToParts(new Date()).reduce((acc, part) => {
+                if (part.type !== 'literal') {
+                    acc[part.type] = part.value;
+                }
+                return acc;
+            }, {});
+            // Construct YYYY-MM-DD from the parts
+            return `${parts.year}-${parts.month}-${parts.day}`;
+        } catch (e) {
+            console.error("Failed to format date with app timezone, falling back to local.", e);
+            // Fallback for older browsers or errors, manually builds local date string
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = (d.getMonth() + 1).toString().padStart(2, '0');
+            const day = d.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+    };
+    // --- END FIX ---
 
     if (moodGrid && moodDateInput) {
         // Set initial date to today
-        moodDateInput.value = formatDate(new Date());
+        // --- UPDATED THIS LINE ---
+        moodDateInput.value = getAppTodayString();
 
         const renderMoodGrid = () => {
             if (!moodGrid) return;
             moodGrid.innerHTML = ''; // Clear previous grid
             const chosenDate = moodDateInput.value;
 
-            // --- ADD THIS CHECK ---
-            const todayStr = formatDate(new Date());
+            // --- UPDATED THIS LINE ---
+            const todayStr = getAppTodayString();
             const isReadOnly = (chosenDate !== todayStr);
             // --- END ADDED CHECK ---
 
@@ -139,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(`/api/mood/personal?date=${dateStr}&period=${period}`);
                  if (!response.ok) {
                      // Don't throw error, just means no mood logged yet
-                     console.log(`No mood found for ${dateStr} ${period}`);
+                     // console.log(`No mood found for ${dateStr} ${period}`); // Silenced this log
                      return;
                  }
                 const data = await response.json();
@@ -261,11 +293,23 @@ document.addEventListener('DOMContentLoaded', () => {
              const data = await response.json();
 
              if (!data || !data.labels || !data.data) {
-                 throw new Error("Mood history data is malformed.");
+                // It's not an error if there's no data, just means no moods logged yet.
+                // We can show an empty state.
+                if (personalMoodChart) {
+                    personalMoodChart.destroy(); // Clear old chart
+                }
+                chartCanvas.parentElement.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 py-10">Log some moods to see your history chart!</p>';
+                return; // Stop execution
              }
 
              if (personalMoodChart) {
                  personalMoodChart.destroy(); // Clear previous chart instance
+             }
+             
+             // If we're here, we have data. Make sure canvas is back if we showed empty state.
+             if (!chartCanvas.parentElement.querySelector('canvas')) {
+                 chartCanvas.parentElement.innerHTML = '';
+                 chartCanvas.parentElement.appendChild(chartCanvas);
              }
 
               const chartTextColor = document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#4b5563';
