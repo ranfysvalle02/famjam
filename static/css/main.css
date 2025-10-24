@@ -9,23 +9,17 @@ body {
   min-height: 100vh;
   transition: background-color 0.3s, color 0.3s;
 }
+/* FORCED DARK MODE: Use dark gradient by default */
 #body {
-  background: linear-gradient(-45deg, #f0f9ff, #fdf2f8, #f5f5ff, #ecfdf5, #fff5e6, #fce2e9);
-  background-size: 800% 800%;
-  animation: gradientFlow 20s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-.dark #body {
   background: linear-gradient(45deg, #1f2937, #2d3748, #4a5568, #2d3748, #1f2937);
   background-size: 800% 800%;
   animation: gradientFlow 20s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
+/* FORCED DARK MODE: Use dark gradient text shadow by default */
 .gradient-text {
   background: linear-gradient(to right, #4f46e5, #ec4899);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 1px 1px rgba(0,0,0,.25);
-}
-.dark .gradient-text {
   text-shadow: 0 1px 1px rgba(255,255,255,.2);
 }
 .font-brand {
@@ -50,7 +44,7 @@ body {
   background-color: #1d4ed8; border-color: #1d4ed8;
 }
 .fc .fc-daygrid-day.fc-day-today {
-  background-color: rgba(59, 130, 246, 0.08);
+  background-color: rgba(59, 130, 246, 0.08); /* This is fine, it's a subtle blue tint */
 }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-10px); }
@@ -66,33 +60,24 @@ body {
 .modal-content {
   animation: scaleUp 0.3s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
 }
-/* custom scrollbars */
+/* custom scrollbars - FORCED DARK MODE */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #2d3748; /* Dark track */
   border-radius: 10px;
-}
-.dark .custom-scrollbar::-webkit-scrollbar-track {
-  background: #2d3748;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #4a5568; /* Dark thumb */
   border-radius: 10px;
 }
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #4a5568;
-}
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #718096;
+  background: #718096; /* Dark thumb hover */
 }
 .hover-lift:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12); /* Shadow is fine */
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 #particle-container {
@@ -161,12 +146,13 @@ tr.fc-list-event:hover {
   cursor: pointer;
 }
 
+/* FORCED DARK MODE: FullCalendar text */
 .fc-scrollgrid-sync-inner{
-  color: black !important;
+  color: white !important;
 }
 .fc-list-day{
-  color: black !important;
+  color: white !important;
 }
-html.dark .fc-daygrid-day-number{
+.fc-daygrid-day-number{
   color: white !important;
 }
