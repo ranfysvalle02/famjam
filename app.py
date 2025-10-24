@@ -381,7 +381,6 @@ def register_child(invite_code):
 # 8. DASHBOARD & CORE VIEW ROUTES
 ################################################################################
 
-
 @app.route('/dashboard')
 @login_required
 def personal_dashboard():
@@ -433,14 +432,14 @@ def personal_dashboard():
             weekly_penalty_incurred = sum(math.floor(t.get('points', 0) * MISSED_TASK_PENALTY_FACTOR) for t in missed_this_week_tasks)
             weekly_potential_points = sum(t.get('points', 0) for t in weekly_tasks if t.get('status') not in ['missed', 'forgiven'])
 
-            # --- NEW: Fetch Today's Moods for this Child ---
+            # --- Fetch Today's Moods for this Child ---
             todays_moods = list(moods_collection.find({
                 'user_id': child_id_obj,
                 'date': start_of_today # Query using the timezone-aware start of today
             }))
             # Extract just the period names ('Morning', 'Afternoon', 'Evening')
             logged_periods = [m.get('period') for m in todays_moods if m.get('period')]
-            # --- END NEW MOOD FETCH ---
+            # --- END Mood Fetch ---
 
             # Append all data for this child
             child_dashboard_data.append({
@@ -461,9 +460,7 @@ def personal_dashboard():
                     'missed_count': weekly_missed_count,
                     'penalty_incurred': weekly_penalty_incurred
                 },
-                # --- NEW: Add the logged periods list ---
                 'today_moods_logged': logged_periods
-                # --- END NEW MOOD DATA ---
             })
 
         # Convert ObjectIds to strings for remaining processing
@@ -481,6 +478,7 @@ def personal_dashboard():
              reward_req['username'] = users_for_rewards.get(str(reward_req.get('requested_by_id')), 'Unknown')
 
         # Render the parent dashboard template
+        # *** FIX: Added MOOD_CONFIG here ***
         return render_template(
             'dashboard_parent.html',
             family_members=family_members, # Used in loops/dropdowns
@@ -490,7 +488,8 @@ def personal_dashboard():
             pending_rewards=pending_rewards,
             available_rewards=available_rewards,
             TIMEZONE=TIMEZONE_NAME,        # Pass timezone name string
-            TIMEZONE_OBJ=TIMEZONE          # Pass pytz object for filters if needed
+            TIMEZONE_OBJ=TIMEZONE,         # Pass pytz object for filters if needed
+            MOOD_CONFIG=MOOD_CONFIG        # *** ADDED THIS LINE ***
         )
 
     else: # Child Dashboard
@@ -534,6 +533,7 @@ def personal_dashboard():
         challenges = list(challenges_collection.find({'family_id': family_oid, 'status': {'$in': ['open', 'in_progress', 'completed']}}).sort('created_at', DESCENDING))
         for c in challenges: c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
 
+        # *** FIX: Added MOOD_CONFIG here ***
         return render_template(
             'dashboard_child.html',
             todays_events=todays_events,
@@ -544,7 +544,8 @@ def personal_dashboard():
             challenges=challenges,
             parent=parent,
             TIMEZONE=TIMEZONE_NAME,
-            TIMEZONE_OBJ=TIMEZONE
+            TIMEZONE_OBJ=TIMEZONE,
+            MOOD_CONFIG=MOOD_CONFIG        # *** ADDED THIS LINE ***
         )
 
 @app.route('/family-dashboard')
