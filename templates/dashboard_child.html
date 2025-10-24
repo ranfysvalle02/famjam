@@ -35,7 +35,7 @@
 
       {# Today's Progress Bar #}
       {% set total_tasks = todays_events|length %}
-      {% set completed_tasks = todays_events|selectattr('status', 'in', ['completed', 'approved'])|list|length %}
+      {% set completed_tasks = todays_events|selectattr('status', 'in', ['completed', 'approved'])|list|length + todays_events|selectattr('type', 'equalto', 'habit')|rejectattr('can_checkin')|list|length %} {# Count completed/approved chores AND checked-in habits #}
       {% set progress_percent = (completed_tasks / total_tasks * 100)|round|int if total_tasks > 0 else 100 %}
       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
         <div class="flex justify-between items-center mb-3">
@@ -46,9 +46,6 @@
           <div class="bg-green-500 h-4 rounded-full transition-all duration-500 ease-out" style="width: {{ progress_percent }}%"></div>
         </div>
       </div>
-
-      {# [REMOVED] Weekly Summary (if stats available) #}
-      {# This section was removed to reduce focus on past missed tasks and penalties. #}
 
       {# Today's Focus List #}
       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
@@ -64,15 +61,16 @@
               <div class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
               {% if event.status == 'approved' or event.status == 'completed' %} border-green-500
               {% elif event.status == 'missed' %} border-red-500
+              {% elif event.status == 'forgiven' %} border-gray-400 dark:border-gray-500
               {% else %} border-blue-500 {% endif %}">
                 <div class="flex items-start gap-4 flex-1">
                   <div class="text-purple-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg></div>
                   <div class="flex-1 min-w-0">
-                     <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'approved' or event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
+                     <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'approved' or event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
                      {% if event.description %}
-                     <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'approved' or event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
+                     <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'approved' or event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
                      {% endif %}
-                     <div class="mt-2 text-sm font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-full inline-block {% if event.status == 'approved' or event.status == 'missed' %}opacity-70{% endif %}">+{{ event.points }} pts</div>
+                     <div class="mt-2 text-sm font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-full inline-block {% if event.status == 'approved' or event.status == 'missed' or event.status == 'forgiven' %}opacity-70{% endif %}">+{{ event.points }} pts</div>
                   </div>
                 </div>
                 <div class="w-full sm:w-auto flex justify-end flex-shrink-0">
@@ -84,6 +82,8 @@
                     <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900 rounded-lg cursor-default">Approved! ✅</span>
                   {% elif event.status == 'missed' %}
                     <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-red-800 dark:text-red-300 bg-red-100 dark:bg-red-900 rounded-lg cursor-default">Missed ❌</span>
+                   {% elif event.status == 'forgiven' %}
+                    <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg cursor-default">Forgiven 😌</span>
                   {% endif %}
                 </div>
               </div>
@@ -91,16 +91,17 @@
               {% elif event.type == 'habit' %}
               <div class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
               {% if event.status == 'missed' %} border-red-500
+              {% elif event.status == 'forgiven' %} border-gray-400 dark:border-gray-500
               {% elif event.can_checkin %} border-blue-500
               {% else %} border-green-500 {% endif %}">
                 <div class="flex items-start gap-4 flex-1">
                    <div class="text-pink-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg></div>
                    <div class="flex-1 min-w-0">
-                      <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
+                      <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
                       {% if event.description %}
-                      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'missed' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
+                      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
                       {% endif %}
-                      <div class="flex items-center gap-3 mt-2 text-sm {% if event.status == 'missed' %}opacity-70{% endif %}">
+                      <div class="flex items-center gap-3 mt-2 text-sm {% if event.status == 'missed' or event.status == 'forgiven' %}opacity-70{% endif %}">
                         <span class="font-bold text-green-600 dark:text-green-300 bg-green-100 dark:bg-green-900 px-2 py-0.5 rounded-full">+{{ event.points }} pts</span>
                         <span class="font-semibold text-orange-600 dark:text-orange-300 bg-orange-100 dark:bg-orange-900 px-2 py-0.5 rounded-full flex items-center gap-1">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.934l-6.75 12.25a1 1 0 001.64.905l1.852 -1.069a1 1 0 011.23.372l3.22 4.705a1 1 0 001.64-.905l-1.852 -1.069a1 1 0 01-.001-1.422l6.75 -12.25a1 1 0 00-.385-1.45z" clip-rule="evenodd"/></svg>
@@ -112,6 +113,8 @@
                 <div class="w-full sm:w-auto flex justify-end flex-shrink-0">
                    {% if event.status == 'missed' %}
                     <span class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-red-800 dark:text-red-300 bg-red-100 dark:bg-red-900 rounded-lg cursor-default">Missed ❌</span>
+                   {% elif event.status == 'forgiven' %}
+                    <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg cursor-default">Forgiven 😌</span>
                    {% elif event.can_checkin %}
                     <a href="{{ url_for('checkin_habit', event_id=event._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition-transform transform hover:scale-105 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800">Check-in Today 👍</a>
                    {% else %}
@@ -132,11 +135,42 @@
       </div>
     </div>
 
-    {# Right Column: Reward Store, Challenges #}
+    {# Right Column: Mood Logger, Reward Store, Challenges #}
     <div class="lg:col-span-1 space-y-8">
-      
-      {# [REMOVED] Overdue Tasks Card #}
-      {# This section was removed to reduce focus on past failures. #}
+
+      {# --- NEW: Personal Mood Logger --- #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">How are you feeling today? 😊</h2>
+        <div id="mood-logger" class="space-y-4">
+          {% set periods = ['Morning', 'Afternoon', 'Evening'] %}
+          {% for period in periods %}
+          <div class="mood-period-section" data-period="{{ period }}">
+            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ period }}</h4>
+            <div class="flex justify-around items-center gap-2">
+              {% for mood in MOOD_CONFIG.moods %}
+              <button
+                class="mood-button flex-1 p-2 rounded-lg text-3xl transition-all duration-150 ease-in-out border-2 border-transparent hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                data-emoji="{{ mood.emoji }}"
+                title="{{ mood.desc }}"
+                style="--mood-color: {{ mood.color }}; background-color: var(--mood-color-light, #f3f4f6); --mood-color-light: {{ mood.color }}1A;"
+                onmouseover="this.style.backgroundColor = 'var(--mood-color, #e5e7eb)';"
+                onmouseout="if (!this.classList.contains('selected-mood')) this.style.backgroundColor = 'var(--mood-color-light, #f3f4f6)';"
+                >
+                {{ mood.emoji }}
+              </button>
+              {% endfor %}
+            </div>
+             <p class="text-xs text-center mt-2 text-gray-500 dark:text-gray-400 status-text"></p> {# Status text area #}
+          </div>
+          {% endfor %}
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">Click an emoji to log your mood for that part of the day. It saves automatically!</p>
+         <a href="{{ url_for('mood_dashboard_personal') }}" class="block text-center mt-4 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+           View Mood History &rarr;
+         </a>
+      </div>
+      {# --- END: Personal Mood Logger --- #}
+
 
       {# Reward Store Card #}
       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
@@ -233,4 +267,127 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- Mood Logger Logic ---
+    const moodLogger = document.getElementById('mood-logger');
+    const moodConfig = {{ MOOD_CONFIG.moods|tojson }}; // Get config from backend
+
+    const getTodayDateString = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const fetchTodaysMoods = async () => {
+        const todayStr = getTodayDateString();
+        const periods = ['Morning', 'Afternoon', 'Evening'];
+        for (const period of periods) {
+            try {
+                const response = await fetch(`/api/mood/personal?date=${todayStr}&period=${period}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.mood_emoji) {
+                        updateMoodUI(period, data.mood_emoji, "Logged"); // Don't show success msg on load
+                    }
+                } else {
+                    console.warn(`Could not fetch mood for ${period}: ${response.status}`);
+                }
+            } catch (error) {
+                console.error(`Error fetching mood for ${period}:`, error);
+            }
+        }
+    };
+
+     const updateMoodUI = (period, selectedEmoji, message = "Logged!", isError = false) => {
+        const periodSection = moodLogger.querySelector(`.mood-period-section[data-period="${period}"]`);
+        if (!periodSection) return;
+
+        const buttons = periodSection.querySelectorAll('.mood-button');
+        buttons.forEach(button => {
+            const emoji = button.dataset.emoji;
+            button.classList.remove('selected-mood');
+            button.style.border = '2px solid transparent';
+            button.style.backgroundColor = `var(--mood-color-light, #f3f4f6)`; // Reset background
+            if (emoji === selectedEmoji) {
+                button.classList.add('selected-mood');
+                button.style.backgroundColor = `var(--mood-color, #e5e7eb)`; // Set solid background
+                button.style.borderColor = 'var(--mood-color, #9ca3af)';
+            }
+        });
+
+        // Update status text only if a message is provided (avoid clearing on initial load)
+        const statusEl = periodSection.querySelector('.status-text');
+         if(statusEl && message) {
+            statusEl.textContent = message;
+            statusEl.className = `text-xs text-center mt-2 ${isError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`;
+            // Clear status after a few seconds unless it's an error or just "Logged" on load
+             if (!isError && message !== "Logged") {
+                setTimeout(() => { if (statusEl.textContent === message) statusEl.textContent = ''; }, 2500);
+            } else if (message === "Logged") {
+                 // Keep the "Logged" text from initial load persistent
+                 // Or clear it if you prefer: setTimeout(() => { if (statusEl.textContent === message) statusEl.textContent = ''; }, 2500);
+            }
+        }
+    };
+
+
+    const logMood = async (period, emoji) => {
+        const todayStr = getTodayDateString();
+        try {
+            const response = await fetch('/api/mood/log', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    date: todayStr,
+                    period: period,
+                    emoji: emoji,
+                    note: '' // Add note functionality later if needed
+                })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'success') {
+                    updateMoodUI(period, emoji, "Mood logged! ✅");
+                } else {
+                    throw new Error(data.message || 'Failed to log mood.');
+                }
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Error logging mood:', error);
+            updateMoodUI(period, null, `Error: ${error.message}`, true); // Show error in UI
+        }
+    };
+
+    if (moodLogger) {
+        moodLogger.addEventListener('click', (event) => {
+            const button = event.target.closest('.mood-button');
+            if (button) {
+                const periodSection = button.closest('.mood-period-section');
+                const period = periodSection.dataset.period;
+                const emoji = button.dataset.emoji;
+
+                // Visually provide instant feedback before API call
+                updateMoodUI(period, emoji, "Saving..."); // Show saving state briefly
+
+                logMood(period, emoji);
+            }
+        });
+
+        // Fetch moods when the page loads
+        fetchTodaysMoods();
+    }
+    // --- END Mood Logger Logic ---
+
+}); // End DOMContentLoaded
+</script>
 {% endblock %}

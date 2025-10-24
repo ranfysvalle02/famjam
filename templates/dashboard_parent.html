@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Tasks - FAMJAM{% endblock %}
+{% block title %}Parent Dashboard - FAMJAM{% endblock %}
 
 {% block content %}
 <div class="space-y-8">
@@ -37,7 +37,7 @@
                   Balance: ${{ "%.2f"|format(child.cash_balance|default(0.0)) }} 💰
               </p>
 
-              {# --- THIS IS THE NEW MOOD STATUS BLOCK --- #}
+              {# --- Mood Status Block for Child --- #}
               <div class="mt-3">
                 <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">Today's Mood Log</label>
                 <div class="flex items-center gap-2 mt-1.5 flex-wrap"> {# Added flex-wrap #}
@@ -59,7 +59,7 @@
                   {% endfor %}
                 </div>
               </div>
-              {# --- END NEW MOOD STATUS BLOCK --- #}
+              {# --- END Child Mood Status Block --- #}
 
             </div>
             {# Pass data attributes directly to the button #}
@@ -88,7 +88,7 @@
                 </button>
             </form>
 
-            {# Form to Reset Points -- NEWLY ADDED #}
+            {# Form to Reset Points #}
             <form action="{{ url_for('reset_child_points', child_id=child._id) }}" method="POST" class="flex items-end"
                   onsubmit="return confirm('Are you sure you want to reset {{ child.username }}\'s current points to 0? This cannot be undone.');">
                 <div>
@@ -100,7 +100,6 @@
                 </div>
             </form>
 
-            {# --- THIS IS THE NEW FORM --- #}
             {# Form to Forgive Missed Tasks #}
             <form action="{{ url_for('forgive_child_missed_tasks', child_id=child._id) }}" method="POST" class="flex items-end"
                   onsubmit="return confirm('Are you sure you want to forgive all of {{ child.username }}\'s missed tasks? This clears their penalty count but does NOT restore points.');">
@@ -169,8 +168,42 @@
       {% endif %}
     </div>
 
-    {# Right Column: Quick Add, Approvals, Rewards #}
+    {# Right Column: Mood Logger, Quick Add, Approvals, Rewards #}
     <div class="lg:col-span-1 space-y-8">
+
+      {# --- NEW: Personal Mood Logger --- #}
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">How are you feeling today? 😊</h2>
+        <div id="mood-logger" class="space-y-4">
+          {% set periods = ['Morning', 'Afternoon', 'Evening'] %}
+          {% for period in periods %}
+          <div class="mood-period-section" data-period="{{ period }}">
+            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ period }}</h4>
+            <div class="flex justify-around items-center gap-2">
+              {% for mood in MOOD_CONFIG.moods %}
+              <button
+                class="mood-button flex-1 p-2 rounded-lg text-3xl transition-all duration-150 ease-in-out border-2 border-transparent hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800"
+                data-emoji="{{ mood.emoji }}"
+                title="{{ mood.desc }}"
+                style="--mood-color: {{ mood.color }}; background-color: var(--mood-color-light, #f3f4f6); --mood-color-light: {{ mood.color }}1A;"
+                onmouseover="this.style.backgroundColor = 'var(--mood-color, #e5e7eb)';"
+                onmouseout="if (!this.classList.contains('selected-mood')) this.style.backgroundColor = 'var(--mood-color-light, #f3f4f6)';"
+                >
+                {{ mood.emoji }}
+              </button>
+              {% endfor %}
+            </div>
+            <p class="text-xs text-center mt-2 text-gray-500 dark:text-gray-400 status-text"></p> {# Status text area #}
+          </div>
+          {% endfor %}
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">Click an emoji to log your mood for that part of the day. It saves automatically!</p>
+        <a href="{{ url_for('mood_dashboard_personal') }}" class="block text-center mt-4 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+          View Mood History &rarr;
+        </a>
+      </div>
+      {# --- END: Personal Mood Logger --- #}
+
       {# Quick Add Task Form #}
       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
         <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Assign a New Task</h2>
@@ -409,17 +442,136 @@
 <script>
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- NEW: Child Day View Modal Logic ---
+    // --- Mood Logger Logic ---
+    const moodLogger = document.getElementById('mood-logger');
+    const moodConfig = {{ MOOD_CONFIG.moods|tojson }}; // Get config from backend
+
+    const getTodayDateString = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const fetchTodaysMoods = async () => {
+        const todayStr = getTodayDateString();
+        const periods = ['Morning', 'Afternoon', 'Evening'];
+        for (const period of periods) {
+            try {
+                const response = await fetch(`/api/mood/personal?date=${todayStr}&period=${period}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.mood_emoji) {
+                        updateMoodUI(period, data.mood_emoji);
+                    }
+                } else {
+                    console.warn(`Could not fetch mood for ${period}: ${response.status}`);
+                }
+            } catch (error) {
+                console.error(`Error fetching mood for ${period}:`, error);
+            }
+        }
+    };
+
+    const updateMoodUI = (period, selectedEmoji, message = "Logged!", isError = false) => {
+        const periodSection = moodLogger.querySelector(`.mood-period-section[data-period="${period}"]`);
+        if (!periodSection) return;
+
+        const buttons = periodSection.querySelectorAll('.mood-button');
+        buttons.forEach(button => {
+            const emoji = button.dataset.emoji;
+            button.classList.remove('selected-mood');
+            button.style.border = '2px solid transparent';
+            button.style.backgroundColor = `var(--mood-color-light, #f3f4f6)`; // Reset background
+            if (emoji === selectedEmoji) {
+                button.classList.add('selected-mood');
+                button.style.backgroundColor = `var(--mood-color, #e5e7eb)`; // Set solid background
+                button.style.borderColor = 'var(--mood-color, #9ca3af)';
+            }
+        });
+
+        // Update status text
+        const statusEl = periodSection.querySelector('.status-text');
+        if(statusEl) {
+            statusEl.textContent = message;
+            statusEl.className = `text-xs text-center mt-2 ${isError ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`;
+            // Clear status after a few seconds unless it's an error
+            if (!isError) {
+                setTimeout(() => { if (statusEl.textContent === message) statusEl.textContent = ''; }, 2500);
+            }
+        }
+    };
+
+
+    const logMood = async (period, emoji) => {
+        const todayStr = getTodayDateString();
+        try {
+            const response = await fetch('/api/mood/log', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    date: todayStr,
+                    period: period,
+                    emoji: emoji,
+                    note: '' // Add note functionality later if needed
+                })
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.status === 'success') {
+                    updateMoodUI(period, emoji, "Mood logged! ✅");
+                    // --- If this is the parent dash, update the child's mood status dynamically ---
+                    // Note: This requires the child elements to have IDs or classes to target.
+                    // This is more complex and might be better handled by a full page reload or
+                    // a more sophisticated state management approach if instant updates are crucial.
+                    // For now, it updates the parent's *personal* log instantly.
+                    // ---
+                } else {
+                    throw new Error(data.message || 'Failed to log mood.');
+                }
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Server error: ${response.status}`);
+            }
+        } catch (error) {
+            console.error('Error logging mood:', error);
+            updateMoodUI(period, null, `Error: ${error.message}`, true); // Show error in UI
+        }
+    };
+
+    if (moodLogger) {
+        moodLogger.addEventListener('click', (event) => {
+            const button = event.target.closest('.mood-button');
+            if (button) {
+                const periodSection = button.closest('.mood-period-section');
+                const period = periodSection.dataset.period;
+                const emoji = button.dataset.emoji;
+
+                // Visually provide instant feedback before API call
+                updateMoodUI(period, emoji, "Saving..."); // Show saving state briefly
+
+                logMood(period, emoji);
+            }
+        });
+
+        // Fetch moods when the page loads
+        fetchTodaysMoods();
+    }
+    // --- END Mood Logger Logic ---
+
+
+    // --- Child Day View Modal Logic ---
     window.openChildDayView = async (childId, childName) => {
         const modal = document.getElementById('child-day-modal');
         const titleEl = document.getElementById('child-day-modal-title');
         const contentEl = document.getElementById('child-day-modal-content');
-        
+
         if (!modal || !titleEl || !contentEl) {
             console.error("Child day view modal elements not found.");
             return;
         }
-        
+
         // Set loading state and open modal
         titleEl.textContent = `${childName}'s Tasks for Today`;
         contentEl.innerHTML = `
@@ -436,10 +588,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(errorData.error || `Failed to load tasks (Status: ${response.status})`);
             }
             const data = await response.json();
-            
+
             // Build the HTML to render
             let html = '';
-            
+
             // 1. Overdue Events
             if (data.overdue_events && data.overdue_events.length > 0) {
                 html += '<h4 class="text-lg font-bold text-red-600 dark:text-red-400 mb-2">Overdue Tasks</h4>';
@@ -460,7 +612,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 html += '</div>';
             }
-            
+
             // 2. Today's Events
             html += '<h4 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">Today\'s Tasks</h4>';
             if (data.todays_events && data.todays_events.length > 0) {
@@ -468,11 +620,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.todays_events.forEach(task => {
                     let statusHtml = '';
                     let bgColor = 'bg-gray-50 dark:bg-gray-700/50'; // Default
-                    
+
                     switch(task.status) {
                         case 'assigned':
                             if(task.type === 'habit') {
-                                statusHtml = task.can_checkin ? 
+                                statusHtml = task.can_checkin ?
                                     '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">Pending Check-in</span>' :
                                     '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Done Today</span>';
                                 bgColor = task.can_checkin ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-green-50 dark:bg-green-900/30';
@@ -518,7 +670,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                  html += '<p class="text-center py-8 text-gray-500 dark:text-gray-400">No tasks scheduled for today.</p>';
             }
-            
+
             contentEl.innerHTML = html;
 
         } catch (error) {
@@ -664,7 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      setSuggestRewardsModalState('start'); // Show the container with the error + retry elements
                  } else {
                       // Fallback if modal structure is broken
-                      closeModal('suggest-rewards-modal'); 
+                      closeModal('suggest-rewards-modal');
                  }
             }
         };
@@ -742,4 +894,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 {% endblock %}
-
