@@ -6,7 +6,7 @@
 <div class="space-y-8">
 
   {# Welcome Banner & Points #}
-  <div class="relative bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-8 text-white overflow-hidden" style="min-height: 15rem;">
+  <section role="banner" class="relative bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-xl p-8 text-white overflow-hidden" style="min-height: 15rem;">
     <div class="relative z-10">
       <h1 class="text-4xl font-bold">Welcome, {{ current_user.username }}! 👋</h1>
       <p class="mt-2 text-lg text-blue-100 dark:text-blue-200">Here's what's on your plate for today.</p>
@@ -24,49 +24,51 @@
       </div>
   </div>
     {# Decorative elements #}
-    <div class="absolute -bottom-12 -right-12 w-48 h-48 bg-white/10 rounded-full opacity-50"></div>
-    <div class="absolute -bottom-4 -left-16 w-32 h-32 bg-white/10 rounded-full opacity-50"></div>
-  </div>
+    <div class="absolute -bottom-12 -right-12 w-48 h-48 bg-white/10 rounded-full opacity-50" aria-hidden="true"></div>
+    <div class="absolute -bottom-4 -left-16 w-32 h-32 bg-white/10 rounded-full opacity-50" aria-hidden="true"></div>
+  </section>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
     {# Left/Main Column: Progress, Today's Focus #}
-    <div class="lg:col-span-2 space-y-8">
+    <main class="lg:col-span-2 space-y-8">
 
       {# Today's Progress Bar #}
       {% set total_tasks = todays_events|length %}
-      {% set completed_tasks = todays_events|selectattr('status', 'in', ['completed', 'approved'])|list|length + todays_events|selectattr('type', 'equalto', 'habit')|rejectattr('can_checkin')|list|length %} {# Count completed/approved chores AND checked-in habits #}
+      {% set completed_tasks = todays_events|selectattr('status', 'in', ['completed', 'approved'])|list|length + todays_events|selectattr('type', 'equalto', 'habit')|rejectattr('can_checkin')|list|length %}
       {% set progress_percent = (completed_tasks / total_tasks * 100)|round|int if total_tasks > 0 else 100 %}
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+      <section role="region" aria-labelledby="progress-heading" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
         <div class="flex justify-between items-center mb-3">
-             <h3 class="font-bold text-xl text-gray-900 dark:text-gray-100">Today's Progress</h3>
+             <h3 id="progress-heading" class="font-bold text-xl text-gray-900 dark:text-gray-100">Today's Progress</h3>
              <span class="font-semibold text-gray-700 dark:text-gray-200">{{ completed_tasks }}/{{ total_tasks }} Done</span>
         </div>
-        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700 overflow-hidden">
+        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700 overflow-hidden"
+             role="progressbar" aria-valuenow="{{ progress_percent }}" aria-valuemin="0" aria-valuemax="100" aria-labelledby="progress-heading">
           <div class="bg-green-500 h-4 rounded-full transition-all duration-500 ease-out" style="width: {{ progress_percent }}%"></div>
         </div>
-      </div>
+      </section>
 
       {# Today's Focus List #}
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3 text-gray-900 dark:text-gray-100">
+      <section role="region" aria-labelledby="focus-heading" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h2 id="focus-heading" class="text-2xl font-bold mb-6 flex items-center gap-3 text-gray-900 dark:text-gray-100">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-green-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" /></svg>
           Today's Focus
         </h2>
         <div class="space-y-4">
           {% if todays_events %}
+            <ul class="space-y-4">
             {% for event in todays_events %}
               {# Chore Card #}
               {% if event.type == 'chore' %}
-              <div class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
+              <li class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
               {% if event.status == 'approved' or event.status == 'completed' %} border-green-500
               {% elif event.status == 'missed' %} border-red-500
               {% elif event.status == 'forgiven' %} border-gray-400 dark:border-gray-500
               {% else %} border-blue-500 {% endif %}">
                 <div class="flex items-start gap-4 flex-1">
-                  <div class="text-purple-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg></div>
+                  <div class="text-purple-500 mt-1 flex-shrink-0" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg></div>
                   <div class="flex-1 min-w-0">
-                     <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'approved' or event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
+                     <h3 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'approved' or event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.name }}</h3>
                      {% if event.description %}
                      <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'approved' or event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
                      {% endif %}
@@ -75,7 +77,7 @@
                 </div>
                 <div class="w-full sm:w-auto flex justify-end flex-shrink-0">
                   {% if event.status == 'assigned' %}
-                    <a href="{{ url_for('complete_event', event_id=event._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-transform transform hover:scale-105 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800">Mark as Done</a>
+                    <a href="{{ url_for('complete_event', event_id=event._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800">Mark as Done</a>
                   {% elif event.status == 'completed' %}
                     <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-indigo-800 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900 rounded-lg cursor-default">Awaiting Approval</span>
                   {% elif event.status == 'approved' %}
@@ -86,18 +88,18 @@
                     <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg cursor-default">Forgiven 😌</span>
                   {% endif %}
                 </div>
-              </div>
+              </li>
               {# Habit Card #}
               {% elif event.type == 'habit' %}
-              <div class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
+              <li class="p-4 bg-gray-50 dark:bg-gray-700/50 border-l-4 rounded-r-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4
               {% if event.status == 'missed' %} border-red-500
               {% elif event.status == 'forgiven' %} border-gray-400 dark:border-gray-500
               {% elif event.can_checkin %} border-blue-500
               {% else %} border-green-500 {% endif %}">
                 <div class="flex items-start gap-4 flex-1">
-                   <div class="text-pink-500 mt-1 flex-shrink-0"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg></div>
+                   <div class="text-pink-500 mt-1 flex-shrink-0" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd" /></svg></div>
                    <div class="flex-1 min-w-0">
-                      <h4 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.name }}</h4>
+                      <h3 class="font-bold text-lg text-gray-800 dark:text-gray-100 break-words {% if event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.name }}</h3>
                       {% if event.description %}
                       <p class="text-sm text-gray-600 dark:text-gray-300 mt-1 break-words {% if event.status == 'missed' or event.status == 'forgiven' %}line-through opacity-70{% endif %}">{{ event.description }}</p>
                       {% endif %}
@@ -116,14 +118,15 @@
                    {% elif event.status == 'forgiven' %}
                     <span class="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg cursor-default">Forgiven 😌</span>
                    {% elif event.can_checkin %}
-                    <a href="{{ url_for('checkin_habit', event_id=event._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition-transform transform hover:scale-105 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800">Check-in Today 👍</a>
+                    <a href="{{ url_for('checkin_habit', event_id=event._id) }}" class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 dark:focus:ring-offset-gray-800">Check-in Today 👍</a>
                    {% else %}
                     <span class="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 rounded-lg cursor-default">Done for Today! 🎉</span>
                    {% endif %}
                 </div>
-              </div>
+              </li>
               {% endif %}
             {% endfor %}
+            </ul>
           {% else %}
             <div class="text-center py-12 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-200 dark:border-gray-600">
                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"> <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /> </svg>
@@ -132,15 +135,15 @@
             </div>
           {% endif %}
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
 
     {# Right Column: Mood Logger, Reward Store, Challenges #}
-    <div class="lg:col-span-1 space-y-8">
+    <aside class="lg:col-span-1 space-y-8" role="complementary">
 
       {# --- NEW: Personal Mood Logger --- #}
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-        <h2 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">How are you feeling today? 😊</h2>
+      <section role="region" aria-labelledby="mood-heading" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h3 id="mood-heading" class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">How are you feeling today? 😊</h3>
         <div id="mood-logger" class="space-y-4">
           {% set periods = ['Morning', 'Afternoon', 'Evening'] %}
           {% for period in periods %}
@@ -160,25 +163,34 @@
               </button>
               {% endfor %}
             </div>
+            {# --- NEW: OPTIONAL NOTE --- #}
+            <div class="mt-2.5">
+              <label for="mood-note-{{ period }}" class="sr-only">Optional note for {{ period }}</label>
+              <input type="text" id="mood-note-{{ period }}" name="mood-note-{{ period }}"
+                     placeholder="Add a quick note... (optional)"
+                     class="mood-note-input w-full text-sm px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 transition"
+                     data-period="{{ period }}">
+            </div>
              <p class="text-xs text-center mt-2 text-gray-500 dark:text-gray-400 status-text"></p> {# Status text area #}
           </div>
           {% endfor %}
         </div>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">Click an emoji to log your mood for that part of the day. It saves automatically!</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-4">Click an emoji to log your mood. You can also add an optional note.</p>
          <a href="{{ url_for('mood_dashboard_personal') }}" class="block text-center mt-4 text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
            View Mood History &rarr;
          </a>
-      </div>
+      </section>
       {# --- END: Personal Mood Logger --- #}
 
 
       {# Reward Store Card #}
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-        <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Reward Store 🎁</h3>
-        <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+      <section role="region" aria-labelledby="store-heading" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+        <h3 id="store-heading" class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Reward Store 🎁</h3>
+        <div class="max-h-96 overflow-y-auto custom-scrollbar pr-2">
           {% if available_rewards %}
+            <ul class="space-y-3">
             {% for reward in available_rewards|sort(attribute='cost') %} {# Sort by cost #}
-              <div class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <li class="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <div class="flex flex-col sm:flex-row justify-between items-start gap-2">
                   <div class="flex-grow">
                     <p class="font-semibold text-gray-800 dark:text-gray-100">{{ reward.name }}</p>
@@ -193,8 +205,9 @@
                     </button>
                   </form>
                 </div>
-              </div>
+              </li>
             {% endfor %}
+            </ul>
           {% else %}
             <p class="text-sm text-center py-4 text-gray-500 dark:text-gray-300">Your parents haven't added any rewards yet.</p>
           {% endif %}
@@ -202,10 +215,11 @@
         {# Reward History Section #}
         <hr class="my-6 border-gray-200 dark:border-gray-700">
         <h4 class="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">My Reward History</h4>
-        <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2">
+        <div class="max-h-60 overflow-y-auto custom-scrollbar pr-2">
           {% if rewards %}
+            <ul class="space-y-3">
             {% for reward in rewards|sort(attribute='_id', reverse=true) %} {# Show newest first #}
-            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <li class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div>
                 <p class="text-sm font-semibold pr-2 text-gray-800 dark:text-gray-100">{{ reward.reward_name }} ({{ reward.cost }} pts)</p>
                 {% if reward.resolved_at_pretty %}<p class="text-xs text-gray-500 dark:text-gray-400">Resolved {{ reward.resolved_at_pretty }}</p>{% endif %}
@@ -215,21 +229,23 @@
               {% if reward.status == 'approved' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300{% endif %}
               {% if reward.status == 'denied' %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300{% endif %}">
               {{ reward.status|capitalize }}</span>
-            </div>
+            </li>
             {% endfor %}
+            </ul>
           {% else %}
             <p class="text-sm text-center py-4 text-gray-500 dark:text-gray-300">No reward history yet.</p>
           {% endif %}
         </div>
-      </div>
+      </section>
 
       {# Family Challenges Card #}
-       <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
-         <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Family Challenges 🏆</h3>
-         <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+       <section role="region" aria-labelledby="challenges-heading" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl">
+         <h3 id="challenges-heading" class="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Family Challenges 🏆</h3>
+         <div class="max-h-96 overflow-y-auto custom-scrollbar pr-2">
            {% if challenges %}
+             <ul class="space-y-3">
              {% for c in challenges %}
-             <div class="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
+             <li class="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg">
                <div class="flex flex-col sm:flex-row justify-between items-start gap-2">
                  <div>
                    <p class="font-semibold text-gray-800 dark:text-gray-100">{{ c.title }}</p>
@@ -256,32 +272,39 @@
                        {% if c.status == 'completed' and c.completed_at_pretty %} &middot; Completed {{ c.completed_at_pretty }} {% endif %}
                    {% endif %}
                </p>
-             </div>
+             </li>
              {% endfor %}
+             </ul>
            {% else %}
              <p class="text-center text-gray-500 dark:text-gray-300 py-6">No active challenges right now.</p>
            {% endif %}
          </div>
-       </div>
+       </section>
 
-    </div>
+    </aside>
   </div>
 
   {# Family Timers #}
-  <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover-lift">
-    <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">Family Timers ⏳</h3>
+  <section role="region" aria-labelledby="timers-heading" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl hover:shadow-lg transition-shadow">
+    <h2 id="timers-heading" class="text-2xl font-bold mb-4 text-gray-900 dark:text-gray-100">Family Timers ⏳</h2>
     <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
       Everyone can create a timer to count down to a special day or event.
     </p>
     {# Add Timer Form #}
     <form method="POST" action="{{ url_for('create_timer') }}" class="flex flex-col md:flex-row gap-3 mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
-      <input type="text" name="name" placeholder="Timer Name (e.g. 'Vacation Day!')"
-             class="flex-grow px-4 py-2 bg-white dark:bg-gray-700 dark:text-gray-100
-                    border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required>
-      <input type="date" name="end_date"
-             class="px-4 py-2 bg-white dark:bg-gray-700 dark:text-gray-100
-                    border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required
-             min="{{ now.strftime('%Y-%m-%d') }}"> {# Prevent selecting past dates #}
+      <div class="flex-grow">
+        <label for="timer-name" class="sr-only">Timer Name</label>
+        <input type="text" name="name" id="timer-name" placeholder="Timer Name (e.g. 'Vacation Day!')"
+               class="w-full px-4 py-2 bg-white dark:bg-gray-700 dark:text-gray-100
+                      border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required>
+      </div>
+      <div>
+        <label for="timer-end-date" class="sr-only">End Date</label>
+        <input type="date" name="end_date" id="timer-end-date"
+               class="w-full px-4 py-2 bg-white dark:bg-gray-700 dark:text-gray-100
+                      border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition" required
+               min="{{ now.strftime('%Y-%m-%d') }}"> {# Prevent selecting past dates #}
+      </div>
       <button type="submit"
               class="px-5 py-2.5 text-white bg-blue-600 hover:bg-blue-700 rounded-lg
                      transition font-semibold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 flex-shrink-0">
@@ -289,10 +312,11 @@
       </button>
     </form>
     {# List of Timers #}
-    <div class="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-2">
+    <div class="max-h-72 overflow-y-auto custom-scrollbar pr-2">
       {% if timers %}
+        <ul class="space-y-3">
         {% for timer in timers|sort(attribute='end_datetime') %} {# Sort by end date #}
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50
+        <li class="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50
                      border border-gray-200 dark:border-gray-600 rounded-lg
                      hover:shadow-md transition-shadow gap-2">
           <div>
@@ -316,15 +340,16 @@
                  </a>
              {% endif %}
           </div>
-        </div>
+        </li>
         {% endfor %}
+        </ul>
       {% else %}
         <p class="text-center py-6 text-gray-500 dark:text-gray-300">
           No timers have been created yet. Add one above!
         </p>
       {% endif %}
     </div>
-  </div>
+  </section>
 
 </div>
 {% endblock %}
@@ -355,6 +380,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const data = await response.json();
                     if (data && data.mood_emoji) {
                         updateMoodUI(period, data.mood_emoji, "Logged"); // Don't show success msg on load
+                        // NEW: Populate note
+                        const noteInput = moodLogger.querySelector(`#mood-note-${period}`);
+                        if (noteInput && data.note) {
+                            noteInput.value = data.note;
+                        }
                     }
                 } else {
                     console.warn(`Could not fetch mood for ${period}: ${response.status}`);
@@ -390,16 +420,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear status after a few seconds unless it's an error or just "Logged" on load
              if (!isError && message !== "Logged") {
                 setTimeout(() => { if (statusEl.textContent === message) statusEl.textContent = ''; }, 2500);
-            } else if (message === "Logged") {
-                 // Keep the "Logged" text from initial load persistent
-                 // Or clear it if you prefer: setTimeout(() => { if (statusEl.textContent === message) statusEl.textContent = ''; }, 2500);
             }
         }
     };
 
 
-    const logMood = async (period, emoji) => {
+    // MODIFIED: Added note and successMessage parameters
+    const logMood = async (period, emoji, note = null, successMessage = "Mood logged! ✅") => {
         const todayStr = getTodayDateString();
+        
+        // If note isn't passed directly (from blur event), get it from the input
+        const noteToSave = note !== null ? note : (moodLogger.querySelector(`#mood-note-${period}`)?.value || '');
+
         try {
             const response = await fetch('/api/mood/log', {
                 method: 'POST',
@@ -408,13 +440,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     date: todayStr,
                     period: period,
                     emoji: emoji,
-                    note: '' // Add note functionality later if needed
+                    note: noteToSave // Use the resolved note
                 })
             });
             if (response.ok) {
                 const data = await response.json();
                 if (data.status === 'success') {
-                    updateMoodUI(period, emoji, "Mood logged! ✅");
+                    updateMoodUI(period, emoji, successMessage); // Use the custom success message
                 } else {
                     throw new Error(data.message || 'Failed to log mood.');
                 }
@@ -429,19 +461,48 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (moodLogger) {
+        // Emoji click listener
         moodLogger.addEventListener('click', (event) => {
             const button = event.target.closest('.mood-button');
             if (button) {
                 const periodSection = button.closest('.mood-period-section');
                 const period = periodSection.dataset.period;
                 const emoji = button.dataset.emoji;
+                
+                // Get note from input when emoji is clicked
+                const note = periodSection.querySelector('.mood-note-input')?.value || '';
 
                 // Visually provide instant feedback before API call
                 updateMoodUI(period, emoji, "Saving..."); // Show saving state briefly
 
-                logMood(period, emoji);
+                logMood(period, emoji, note, "Mood logged! ✅"); // Pass the note
             }
         });
+
+        // NEW: Note input blur listener
+        moodLogger.addEventListener('blur', (event) => {
+            const input = event.target.closest('.mood-note-input');
+            if (input) {
+                const period = input.dataset.period;
+                const periodSection = input.closest('.mood-period-section');
+                const selectedButton = periodSection.querySelector('.mood-button.selected-mood');
+                
+                // Only save the note if an emoji is *already* selected
+                if (selectedButton) {
+                    const emoji = selectedButton.dataset.emoji;
+                    const note = input.value;
+                    
+                    const statusEl = periodSection.querySelector('.status-text');
+                    if(statusEl) {
+                        statusEl.textContent = "Saving note...";
+                        statusEl.className = 'text-xs text-center mt-2 text-gray-500 dark:text-gray-400'; // Neutral saving text
+                    }
+                    
+                    // Call logMood with the note and a specific success message
+                    logMood(period, emoji, note, "Note saved! ✅"); 
+                }
+            }
+        }, true); // Use capture phase
 
         // Fetch moods when the page loads
         fetchTodaysMoods();
