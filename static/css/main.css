@@ -1,66 +1,34 @@
-/* Animated gradient background */
-@keyframes gradientFlow {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
+/* --- 1. Base Styles & Typography --- */
+
 body {
   font-family: 'Inter', sans-serif;
   min-height: 100vh;
   transition: background-color 0.3s, color 0.3s;
-}
-/* FORCED DARK MODE: Use dark gradient by default */
-#body {
+  
+  /* * Default dark gradient background.
+   * This was the fix: applied to `body` tag, not #body ID.
+  */
   background: linear-gradient(45deg, #1f2937, #2d3748, #4a5568, #2d3748, #1f2937);
   background-size: 800% 800%;
   animation: gradientFlow 20s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
-/* FORCED DARK MODE: Use dark gradient text shadow by default */
-.gradient-text {
-  background: linear-gradient(to right, #4f46e5, #ec4899);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 1px 1px rgba(255,255,255,.2);
-}
+
 .font-brand {
   font-family: "Bitcount Single Ink", system-ui;
   font-weight: 800;
   font-style: normal;
 }
-/* Logo pulse/flow animation */
-@keyframes logoFlow {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); }
+
+/* Styles for rendered prose (e.g., Markdown) */
+.prose-styles h1, 
+.prose-styles h2, 
+.prose-styles p, 
+.prose-styles ul, 
+.prose-styles strong {
+  color: inherit; /* Ensures text color matches dark mode */
 }
-#logo-animated {
-  animation: logoFlow 3s infinite;
-}
-/* FullCalendar buttons */
-.fc .fc-button-primary {
-  background-color: #2563eb; border-color: #2563eb; transition: background-color 0.2s;
-}
-.fc .fc-button-primary:hover {
-  background-color: #1d4ed8; border-color: #1d4ed8;
-}
-.fc .fc-daygrid-day.fc-day-today {
-  background-color: rgba(59, 130, 246, 0.08); /* This is fine, it's a subtle blue tint */
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.fade-in {
-  animation: fadeIn 0.5s ease-in-out forwards;
-}
-@keyframes scaleUp {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-.modal-content {
-  animation: scaleUp 0.3s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
-}
-/* custom scrollbars - FORCED DARK MODE */
+
+/* Custom dark-themed scrollbars */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -75,84 +43,179 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #718096; /* Dark thumb hover */
 }
+
+
+/* --- 2. Keyframe Animations --- */
+
+/* Used by <body> for the background */
+@keyframes gradientFlow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Used by #logo-animated */
+@keyframes logoFlow {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* Used by .fade-in utility */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Used by .modal-content */
+@keyframes scaleUp {
+  from { transform: scale(0.95); opacity: 0; }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Used by .particle */
+@keyframes floatUp {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-200vh); }
+}
+
+/* Used by .fab-flow utility */
+@keyframes fabFlow {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+  70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+
+/* Used by .side-modal .modal-content-item */
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* --- 3. Utility & Animation Classes --- */
+
+/* Applies the gradient clip effect to text */
+.gradient-text {
+  background: linear-gradient(to right, #4f46e5, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 1px 1px rgba(255,255,255,.2);
+}
+
+/* Simple fade-in for page content */
+.fade-in {
+  animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+/* A simple hover effect to lift elements */
 .hover-lift:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12); /* Shadow is fine */
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
+
+/* Applies the pulsing shadow to Floating Action Buttons */
+.fab-flow {
+  animation: fabFlow 2s infinite;
+}
+
+/* Applies selection style to mood grid cells */
+.mood-grid-cell {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.mood-grid-cell.selected {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px #3b82f6;
+  z-index: 10;
+}
+
+
+/* --- 4. Layout & Main Components --- */
+
+/* Animated Logo */
+#logo-animated {
+  animation: logoFlow 3s infinite;
+}
+
+/* Particle Background Container */
 #particle-container {
   position: fixed;
   top: 0; left: 0;
   width: 100%; height: 100%;
   pointer-events: none;
   overflow: hidden;
-  z-index: -1;
+  z-index: -1; /* Sits behind all content */
 }
+
 .particle {
   position: absolute;
   border-radius: 50%;
   animation: floatUp 25s linear infinite;
 }
-@keyframes floatUp {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-200vh); }
+
+/* Modal Styles */
+.modal-content {
+  animation: scaleUp 0.3s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
 }
-.mood-grid-cell {
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.mood-grid-cell.selected {
-  transform: scale(1.1);
-  box-shadow: 0 0 0 3px #3b82f6;
-  z-index: 10;
-}
-.prose-styles h1, .prose-styles h2, .prose-styles p, .prose-styles ul, .prose-styles strong {
-  color: inherit;
-}
-@keyframes fabFlow {
-  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
-  70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
-}
-.fab-flow {
-  animation: fabFlow 2s infinite;
-}
-@keyframes slideInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.side-modal.is-open .modal-content-item {
-  animation: slideInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
-}
+
+/* Side Modal (Panel) Transitions */
 .side-modal [data-modal-overlay] {
   opacity: 0;
   transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .side-modal.is-open [data-modal-overlay] {
   opacity: 1;
 }
+
 .side-modal [data-modal-panel] {
+  /* Defines the 'out' state. 'is-open' class will override transform. */
   transition: transform 0.6s cubic-bezier(0.68, -0.6, 0.32, 1.6);
 }
+
 .side-modal.is-open [data-modal-panel] {
   transform: translateX(0) !important;
 }
 
-tr.fc-list-event:hover {
-  background-color: transparent !important; /* Removes any background color change */
+/* Staggered animation for items inside an opened side modal */
+.side-modal.is-open .modal-content-item {
+  animation: slideInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
 }
-/* Add this new, correct rule in its place */
+
+
+/* --- 5. Component Overrides (FullCalendar) --- */
+
+/* Button styling */
+.fc .fc-button-primary {
+  background-color: #2563eb; 
+  border-color: #2563eb; 
+  transition: background-color 0.2s;
+}
+
+.fc .fc-button-primary:hover {
+  background-color: #1d4ed8; 
+  border-color: #1d4ed8;
+}
+
+/* 'Today' cell highlight */
+.fc .fc-daygrid-day.fc-day-today {
+  background-color: rgba(59, 130, 246, 0.08); /* Subtle blue tint */
+}
+
+/* List View: Remove default hover background */
+tr.fc-list-event:hover {
+  background-color: transparent !important;
+}
+
 .fc .fc-list-event:hover td {
   background-color: transparent !important;
   cursor: pointer;
 }
 
-/* FORCED DARK MODE: FullCalendar text */
-.fc-scrollgrid-sync-inner{
-  color: white !important;
-}
-.fc-list-day{
-  color: white !important;
-}
-.fc-daygrid-day-number{
-  color: white !important;
-}
+/* Dark Mode: Force text color for calendar elements */
+.fc-scrollgrid-sync-inner,
+.fc-list-day,
+.fc-daygrid-day-number {
+  color: white !importa```
