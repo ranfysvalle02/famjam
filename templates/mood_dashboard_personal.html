@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
          const ctx = chartCanvas.getContext('2d');
 
          try {
-             const response = await fetch('/api/mood/personal/history'); // Endpoint for chart data
+             const response = await fetch('/api/mood/personal'); // Endpoint for chart data
              if (!response.ok) throw new Error('Failed to fetch mood history');
              const data = await response.json();
 

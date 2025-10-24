@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const distCtx = familyDistChartCanvas.getContext('2d');
 
             try {
-                const response = await fetch('/api/mood/family/history'); // Ensure this endpoint exists
+                const response = await fetch('/api/mood/family'); // Ensure this endpoint exists
                 if (!response.ok) throw new Error('Failed to fetch family mood data');
                 const data = await response.json();
 
