@@ -104,17 +104,30 @@ document.addEventListener('DOMContentLoaded', () => {
             moodGrid.innerHTML = ''; // Clear previous grid
             const chosenDate = moodDateInput.value;
 
+            // --- ADD THIS CHECK ---
+            const todayStr = formatDate(new Date());
+            const isReadOnly = (chosenDate !== todayStr);
+            // --- END ADDED CHECK ---
+
             PERIODS.forEach(period => {
                 const cell = document.createElement('div');
-                cell.className = 'mood-grid-cell p-4 bg-gray-50 dark:bg-gray-700/60 rounded-lg hover:shadow-lg transition-shadow duration-200'; // Added transition
+                // --- UPDATE THIS LINE ---
+                cell.className = `mood-grid-cell p-4 bg-gray-50 dark:bg-gray-700/60 rounded-lg transition-shadow duration-200 ${isReadOnly ? 'opacity-70' : 'hover:shadow-lg'}`;
+                // --- END UPDATE ---
                 cell.dataset.period = period;
+                
+                // --- UPDATE THIS ENTIRE HTML BLOCK ---
                 cell.innerHTML = `
                     <h4 class="font-bold text-lg text-center text-gray-800 dark:text-gray-100 mb-4">${period}</h4>
-                    <div class="mood-selector grid grid-cols-4 gap-2">
-                        ${MOOD_CONFIG.map(m => `<button data-emoji="${m.emoji}" title="${m.desc}" class="text-3xl p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400">${m.emoji}</button>`).join('')}
+                    <div class="mood-selector grid grid-cols-4 gap-2 ${isReadOnly ? 'pointer-events-none' : ''}">
+                        ${MOOD_CONFIG.map(m => `<button data-emoji="${m.emoji}" title="${m.desc}" class="text-3xl p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400" ${isReadOnly ? 'disabled' : ''}>${m.emoji}</button>`).join('')}
                     </div>
-                    <textarea class="mt-4 w-full p-2 bg-white dark:bg-gray-600 rounded-md border border-gray-300 dark:border-gray-500 text-sm focus:ring-blue-500 focus:border-blue-500 transition" rows="2" placeholder="Add a note (optional)..."></textarea>
-                    <button class="save-mood-btn mt-3 w-full py-2 px-4 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800">Save Mood</button>`;
+                    <textarea class="mt-4 w-full p-2 bg-white dark:bg-gray-600 rounded-md border border-gray-300 dark:border-gray-500 text-sm focus:ring-blue-500 focus:border-blue-500 transition" rows="2" placeholder="Add a note (optional)..." ${isReadOnly ? 'disabled' : ''}></textarea>
+                    <button class="save-mood-btn mt-3 w-full py-2 px-4 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 ${isReadOnly ? 'hidden' : ''}">Save Mood</button>
+                    ${isReadOnly ? '<p class="mt-3 text-xs text-center text-gray-500 dark:text-gray-400">Moods can only be logged for today.</p>' : ''}
+                `;
+                // --- END UPDATE ---
+                
                 moodGrid.appendChild(cell);
                 fetchMoodForCell(cell, chosenDate, period); // Fetch existing mood for this cell
             });
@@ -171,7 +184,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (!selectedEmojiBtn) {
                     // Simple feedback, could be more elaborate
-                    alert('Please select a mood emoji first.');
+                    // Replaced alert with a non-blocking feedback
+                    saveButton.textContent = 'Please select a mood!';
+                    saveButton.classList.add('bg-red-500', 'hover:bg-red-600');
+                    setTimeout(() => {
+                        saveButton.textContent = 'Save Mood';
+                        saveButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                    }, 2000);
                     return;
                 }
 
@@ -209,9 +228,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 } catch (error) {
                     console.error('Failed to save mood:', error);
-                    alert(`Error: ${error.message}`);
-                    saveButton.textContent = 'Save Mood'; // Reset button text on error
-                    saveButton.disabled = false;
+                    // Replaced alert with non-blocking feedback
+                    saveButton.textContent = `Error: ${error.message}`;
+                    saveButton.classList.add('bg-red-500', 'hover:bg-red-600');
+                    setTimeout(() => {
+                         saveButton.textContent = 'Save Mood';
+                         saveButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                         saveButton.disabled = false;
+                    }, 3000);
                 }
             }
         });
@@ -231,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
          const ctx = chartCanvas.getContext('2d');
 
          try {
+             // --- THIS IS THE FIXED LINE ---
              const response = await fetch('/api/mood/personal'); // Endpoint for chart data
              if (!response.ok) throw new Error('Failed to fetch mood history');
              const data = await response.json();
@@ -277,8 +302,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                  // Optional: Map score back to emoji/label
                                  callback: function(value) {
                                       // Find mood config entry matching the score (value)
-                                      const moodEntry = MOOD_CONFIG.find(m => m.score === value);
-                                      return moodEntry ? `${moodEntry.emoji} (${value})` : value;
+                                      // Find the closest score
+                                      const moodEntry = MOOD_CONFIG.reduce((prev, curr) => {
+                                          return (Math.abs(curr.score - value) < Math.abs(prev.score - value) ? curr : prev);
+                                      });
+                                      // Only show label if it's an exact match to an entry
+                                      if (moodEntry.score === value) {
+                                          return `${moodEntry.emoji} (${value})`;
+                                      }
+                                      return value;
                                  },
                                  color: chartTextColor
                              },
@@ -306,8 +338,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                          if (label) { label += ': '; }
                                          if (context.parsed.y !== null) {
                                               const score = context.parsed.y;
-                                              const moodEntry = MOOD_CONFIG.find(m => m.score === score);
-                                              label += moodEntry ? `${moodEntry.emoji} ${moodEntry.desc} (${score})` : score;
+                                              // Find closest mood entry for tooltip
+                                              const moodEntry = MOOD_CONFIG.reduce((prev, curr) => {
+                                                  return (Math.abs(curr.score - score) < Math.abs(prev.score - score) ? curr : prev);
+                                              });
+                                              label += moodEntry ? `${moodEntry.emoji} ${moodEntry.desc} (~${score.toFixed(1)})` : score.toFixed(1);
                                          }
                                          return label;
                                     }
@@ -367,3 +402,4 @@ document.addEventListener('DOMContentLoaded', () => {
 }); // End DOMContentLoaded
 </script>
 {% endblock %}
+
