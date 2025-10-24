@@ -4,34 +4,35 @@
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
-
 body {
   font-family: 'Inter', sans-serif;
   min-height: 100vh;
-  /* Removed light-mode transition */
+  transition: background-color 0.3s, color 0.3s;
 }
-
-/* This is now the ONLY body background style */
 #body {
+  background: linear-gradient(-45deg, #f0f9ff, #fdf2f8, #f5f5ff, #ecfdf5, #fff5e6, #fce2e9);
+  background-size: 800% 800%;
+  animation: gradientFlow 20s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.dark #body {
   background: linear-gradient(45deg, #1f2937, #2d3748, #4a5568, #2d3748, #1f2937);
   background-size: 800% 800%;
   animation: gradientFlow 20s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
-
 .gradient-text {
   background: linear-gradient(to right, #4f46e5, #ec4899);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  /* Updated dark-mode shadow to be the default */
-  text-shadow: 0 1px 1px rgba(255,255,255,.2); 
+  text-shadow: 0 1px 1px rgba(0,0,0,.25);
 }
-
+.dark .gradient-text {
+  text-shadow: 0 1px 1px rgba(255,255,255,.2);
+}
 .font-brand {
   font-family: "Bitcount Single Ink", system-ui;
   font-weight: 800;
   font-style: normal;
 }
-
 /* Logo pulse/flow animation */
 @keyframes logoFlow {
   0% { transform: scale(1); }
@@ -41,7 +42,6 @@ body {
 #logo-animated {
   animation: logoFlow 3s infinite;
 }
-
 /* FullCalendar buttons */
 .fc .fc-button-primary {
   background-color: #2563eb; border-color: #2563eb; transition: background-color 0.2s;
@@ -50,10 +50,8 @@ body {
   background-color: #1d4ed8; border-color: #1d4ed8;
 }
 .fc .fc-daygrid-day.fc-day-today {
-  /* Use a dark-mode compatible "today" color */
-  background-color: rgba(59, 130, 246, 0.15); 
+  background-color: rgba(59, 130, 246, 0.08);
 }
-
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -61,7 +59,6 @@ body {
 .fade-in {
   animation: fadeIn 0.5s ease-in-out forwards;
 }
-
 @keyframes scaleUp {
   from { transform: scale(0.95); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
@@ -69,31 +66,35 @@ body {
 .modal-content {
   animation: scaleUp 0.3s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
 }
-
 /* custom scrollbars */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
-/* Dark-mode scrollbar track (default) */
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #2d3748;
+  background: #f1f1f1;
   border-radius: 10px;
 }
-/* Dark-mode scrollbar thumb (default) */
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background: #2d3748;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #4a5568;
+  background: #d1d5db;
   border-radius: 10px;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4a5568;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #718096;
 }
-
 .hover-lift:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-
 #particle-container {
   position: fixed;
   top: 0; left: 0;
@@ -111,7 +112,6 @@ body {
   0% { transform: translateY(0); }
   100% { transform: translateY(-200vh); }
 }
-
 .mood-grid-cell {
   transition: transform 0.2s, box-shadow 0.2s;
 }
@@ -120,11 +120,9 @@ body {
   box-shadow: 0 0 0 3px #3b82f6;
   z-index: 10;
 }
-
 .prose-styles h1, .prose-styles h2, .prose-styles p, .prose-styles ul, .prose-styles strong {
   color: inherit;
 }
-
 @keyframes fabFlow {
   0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
   70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
@@ -133,7 +131,6 @@ body {
 .fab-flow {
   animation: fabFlow 2s infinite;
 }
-
 @keyframes slideInUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -156,26 +153,20 @@ body {
 }
 
 tr.fc-list-event:hover {
-  background-color: transparent !important; 
+  background-color: transparent !important; /* Removes any background color change */
 }
+/* Add this new, correct rule in its place */
 .fc .fc-list-event:hover td {
   background-color: transparent !important;
   cursor: pointer;
 }
 
-/* FIX: Make FullCalendar text white for dark mode */
-.fc-scrollgrid-sync-inner,
-.fc-list-day,
-.fc-list-day *, /* Fixes day-of-week text */
-.fc .fc-toolbar-title, /* Fixes calendar title */
-.fc .fc-button-primary { /* Fixes button text */
+.fc-scrollgrid-sync-inner{
+  color: black !important;
+}
+.fc-list-day{
+  color: black !important;
+}
+html.dark .fc-daygrid-day-number{
   color: white !important;
 }
-
-/* This rule is good, keep it */
-.fc-daygrid-day-number {
-  color: white !important;
-}
-
-/* Remove any remaining .dark selectors as they are no longer needed */
-/* (All .dark selectors from your provided file have been merged or removed) */
