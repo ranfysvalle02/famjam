@@ -1,8 +1,9 @@
 // --- ROLE-AWARE & GLOBAL VARIABLES ---
-// These will be defined in base.html BEFORE this script runs
-// Example: const USER_ROLE = 'parent';
-// Example: const currentUserId = '...';
-// Example: const FAMILY_MEMBERS = [...];
+// These are defined in base.html BEFORE this script runs
+// const USER_ROLE = '...';
+// const currentUserId = '...';
+// const FAMILY_MEMBERS = [...];
+// const USER_DATA = {...};
 
 // --- MODAL & UI HELPER FUNCTIONS ---
 function openModal(modalId) {
@@ -10,8 +11,12 @@ function openModal(modalId) {
   if (!modal) return;
   modal.classList.remove('hidden');
 
+  // Use requestAnimationFrame to ensure the 'hidden' class is removed
+  // before we add 'is-open' for the transition to trigger.
   requestAnimationFrame(() => {
-    modal.classList.add('is-open');
+    modal.classList.add('is-open', 'flex'); // Use flex for centering
+    modal.classList.remove('hidden'); // Redundant but safe
+
     const items = modal.querySelectorAll('.modal-content-item');
     items.forEach((item, index) => {
         item.style.animationDelay = `${150 + index * 100}ms`;
@@ -30,9 +35,13 @@ function closeModal(modalId) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
   modal.classList.remove('is-open');
+
+  // Wait for the transition to finish before adding 'hidden'
+  // 600ms matches the 0.6s transition in your CSS
   setTimeout(() => {
       modal.classList.add('hidden');
-  }, 600); // Match transition duration
+      modal.classList.remove('flex'); // Remove flex
+  }, 600);
 }
 
 function openEditModal(childId, username) {
@@ -40,7 +49,7 @@ function openEditModal(childId, username) {
   if (!editModal) return;
   document.getElementById('edit-child-id').value = childId;
   document.getElementById('edit-username').value = username;
-  document.getElementById('edit-password').value = ''; // Clear password field
+  // document.getElementById('edit-password').value = ''; // This field isn't in your injected modal
   const form = document.getElementById('edit-child-form');
   if (form) {
       form.action = `/child/edit/${childId}`;
@@ -62,10 +71,15 @@ function openResetChildPasswordModal(childId, childUsername) {
 }
 
 function openEditTaskModal(taskJsonString) {
+    // This function assumes a modal with id 'edit-task-modal' exists
+    // on the page it's called from (e.g., the /manage_plan page).
     try {
         const task = JSON.parse(taskJsonString);
         const form = document.getElementById('edit-task-form');
-        if (!form) return;
+        if (!form) {
+            console.error("edit-task-modal form not found on this page.");
+            return;
+        }
         form.action = `/event/edit/${task._id}`;
         const nameInput = document.getElementById('edit-task-name');
         const descInput = document.getElementById('edit-task-description');
@@ -76,11 +90,10 @@ function openEditTaskModal(taskJsonString) {
         if (nameInput) nameInput.value = task.name || '';
         if (descInput) descInput.value = task.description || '';
         if (pointsInput) pointsInput.value = task.points || '';
-        // Ensure date is formatted correctly (YYYY-MM-DD)
+        
         if (dateInput && task.due_date) {
-             // Handle potential ISO string format from server
              const dateObj = new Date(task.due_date);
-             // Get parts in UTC to avoid timezone shifts affecting the date part
+             // Get parts in UTC to avoid timezone shifts
              const year = dateObj.getUTCFullYear();
              const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, '0');
              const day = dateObj.getUTCDate().toString().padStart(2, '0');
@@ -117,7 +130,7 @@ function timeAgo(dateString) {
         if (hours < 24) return `${hours}h ago`;
         const days = Math.floor(hours / 24);
         if (days < 7) return `${days}d ago`;
-        // Optional: show date for older messages
+        
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
     } catch (error) {
@@ -143,10 +156,14 @@ async function handleMessageSubmit(form) {
             body: formData
         });
         if (!response.ok) throw new Error('Network response was not ok.');
-        await fetchAndDisplayMessages(); // Refresh message list
+        
+        // Refresh message list *after* successful send
+        await fetchAndDisplayMessages(); 
+        
         form.reset();
         const textarea = form.querySelector('textarea');
         if (textarea) textarea.style.height = 'auto'; // Reset textarea height
+        
         // Hide the main compose area after successful send
         if (form.id === 'parent-compose-form') {
             document.getElementById('compose-message-form-container')?.classList.add('hidden');
@@ -190,10 +207,9 @@ async function fetchAndDisplayMessages() {
         const conversations = {};
         const userMap = {};
 
-        // Populate userMap from FAMILY_MEMBERS if available
+        // Populate userMap from FAMILY_MEMBERS global variable
         if (typeof FAMILY_MEMBERS !== 'undefined' && FAMILY_MEMBERS.length > 0) {
             FAMILY_MEMBERS.forEach(member => {
-                 // Ensure member._id is used correctly, might be different based on how it's passed
                  const memberId = member._id.$oid || member._id;
                  if (memberId) {
                      userMap[memberId] = member.username;
@@ -204,10 +220,7 @@ async function fetchAndDisplayMessages() {
         if (typeof USER_DATA !== 'undefined' && USER_DATA.username) {
              userMap[currentUserId] = USER_DATA.username;
         } else if (currentUserId) {
-             // Fallback attempt if USER_DATA isn't set, might need adjustment
-             const currentUserFromList = FAMILY_MEMBERS.find(m => (m._id.$oid || m._id) === currentUserId);
-             if (currentUserFromList) userMap[currentUserId] = currentUserFromList.username;
-             else userMap[currentUserId] = "Me"; // Fallback
+             userMap[currentUserId] = "Me"; // Fallback
         }
 
 
@@ -215,26 +228,24 @@ async function fetchAndDisplayMessages() {
             const senderId = msg.sender_id?.$oid || msg.sender_id;
             const recipientId = msg.recipient_id?.$oid || msg.recipient_id;
 
-            // Determine the partner ID (the other person in the conversation)
             let partnerId = null;
             if (senderId && recipientId) {
                  partnerId = senderId === currentUserId ? recipientId : senderId;
             } else {
                  console.warn("Message missing sender or recipient ID:", msg);
-                 return; // Skip messages without clear participants
+                 return; 
             }
 
-            // Fallback: If partnerId is not in userMap, try to get username from message itself
+            // Fallback: If partnerId is not in userMap, get username from message
             if (!userMap[partnerId]) {
                  if (partnerId === senderId && msg.sender_username) {
                      userMap[partnerId] = msg.sender_username;
-                 } else if (partnerId === recipientId && msg.recipient_username) { // Assuming recipient_username might exist
+                 } else if (partnerId === recipientId && msg.recipient_username) { 
                      userMap[partnerId] = msg.recipient_username;
                  } else {
-                      userMap[partnerId] = 'Unknown User'; // Final fallback
+                      userMap[partnerId] = 'Unknown User'; 
                  }
             }
-
 
             if (!conversations[partnerId]) {
                 conversations[partnerId] = {
@@ -268,13 +279,12 @@ async function fetchAndDisplayMessages() {
             // Sort messages within the conversation chronologically
             convo.messages.sort((a, b) => new Date(a.sent_at?.$date || 0) - new Date(b.sent_at?.$date || 0));
 
-            // Determine form action and recipient input based on user role might not be needed if action is always the same
-            const replyFormAction = '/send_message'; // Assuming one endpoint handles all sends
+            const replyFormAction = '/send_message';
             const recipientInput = `<input type="hidden" name="recipient_id" value="${partnerId}">`;
             const placeholder = `Reply to ${convo.username}...`;
 
             const accordionItem = document.createElement('div');
-            accordionItem.className = 'border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden'; // Added overflow-hidden
+            accordionItem.className = 'border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden';
             accordionItem.innerHTML = `
                 <h2 id="accordion-heading-${partnerId}">
                     <button type="button" class="flex items-center justify-between w-full p-4 font-medium text-left text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition focus:outline-none" data-accordion-target="#accordion-body-${partnerId}" aria-expanded="false" aria-controls="accordion-body-${partnerId}">
@@ -290,7 +300,7 @@ async function fetchAndDisplayMessages() {
                         ${convo.messages.map(msg => {
                             const senderId = msg.sender_id?.$oid || msg.sender_id;
                             const isSentByCurrentUser = senderId === currentUserId;
-                            const messageTime = timeAgo(msg.sent_at); // Use the timeAgo function
+                            const messageTime = timeAgo(msg.sent_at); 
                             return `
                             <div class="flex ${isSentByCurrentUser ? 'justify-end' : 'justify-start'}">
                                 <div class="p-3 rounded-lg max-w-xs sm:max-w-sm md:max-w-md shadow ${isSentByCurrentUser ? 'bg-blue-500 text-white' : 'bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100'}">
@@ -322,10 +332,8 @@ async function fetchAndDisplayMessages() {
                  target.classList.toggle('hidden');
                  icon.classList.toggle('rotate-180');
 
-                 // Scroll to bottom when opening
                  if (!isExpanded) {
                       const messageList = target.querySelector('.message-list');
-                      // Needs a slight delay for the element to become visible and height calculated
                       setTimeout(() => {
                            messageList.scrollTop = messageList.scrollHeight;
                       }, 50);
@@ -349,14 +357,7 @@ async function fetchAndDisplayMessages() {
              if (firstButton && firstButton.getAttribute('aria-expanded') === 'false') {
                  firstButton.click(); // Open the conversation
              }
-        } else if (sortedPartnerIds.length > 0) {
-             // Optionally, open the most recent conversation for parents too
-             // const firstButton = container.querySelector('button[data-accordion-target]');
-             // if (firstButton && firstButton.getAttribute('aria-expanded') === 'false') {
-             //     firstButton.click();
-             // }
-        }
-
+        } 
 
         // --- Mark unread messages as read ---
         const unreadMessageIds = messages
@@ -372,13 +373,12 @@ async function fetchAndDisplayMessages() {
                 });
                 // Update UI indicators immediately
                 document.getElementById('modal-message-badge')?.classList.add('hidden');
-                document.querySelector('button[title="My Personal Space"] span.bg-red-500')?.classList.add('hidden'); // Target the red dot specifically
+                document.querySelector('button[title="My Personal Space"] span.bg-red-500')?.classList.add('hidden');
 
             } catch (readError) {
                 console.error("Failed to mark messages as read:", readError);
             }
         }
-
 
     } catch (error) {
         console.error("Error fetching/displaying messages:", error);
@@ -389,6 +389,7 @@ async function fetchAndDisplayMessages() {
 
 // --- MAIN SCRIPT EXECUTION (Global Listeners) ---
 document.addEventListener("DOMContentLoaded", function() {
+    
     // --- Basic UI Setup ---
     const mobileMenuButton = document.getElementById("mobile-menu-button");
     if (mobileMenuButton) {
@@ -424,61 +425,68 @@ document.addEventListener("DOMContentLoaded", function() {
                 });
             });
         });
-         // Add Edit Child Modal
-        const editChildModalHTML = `
-            <div id="edit-child-modal" class="fixed inset-0 z-[90] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
-              <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md mx-auto">
-                <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-                  <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Edit Child Account</h3>
-                  <button onclick="closeModal('edit-child-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </button>
-                </div>
-                <form id="edit-child-form" method="POST" action="">
-                  <div class="p-6 space-y-4">
-                    <input type="hidden" name="child_id" id="edit-child-id">
-                    <div>
-                      <label for="edit-username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Username</label>
-                      <input type="text" name="username" id="edit-username" required class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+         
+         // Add Edit Child Modal (Dynamically injecting to ensure it's available)
+         // This code assumes it hasn't been added elsewhere.
+        if (!document.getElementById('edit-child-modal')) {
+            const editChildModalHTML = `
+                <div id="edit-child-modal" class="side-modal fixed inset-0 z-[90] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
+                  <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md mx-auto">
+                    <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+                      <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Edit Child Account</h3>
+                      <button onclick="closeModal('edit-child-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
                     </div>
+                    <form id="edit-child-form" method="POST" action="">
+                      <div class="p-6 space-y-4">
+                        <input type="hidden" name="child_id" id="edit-child-id">
+                        <div>
+                          <label for="edit-username" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Username</label>
+                          <input type="text" name="username" id="edit-username" required class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+                        </div>
+                      </div>
+                      <div class="p-6 pt-0 text-right">
+                        <button type="submit" class="px-6 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">Save Changes</button>
+                      </div>
+                    </form>
                   </div>
-                  <div class="p-6 pt-0 text-right">
-                    <button type="submit" class="px-6 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">Save Changes</button>
-                  </div>
-                </form>
-              </div>
-            </div>`;
-        document.body.insertAdjacentHTML('beforeend', editChildModalHTML);
+                </div>`;
+            document.body.insertAdjacentHTML('beforeend', editChildModalHTML);
+        }
 
         // Add Reset Child Password Modal
-        const resetPasswordModalHTML = `
-            <div id="reset-child-password-modal" class="fixed inset-0 z-[90] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
-              <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md mx-auto">
-                <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
-                  <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Reset Password for <span id="reset-child-username"></span></h3>
-                  <button onclick="closeModal('reset-child-password-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </button>
-                </div>
-                <form id="reset-child-password-form" method="POST" action="">
-                  <div class="p-6 space-y-4">
-                    <div>
-                      <label for="new-child-password" class="block text-sm font-medium text-gray-700 dark:text-gray-200">New Temporary Password</label>
-                      <input type="password" name="new_password" id="new-child-password" required minlength="6" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
-                       <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Min 6 characters. The child should change this after logging in.</p>
+        if (!document.getElementById('reset-child-password-modal')) {
+            const resetPasswordModalHTML = `
+                <div id="reset-child-password-modal" class="side-modal fixed inset-0 z-[90] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
+                  <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md mx-auto">
+                    <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+                      <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Reset Password for <span id="reset-child-username"></span></h3>
+                      <button onclick="closeModal('reset-child-password-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
                     </div>
+                    <form id="reset-child-password-form" method="POST" action="">
+                      <div class="p-6 space-y-4">
+                        <div>
+                          <label for="new-child-password" class="block text-sm font-medium text-gray-700 dark:text-gray-200">New Temporary Password</label>
+                          <input type="password" name="new_password" id="new-child-password" required minlength="6" class="mt-1 block w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
+                           <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Min 6 characters. The child should change this after logging in.</p>
+                        </div>
+                      </div>
+                      <div class="p-6 pt-0 text-right">
+                        <button type="submit" class="px-6 py-2 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition">Reset Password</button>
+                      </div>
+                    </form>
                   </div>
-                  <div class="p-6 pt-0 text-right">
-                    <button type="submit" class="px-6 py-2 font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition">Reset Password</button>
-                  </div>
-                </form>
-              </div>
-            </div>`;
-          document.body.insertAdjacentHTML('beforeend', resetPasswordModalHTML);
+                </div>`;
+              document.body.insertAdjacentHTML('beforeend', resetPasswordModalHTML);
+        }
 
-          // Add Change Parent Password Modal
-          const changeParentPasswordModalHTML = `
-              <div id="change-parent-password-modal" class="fixed inset-0 z-[90] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
+        // Add Change Parent Password Modal
+        if (!document.getElementById('change-parent-password-modal')) {
+            const changeParentPasswordModalHTML = `
+              <div id="change-parent-password-modal" class="side-modal fixed inset-0 z-[90] flex items-center justify-center bg-black bg-opacity-60 hidden p-4">
                 <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md mx-auto">
                   <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
                     <h3 class="text-xl font-bold text-gray-900 dark:text-gray-100">Change My Password</h3>
@@ -486,7 +494,7 @@ document.addEventListener("DOMContentLoaded", function() {
                       <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                   </div>
-                  <form method="POST" action="/change-password"> {# Assuming this is the correct endpoint #}
+                  <form method="POST" action="/change-password">
                     <div class="p-6 space-y-4">
                       <div>
                         <label for="current-password" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Current Password</label>
@@ -509,7 +517,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 </div>
               </div>`;
            document.body.insertAdjacentHTML('beforeend', changeParentPasswordModalHTML);
-    }
+        }
+    } // end if(familyModal)
 
 
     // --- Particle Background ---
@@ -521,44 +530,69 @@ document.addEventListener("DOMContentLoaded", function() {
             const p = document.createElement('div');
             p.className = 'particle';
             const size = Math.random() * 10 + 10;
-            p.style.cssText = `width:${size}px; height:${size}px; left:${Math.random()*100}%; top:${Math.random()*100 + 100}vh; animation-duration:${Math.random()*20+20}s; animation-delay: ${Math.random() * -40}s; background-color:${pastelColors[Math.floor(Math.random()*pastelColors.length)]};`; // Start below screen, random delays
+            p.style.cssText = `width:${size}px; height:${size}px; left:${Math.random()*100}%; top:${Math.random()*100 + 100}vh; animation-duration:${Math.random()*20+20}s; animation-delay: ${Math.random() * -40}s; background-color:${pastelColors[Math.floor(Math.random()*pastelColors.length)]};`;
             particleContainer.appendChild(p);
         }
     }
 
-    // --- Dark Mode ---
+    // --- (FIXED) Dark Mode ---
     const darkModeToggle = document.getElementById("darkModeToggle");
     const themeIconSun = document.getElementById("themeIconSun");
     const themeIconMoon = document.getElementById("themeIconMoon");
-    const themeIconText = document.getElementById("themeIconText"); // Optional text element
+    const themeIconText = document.getElementById("themeIconText");
 
-    // Check localStorage first, then system preference
-    let storedTheme = localStorage.getItem("theme");
-    let inDarkMode = storedTheme ? storedTheme === 'dark' : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    // Check if all the required elements exist on the page
+    if (darkModeToggle && themeIconSun && themeIconMoon && themeIconText) {
 
-    function updateThemeUI() {
-        if (!themeIconSun || !themeIconMoon) return; // Exit if icons not found
-        if (inDarkMode) {
-            document.documentElement.classList.add("dark");
-            themeIconSun.classList.remove('hidden');
-            themeIconMoon.classList.add('hidden');
-            if (themeIconText) themeIconText.innerText = 'Light'; // Update text if element exists
-        } else {
-            document.documentElement.classList.remove("dark");
-            themeIconSun.classList.add('hidden');
-            themeIconMoon.classList.remove('hidden');
-            if (themeIconText) themeIconText.innerText = 'Dark'; // Update text
+        /**
+         * Updates the button's icon and text based on the CURRENT state of the <html> tag.
+         */
+        function updateThemeUI() {
+            // The *single source of truth* is the class on the <html> element
+            // This tag is set by the SERVER (base.html) on page load via the cookie.
+            const isDark = document.documentElement.classList.contains("dark");
+
+            if (isDark) {
+                // DARK MODE is active:
+                // Show the SUN icon (to switch to light)
+                themeIconSun.classList.remove('hidden');
+                themeIconMoon.classList.add('hidden');
+                themeIconText.innerText = 'Light'; // Text shows the *action* to take
+            } else {
+                // LIGHT MODE is active:
+                // Show the MOON icon (to switch to dark)
+                themeIconSun.classList.add('hidden');
+                themeIconMoon.classList.remove('hidden');
+                themeIconText.innerText = 'Dark'; // Text shows the *action* to take
+            }
         }
-    }
-    updateThemeUI(); // Apply theme on initial load
 
-    if (darkModeToggle) {
+        // 1. Set the initial state of the icons/text when the page loads.
+        // This reads the class set by your *server* and makes the button match.
+        updateThemeUI();
+
+        // 2. Add the click event listener to the toggle button
         darkModeToggle.addEventListener("click", () => {
-            inDarkMode = !inDarkMode;
-            localStorage.setItem("theme", inDarkMode ? "dark" : "light");
+            // Toggle the class on the <html> element *first*
+            document.documentElement.classList.toggle("dark");
+
+            // Check the NEW state
+            const isNowDark = document.documentElement.classList.contains("dark");
+            const newTheme = isNowDark ? "dark" : "light";
+
+            // A. Update the cookie so the SERVER knows the theme on the next page load
+            // This is the most important fix to prevent the flicker.
+            document.cookie = `theme=${newTheme};path=/;max-age=31536000;SameSite=Lax`; // 1 year cookie
+
+            // B. Update localStorage (good practice, but cookie is key)
+            localStorage.setItem("theme", newTheme);
+
+            // C. Update the button's icons/text to reflect the new state
             updateThemeUI();
         });
-    }
+
+    } // end if(darkModeToggle)
+
 
     // --- Personal Space Modal Tabs & Compose Logic ---
     const personalStuffModal = document.getElementById('personalStuffModal');
@@ -588,7 +622,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     panel.classList.toggle('hidden', panel.id !== targetPanelId);
                 });
 
-                // Fetch messages only when the messages tab is clicked (and hasn't been loaded yet)
+                // Fetch messages only when the messages tab is clicked
                 if (targetPanelId === 'messages-panel' && !document.getElementById('messages-panel').hasAttribute('data-loaded')) {
                     fetchAndDisplayMessages();
                 }
@@ -617,7 +651,7 @@ document.addEventListener("DOMContentLoaded", function() {
     } // end personalStuffModal checks
 
 
-    // --- Invite link copy --- (Only add listener if the button exists)
+    // --- Invite link copy --- (For register_parent page)
     const copyButton = document.getElementById('copy-button');
     if (copyButton) {
         copyButton.addEventListener('click', function() {
@@ -635,25 +669,23 @@ document.addEventListener("DOMContentLoaded", function() {
                 }, 2000);
             }).catch(err => {
                 console.error('Failed to copy text: ', err);
-                // Optionally provide user feedback here
             });
         });
     }
 
-    // --- Username suggestion --- (Only add listener if the button exists)
+    // --- Username suggestion --- (For registration pages)
     const suggestBtn = document.getElementById('suggest-username-btn');
     if (suggestBtn) {
         const usernameInput = document.getElementById('username');
         const suggestionsContainer = document.getElementById('username-suggestions');
-        // Determine context ONLY if elements exist
         const isParentRegistration = document.querySelector('form[action*="register_parent"]') !== null;
 
         if (usernameInput && suggestionsContainer) {
             suggestBtn.addEventListener('click', async () => {
-                const originalBtnText = suggestBtn.textContent; // Use textContent for button text
-                suggestBtn.innerHTML = '<span class="animate-pulse">Thinking...</span>'; // More visual feedback
+                const originalBtnText = suggestBtn.textContent;
+                suggestBtn.innerHTML = '<span class="animate-pulse">Thinking...</span>';
                 suggestBtn.disabled = true;
-                suggestionsContainer.innerHTML = ''; // Clear previous suggestions
+                suggestionsContainer.innerHTML = ''; 
 
                 const nameSeed = (isParentRegistration && usernameInput.value.trim()) ? usernameInput.value.trim() : '';
 
@@ -664,7 +696,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         body: JSON.stringify({ name: nameSeed })
                     });
                     if (!response.ok) {
-                         const errorData = await response.json().catch(() => ({})); // Try to get error message
+                         const errorData = await response.json().catch(() => ({}));
                          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
                     }
                     const data = await response.json();
@@ -677,28 +709,23 @@ document.addEventListener("DOMContentLoaded", function() {
                             suggBtn.className = 'px-3 py-1 text-sm text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300';
                             suggBtn.onclick = () => {
                                 usernameInput.value = suggestion;
-                                suggestionsContainer.innerHTML = ''; // Clear suggestions after selection
-                                usernameInput.focus(); // Optional: focus input after selection
+                                suggestionsContainer.innerHTML = '';
+                                usernameInput.focus();
                             };
                             suggestionsContainer.appendChild(suggBtn);
                         });
                     } else {
-                        suggestionsContainer.innerHTML = '<p class="text-sm text-gray-500 dark:text-gray-400">No suggestions found. Try entering a name first (for parent registration) or try again.</p>';
+                        suggestionsContainer.innerHTML = '<p class="text-sm text-gray-500 dark:text-gray-400">No suggestions found. Try again.</p>';
                     }
                 } catch (error) {
                     console.error('Error fetching username suggestions:', error);
                     suggestionsContainer.innerHTML = `<p class="text-sm text-red-500 dark:text-red-400">Could not load suggestions: ${error.message}</p>`;
                 } finally {
-                    suggestBtn.textContent = originalBtnText; // Restore original text
+                    suggestBtn.textContent = originalBtnText;
                     suggestBtn.disabled = false;
                 }
             });
         }
     } // end suggestBtn check
-
-
-    // Page-specific initializations (like calendars, charts) should be
-    // called within <script> tags in their respective templates (e.g., family_dashboard.html)
-    // using the {% block scripts %} pattern.
 
 }); // End DOMContentLoaded
