@@ -381,72 +381,120 @@ def register_child(invite_code):
 # 8. DASHBOARD & CORE VIEW ROUTES
 ################################################################################
 
+
 @app.route('/dashboard')
 @login_required
 def personal_dashboard():
     family_oid = ObjectId(current_user.family_id)
-    today = today_est()
+    today = today_est() # Get today's date in EST
 
     if current_user.role == 'parent':
         family_members = list(users_collection.find(
             {'family_id': current_user.family_id},
+            # Projection to fetch only necessary fields
             {'_id': 1, 'username': 1, 'role': 1, 'points': 1, 'cash_balance': 1}
         ))
         member_map = {str(m['_id']): m['username'] for m in family_members}
+
         child_dashboard_data = []
         children = [m for m in family_members if m.get('role') == 'child']
+
+        # Get timezone-aware start/end times for today and the week
         now = now_est()
-        start_of_today = start_of_day_est(today)
+        start_of_today = start_of_day_est(today) # Timezone-aware midnight EST
         end_of_today = start_of_today + timedelta(days=1)
         start_of_week = start_of_day_est(today - timedelta(days=now.weekday()))
         end_of_week = start_of_week + timedelta(days=7)
 
         for child in children:
-            child_id_obj = child['_id']
-            todays_tasks = list(events_collection.find({'assigned_to': child_id_obj, 'due_date': {'$gte': start_of_today, '$lt': end_of_today}}))
+            child_id_obj = child['_id'] # Use the ObjectId directly from the loop
+
+            # --- Task Calculations (Existing) ---
+            todays_tasks = list(events_collection.find({
+                'assigned_to': child_id_obj,
+                'due_date': {'$gte': start_of_today, '$lt': end_of_today}
+            }))
             todays_total = len(todays_tasks)
             todays_completed = sum(1 for t in todays_tasks if t.get('status') in ['completed', 'approved'])
             todays_missed = sum(1 for t in todays_tasks if t.get('status') == 'missed')
-            overdue_count = events_collection.count_documents({'assigned_to': child_id_obj, 'type': 'chore', 'status': 'assigned', 'due_date': {'$lt': start_of_today}})
-            weekly_tasks = list(events_collection.find({'assigned_to': child_id_obj, 'due_date': {'$gte': start_of_week, '$lt': end_of_week}}))
-            
-            # Filter for tasks that are *still* 'missed' (not forgiven)
-            missed_this_week_tasks = [t for t in weekly_tasks if t.get('status') == 'missed']
-            
-            weekly_missed_count = len(missed_this_week_tasks)
-            weekly_penalty_incurred = sum(math.floor(t.get('points', 0) * MISSED_TASK_PENALTY_FACTOR) for t in missed_this_week_tasks)
-            
-            # Potential points from tasks that are not 'missed' or 'forgiven'
-            weekly_potential_points = sum(t.get('points', 0) for t in weekly_tasks if t.get('status') not in ['missed', 'forgiven'])
-
-            child_dashboard_data.append({
-                '_id': str(child_id_obj), 'username': child.get('username'),
-                'points': child.get('points', 0), 'cash_balance': child.get('cash_balance', 0.0),
-                'today': {'total': todays_total, 'completed': todays_completed, 'missed': todays_missed, 'overdue': overdue_count, 'progress': int((todays_completed / todays_total * 100)) if todays_total > 0 else 100},
-                'week': {'total_tasks': len(weekly_tasks), 'potential_points': weekly_potential_points, 'missed_count': weekly_missed_count, 'penalty_incurred': weekly_penalty_incurred}
+            overdue_count = events_collection.count_documents({
+                'assigned_to': child_id_obj,
+                'type': 'chore',
+                'status': 'assigned',
+                'due_date': {'$lt': start_of_today} # Compare against aware datetime
             })
 
+            weekly_tasks = list(events_collection.find({
+                'assigned_to': child_id_obj,
+                'due_date': {'$gte': start_of_week, '$lt': end_of_week}
+            }))
+            missed_this_week_tasks = [t for t in weekly_tasks if t.get('status') == 'missed']
+            weekly_missed_count = len(missed_this_week_tasks)
+            weekly_penalty_incurred = sum(math.floor(t.get('points', 0) * MISSED_TASK_PENALTY_FACTOR) for t in missed_this_week_tasks)
+            weekly_potential_points = sum(t.get('points', 0) for t in weekly_tasks if t.get('status') not in ['missed', 'forgiven'])
+
+            # --- NEW: Fetch Today's Moods for this Child ---
+            todays_moods = list(moods_collection.find({
+                'user_id': child_id_obj,
+                'date': start_of_today # Query using the timezone-aware start of today
+            }))
+            # Extract just the period names ('Morning', 'Afternoon', 'Evening')
+            logged_periods = [m.get('period') for m in todays_moods if m.get('period')]
+            # --- END NEW MOOD FETCH ---
+
+            # Append all data for this child
+            child_dashboard_data.append({
+                '_id': str(child_id_obj),
+                'username': child.get('username'),
+                'points': child.get('points', 0),
+                'cash_balance': child.get('cash_balance', 0.0),
+                'today': {
+                    'total': todays_total,
+                    'completed': todays_completed,
+                    'missed': todays_missed,
+                    'overdue': overdue_count,
+                    'progress': int((todays_completed / todays_total * 100)) if todays_total > 0 else 100
+                },
+                'week': {
+                    'total_tasks': len(weekly_tasks),
+                    'potential_points': weekly_potential_points,
+                    'missed_count': weekly_missed_count,
+                    'penalty_incurred': weekly_penalty_incurred
+                },
+                # --- NEW: Add the logged periods list ---
+                'today_moods_logged': logged_periods
+                # --- END NEW MOOD DATA ---
+            })
+
+        # Convert ObjectIds to strings for remaining processing
         for member in family_members: member['_id'] = str(member['_id'])
+
+        # --- Fetch Pending Events & Rewards (Existing) ---
         pending_events = list(events_collection.find({'family_id': family_oid, 'status': 'completed'}).sort('completed_at', DESCENDING))
         available_rewards = list(store_rewards_collection.find({'family_id': family_oid}).sort('cost', ASCENDING))
         pending_rewards = list(rewards_collection.find({'family_id': family_oid, 'status': 'pending'}).sort('requested_at', DESCENDING))
+
+        # Populate usernames for pending rewards
         user_ids_for_rewards = [r['requested_by_id'] for r in pending_rewards]
         users_for_rewards = {str(u['_id']): u['username'] for u in users_collection.find({'_id': {'$in': user_ids_for_rewards}})}
-        for reward_req in pending_rewards: reward_req['username'] = users_for_rewards.get(str(reward_req.get('requested_by_id')), 'Unknown')
+        for reward_req in pending_rewards:
+             reward_req['username'] = users_for_rewards.get(str(reward_req.get('requested_by_id')), 'Unknown')
 
+        # Render the parent dashboard template
         return render_template(
-            # Assuming you have a dashboard_parent.html template
             'dashboard_parent.html',
-            family_members=family_members,
-            member_map=member_map,
-            child_dashboard_data=child_dashboard_data,
+            family_members=family_members, # Used in loops/dropdowns
+            member_map=member_map,         # Used for mapping IDs to names
+            child_dashboard_data=child_dashboard_data, # Contains all child stats including moods
             pending_events=pending_events,
             pending_rewards=pending_rewards,
             available_rewards=available_rewards,
-            TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
-            TIMEZONE_OBJ=TIMEZONE    # Pass the pytz object (for Jinja)
+            TIMEZONE=TIMEZONE_NAME,        # Pass timezone name string
+            TIMEZONE_OBJ=TIMEZONE          # Pass pytz object for filters if needed
         )
+
     else: # Child Dashboard
+        # ... (child dashboard logic remains unchanged) ...
         current_user_oid = ObjectId(current_user.id)
         now = now_est()
         start_of_today = start_of_day_est(today)
@@ -458,10 +506,8 @@ def personal_dashboard():
             parent_doc = users_collection.find_one({'_id': family_doc['parent_ids'][0]})
             if parent_doc: parent = {'_id': str(parent_doc['_id']), 'username': parent_doc.get('username')}
 
-        # Use cursor directly if memory is a concern for large numbers of tasks
         weekly_tasks_cursor = events_collection.find({'assigned_to': current_user_oid, 'due_date': {'$gte': start_of_week, '$lt': end_of_week}})
-        # Need to iterate to calculate stats, so list conversion might be simpler here unless very large
-        missed_this_week_tasks = [t for t in list(weekly_tasks_cursor) if t.get('status') == 'missed'] # Convert here if needed
+        missed_this_week_tasks = [t for t in list(weekly_tasks_cursor) if t.get('status') == 'missed']
 
         child_stats = {'weekly_missed_count': len(missed_this_week_tasks), 'weekly_penalty_incurred': sum(math.floor(t.get('points', 0) * MISSED_TASK_PENALTY_FACTOR) for t in missed_this_week_tasks)}
         overdue_events = list(events_collection.find({'assigned_to': current_user_oid, 'type': 'chore', 'status': 'assigned', 'due_date': {'$lt': start_of_today}}).sort('due_date', ASCENDING))
@@ -469,8 +515,8 @@ def personal_dashboard():
         todays_events = []
         for event in todays_events_cursor:
             event['can_checkin'] = False
-            if event.get('type') == 'habit' and event.get('status') not in ['missed', 'forgiven']: # Added forgiven check
-                last_completed = event.get('last_completed') # Get the datetime object
+            if event.get('type') == 'habit' and event.get('status') not in ['missed', 'forgiven']:
+                last_completed = event.get('last_completed')
                 last_completed_date = last_completed.astimezone(TIMEZONE).date() if last_completed else None
                 if not last_completed_date or last_completed_date != today:
                     event['can_checkin'] = True
@@ -489,7 +535,6 @@ def personal_dashboard():
         for c in challenges: c['claimer_username'] = member_map.get(str(c.get('claimed_by_id')), '')
 
         return render_template(
-            # Assuming you have a dashboard_child.html template
             'dashboard_child.html',
             todays_events=todays_events,
             overdue_events=overdue_events,
@@ -498,8 +543,8 @@ def personal_dashboard():
             available_rewards=available_rewards,
             challenges=challenges,
             parent=parent,
-            TIMEZONE=TIMEZONE_NAME, # Pass the name string (for base.html)
-            TIMEZONE_OBJ=TIMEZONE    # Pass the pytz object (for Jinja)
+            TIMEZONE=TIMEZONE_NAME,
+            TIMEZONE_OBJ=TIMEZONE
         )
 
 @app.route('/family-dashboard')

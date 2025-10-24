@@ -36,6 +36,31 @@
               <p class="text-lg font-semibold text-green-600 dark:text-green-400 mt-1">
                   Balance: ${{ "%.2f"|format(child.cash_balance|default(0.0)) }} 💰
               </p>
+
+              {# --- THIS IS THE NEW MOOD STATUS BLOCK --- #}
+              <div class="mt-3">
+                <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">Today's Mood Log</label>
+                <div class="flex items-center gap-2 mt-1.5 flex-wrap"> {# Added flex-wrap #}
+                  {% set periods = ['Morning', 'Afternoon', 'Evening'] %}
+                  {% for period in periods %}
+                    {% if period in child.today_moods_logged %}
+                      {# Logged #}
+                      <span class="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" title="Logged for {{ period }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                        {{ period }}
+                      </span>
+                    {% else %}
+                      {# Not Logged #}
+                      <span class="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300" title="Not logged for {{ period }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" /></svg>
+                        {{ period }}
+                      </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+              {# --- END NEW MOOD STATUS BLOCK --- #}
+
             </div>
             {# Pass data attributes directly to the button #}
             <button onclick="openChildDayView('{{ child._id }}', '{{ child.username }}')"
@@ -383,6 +408,127 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+
+    // --- NEW: Child Day View Modal Logic ---
+    window.openChildDayView = async (childId, childName) => {
+        const modal = document.getElementById('child-day-modal');
+        const titleEl = document.getElementById('child-day-modal-title');
+        const contentEl = document.getElementById('child-day-modal-content');
+        
+        if (!modal || !titleEl || !contentEl) {
+            console.error("Child day view modal elements not found.");
+            return;
+        }
+        
+        // Set loading state and open modal
+        titleEl.textContent = `${childName}'s Tasks for Today`;
+        contentEl.innerHTML = `
+            <div class="flex justify-center items-center py-10">
+              <svg class="animate-spin h-6 w-6 text-blue-500 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"> <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle> <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path> </svg>
+              <span>Loading tasks...</span>
+            </div>`;
+        openModal('child-day-modal');
+
+        try {
+            const response = await fetch(`/api/child-day/${childId}`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Failed to load tasks (Status: ${response.status})`);
+            }
+            const data = await response.json();
+            
+            // Build the HTML to render
+            let html = '';
+            
+            // 1. Overdue Events
+            if (data.overdue_events && data.overdue_events.length > 0) {
+                html += '<h4 class="text-lg font-bold text-red-600 dark:text-red-400 mb-2">Overdue Tasks</h4>';
+                html += '<div class="space-y-2 mb-6">';
+                data.overdue_events.forEach(task => {
+                    html += `
+                        <div class="p-3 bg-red-50 dark:bg-red-900/30 rounded-lg flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-gray-800 dark:text-gray-100">${task.name}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    Was due: ${new Date(task.due_date).toLocaleDateString()}
+                                    <span class="font-bold text-red-600 dark:text-red-400 ml-2">${task.points} pts</span>
+                                </p>
+                            </div>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Overdue</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+            
+            // 2. Today's Events
+            html += '<h4 class="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">Today\'s Tasks</h4>';
+            if (data.todays_events && data.todays_events.length > 0) {
+                html += '<div class="space-y-2">';
+                data.todays_events.forEach(task => {
+                    let statusHtml = '';
+                    let bgColor = 'bg-gray-50 dark:bg-gray-700/50'; // Default
+                    
+                    switch(task.status) {
+                        case 'assigned':
+                            if(task.type === 'habit') {
+                                statusHtml = task.can_checkin ? 
+                                    '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">Pending Check-in</span>' :
+                                    '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Done Today</span>';
+                                bgColor = task.can_checkin ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-green-50 dark:bg-green-900/30';
+                            } else {
+                                statusHtml = '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200">Assigned</span>';
+                            }
+                            break;
+                        case 'completed':
+                            statusHtml = '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">Pending Approval</span>';
+                            bgColor = 'bg-purple-50 dark:bg-purple-900/30';
+                            break;
+                        case 'approved':
+                            statusHtml = '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Approved</span>';
+                            bgColor = 'bg-green-50 dark:bg-green-900/30';
+                            break;
+                        case 'missed':
+                            statusHtml = '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">Missed</span>';
+                            bgColor = 'bg-orange-50 dark:bg-orange-900/30';
+                            break;
+                        case 'forgiven':
+                             statusHtml = '<span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200">Forgiven</span>';
+                             bgColor = 'bg-gray-100 dark:bg-gray-700/50';
+                             break;
+                    }
+
+                    html += `
+                        <div class="p-3 ${bgColor} rounded-lg flex justify-between items-center">
+                            <div>
+                                <p class="font-semibold text-gray-800 dark:text-gray-100">${task.name}</p>
+                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                    Type: ${task.type === 'habit' ? 'Habit' : 'Chore'}
+                                    <span class="font-bold text-blue-600 dark:text-blue-400 ml-2">${task.points} pts</span>
+                                    ${task.type === 'habit' ? `<span class="ml-2 font-medium text-purple-600 dark:text-purple-400">🔥 ${task.streak || 0}</span>` : ''}
+                                </p>
+                            </div>
+                            <div class="flex-shrink-0 ml-2">
+                                ${statusHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            } else {
+                 html += '<p class="text-center py-8 text-gray-500 dark:text-gray-400">No tasks scheduled for today.</p>';
+            }
+            
+            contentEl.innerHTML = html;
+
+        } catch (error) {
+            console.error("Error fetching child day view:", error);
+            contentEl.innerHTML = `<p class="text-center text-red-500 dark:text-red-400 py-10">Error: ${error.message}</p>`;
+        }
+    };
+    // --- END Child Day View ---
+
+
     // --- Approve All Button Logic ---
     const approveAllBtn = document.getElementById('approve-all-btn');
     if (approveAllBtn) {
@@ -431,9 +577,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error('Bulk approval error:', error);
-                alert(`An error occurred: ${error.message}`);
-                approveAllBtn.disabled = false;
-                approveAllBtn.textContent = 'Approve All';
+                // Use a non-blocking error message
+                approveAllBtn.textContent = 'Error!';
+                approveAllBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+                setTimeout(() => {
+                    approveAllBtn.disabled = false;
+                    approveAllBtn.textContent = 'Approve All';
+                    approveAllBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+                }, 3000);
             }
         });
     }
@@ -451,9 +602,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const generateSuggestionsBtn = document.getElementById('generate-suggestions-btn');
     if(generateSuggestionsBtn) {
-        generateSuggestionsBtn.addEventListener('click', async () => {
+        // Encapsulate the handler to make it re-attachable
+        const handleGenerateSuggestions = async () => {
             setSuggestRewardsModalState('loading');
-            const theme = document.getElementById('reward-theme-input').value.trim();
+            const themeInput = document.getElementById('reward-theme-input');
+            const theme = themeInput ? themeInput.value.trim() : '';
             const suggestionsContainer = document.getElementById('suggestions-container');
             if (!suggestionsContainer) return; // Guard clause
             suggestionsContainer.innerHTML = ''; // Clear previous
@@ -482,7 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const sanitizedName = String(reward.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
                         rewardEl.innerHTML = `
                             <div class="min-w-0"> {# Allow text wrapping #}
-                                <p class="font-semibold text-gray-800 dark:text-gray-100 truncate">${reward.name}</p> {# Add truncate #}
+                                <p class="font-semibold text-gray-800 dark:text-gray-100 truncate" title="${sanitizedName}">${reward.name}</p> {# Add truncate and title #}
                                 <p class="text-sm text-secondary-600 dark:text-secondary-400 font-bold">${reward.cost} pts</p>
                             </div>
                             <button onclick="addSuggestedReward(this, '${sanitizedName}', ${reward.cost})" class="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition focus:outline-none focus:ring-1 focus:ring-green-400">
@@ -503,18 +656,20 @@ document.addEventListener('DOMContentLoaded', () => {
                      // Put theme input back for retry
                       errorContainer.innerHTML = `
                       <p class="text-red-500 dark:text-red-400 p-4 bg-red-100 dark:bg-red-900/50 rounded-md mb-4">Error: ${error.message}</p>
-                      <input type="text" id="reward-theme-input" class="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Optional: Enter a theme...">
+                      <input type="text" id="reward-theme-input" class="w-full p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Optional: Enter a theme..." value="${theme}">
                       <button id="generate-suggestions-btn-retry" class="mt-4 w-full py-3 px-4 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">Try Again</button>`;
                      // Re-add event listener to the new button
                       const retryBtn = document.getElementById('generate-suggestions-btn-retry');
-                      if(retryBtn) retryBtn.addEventListener('click', generateSuggestionsBtn.onclick); // Re-use original handler
+                      if(retryBtn) retryBtn.addEventListener('click', handleGenerateSuggestions); // Re-attach handler
                      setSuggestRewardsModalState('start'); // Show the container with the error + retry elements
                  } else {
-                      alert(`Error generating suggestions: ${error.message}`); // Fallback alert
-                      closeModal('suggest-rewards-modal'); // Close modal on fallback error
+                      // Fallback if modal structure is broken
+                      closeModal('suggest-rewards-modal'); 
                  }
             }
-        });
+        };
+        // Attach the handler to the initial button
+        generateSuggestionsBtn.addEventListener('click', handleGenerateSuggestions);
     } // end generateSuggestionsBtn check
 
     // Add function definitions needed by inline `onclick` handlers (if not already in main.js)
@@ -548,14 +703,25 @@ document.addEventListener('DOMContentLoaded', () => {
           });
 
           if (!response.ok) {
-               const errorData = await response.json().catch(() => ({}));
-               throw new Error(errorData.error || 'Failed to add the reward.');
+               // Try to parse error from flash message (if HTML response) or JSON
+               let errorMessage = 'Failed to add the reward.';
+               try {
+                   const errorData = await response.json();
+                   errorMessage = errorData.error || errorMessage;
+               } catch (e) {
+                   // Not a JSON response, maybe it's the HTML redirect
+                   const text = await response.text();
+                   if (text.includes("already exists")) { // Simple check
+                       errorMessage = "This reward might already exist.";
+                   }
+               }
+               throw new Error(errorMessage);
           }
 
           button.innerHTML = 'Added!';
           button.classList.remove('bg-green-600', 'hover:bg-green-700');
           button.classList.add('bg-gray-400', 'cursor-not-allowed', 'dark:bg-gray-600');
-          // Optionally, visually disable or hide after adding
+          // No need to reload, just show it's done. User will see it when they close.
 
       } catch (error) {
           console.error('Error adding suggested reward:', error);
@@ -576,3 +742,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 {% endblock %}
+
