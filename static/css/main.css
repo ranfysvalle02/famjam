@@ -1,16 +1,39 @@
 /* --- 1. Base Styles & Typography --- */
 
+html {
+  /*
+   * FORCED DARK MODE FIX (from screenshot):
+   * This prevents the white "gutters" on large screens by
+   * setting a dark base color for the entire page.
+  */
+  background-color: #1f2937; /* Base color from your gradient */
+}
+
 body {
   font-family: 'Inter', sans-serif;
   min-height: 100vh;
   transition: background-color 0.3s, color 0.3s;
   
-  /* * Default dark gradient background.
-   * This was the fix: applied to `body` tag, not #body ID.
+  /* * FORCED DARK MODE FIX (Original):
+   * Gradient moved from #body to the body tag
+   * for consistent application.
   */
   background: linear-gradient(45deg, #1f2937, #2d3748, #4a5568, #2d3748, #1f2937);
   background-size: 800% 800%;
   animation: gradientFlow 20s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* This rule is no longer needed and can be deleted */
+#body {
+  
+}
+
+/* FORCED DARK MODE: Use dark gradient text shadow by default */
+.gradient-text {
+  background: linear-gradient(to right, #4f46e5, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 1px 1px rgba(255,255,255,.2);
 }
 
 .font-brand {
@@ -28,7 +51,7 @@ body {
   color: inherit; /* Ensures text color matches dark mode */
 }
 
-/* Custom dark-themed scrollbars */
+/* custom scrollbars - FORCED DARK MODE */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -94,14 +117,6 @@ body {
 
 
 /* --- 3. Utility & Animation Classes --- */
-
-/* Applies the gradient clip effect to text */
-.gradient-text {
-  background: linear-gradient(to right, #4f46e5, #ec4899);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 1px 1px rgba(255,255,255,.2);
-}
 
 /* Simple fade-in for page content */
 .fade-in {
@@ -218,4 +233,5 @@ tr.fc-list-event:hover {
 .fc-scrollgrid-sync-inner,
 .fc-list-day,
 .fc-daygrid-day-number {
-  color: white !importa```
+  color: white !important;
+}
