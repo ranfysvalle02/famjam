@@ -419,3 +419,79 @@
     </div>
   </div>
 </div>
+
+{# Family Calendar Modal - Comprehensive Calendar View #}
+<div id="calendar-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black bg-opacity-60 hidden p-4 backdrop-blur-sm">
+  <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-6xl mx-auto flex flex-col" style="max-height: 95vh;">
+    <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+      <h3 class="text-2xl font-bold text-gray-900 dark:text-gray-100">Family Calendar 📅</h3>
+      <button onclick="closeModal('calendar-modal')" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    
+    {# Filter Controls #}
+    <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <input type="text" id="calendar-filter-search" placeholder="Search by name..."
+               class="px-3 py-2 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                      border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm
+                      focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"/>
+        <select id="calendar-filter-member"
+                class="px-3 py-2 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                       border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm
+                       focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+          <option value="">All Members</option>
+          {% for member in family_members if member.role == 'child' %}
+          <option value="{{ member._id }}" {% if current_user.role == 'child' and member._id == current_user.id %}selected{% endif %}>
+            {{ member.username }}
+          </option>
+          {% endfor %}
+        </select>
+        <select id="calendar-filter-type"
+                class="px-3 py-2 bg-gray-50 dark:bg-gray-700 dark:text-gray-100
+                       border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm
+                       focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+          <option value="">All Types</option>
+          <option value="chore">Chores</option>
+          <option value="habit">Habits</option>
+        </select>
+        <button id="calendar-apply-filters"
+                class="px-4 py-2 font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition text-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500">
+          Apply Filters
+        </button>
+      </div>
+    </div>
+    
+    {# Calendar Container #}
+    <div class="flex-grow overflow-y-auto p-6">
+      <div id="calendar-container" class="text-sm md:text-base">
+        {# Calendar will be rendered here by JS #}
+      </div>
+    </div>
+    
+    {# Event Details Modal (nested within calendar modal) #}
+    <div id="calendar-event-details-modal" class="fixed inset-0 z-[90] flex items-center justify-center bg-black bg-opacity-70 hidden p-4 backdrop-blur-sm">
+      <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg mx-auto">
+        <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+          <h4 id="calendar-modal-title" class="text-xl font-bold text-gray-900 dark:text-gray-100">Event Details</h4>
+          <button id="calendar-modal-close-btn" class="p-2 rounded-full text-gray-400 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="p-6 space-y-4">
+          <p id="calendar-modal-description" class="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">Description goes here.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div id="calendar-modal-assignee" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+            <div id="calendar-modal-points" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+            <div id="calendar-modal-status" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+            <div id="calendar-modal-extra-info" class="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg"></div>
+          </div>
+        </div>
+        <div id="calendar-modal-actions" class="px-6 pb-6 pt-2 text-right space-x-2">
+          {# Action buttons loaded by JS #}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

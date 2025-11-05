@@ -101,12 +101,10 @@
                {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
                {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Day{% endif %}
             </a>
-            <a href="{{ url_for('calendar_focus') }}"
-               class="px-3 py-1 text-sm font-medium rounded-full transition-colors
-               {% if request.endpoint == 'calendar_focus' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm
-               {% else %} text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white {% endif %}">
+            <button onclick="openCalendarModal()"
+               class="px-3 py-1 text-sm font-medium rounded-full transition-colors text-gray-600 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white">
               Calendar
-            </a>
+            </button>
             <a href="{{ url_for('mood_dashboard_personal') }}"
                class="px-3 py-1 text-sm font-medium rounded-full transition-colors
                {% if request.endpoint == 'mood_dashboard_personal' or request.endpoint == 'mood_dashboard_family' %} bg-white dark:bg-gray-600 text-gray-800 dark:text-gray-100 shadow-sm

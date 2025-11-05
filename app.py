@@ -99,6 +99,9 @@ challenges_collection = db['challenges']
 direct_messages_collection = db['direct_messages']
 families_collection = db['families']
 store_rewards_collection = db['store_rewards']
+rules_collection = db['rules']
+excuse_requests_collection = db['excuse_requests']
+academic_info_collection = db['academic_info']
 
 ################################################################################
 # 3. RECOMMENDED INDEXES
@@ -120,6 +123,10 @@ personal_todos_collection.create_index([('user_id', ASCENDING)])
 challenges_collection.create_index([('family_id', ASCENDING), ('status', ASCENDING)])
 direct_messages_collection.create_index([('family_id', ASCENDING), ('sent_at', DESCENDING)])
 store_rewards_collection.create_index([('family_id', ASCENDING)])
+rules_collection.create_index([('family_id', ASCENDING)])
+excuse_requests_collection.create_index([('family_id', ASCENDING), ('status', ASCENDING)])
+excuse_requests_collection.create_index([('event_id', ASCENDING)])
+excuse_requests_collection.create_index([('requested_at', DESCENDING)])
 
 ################################################################################
 # 4. BCRYPT, LOGIN MANAGER, AND MODELS
@@ -442,6 +449,10 @@ def personal_dashboard():
             logged_periods = [m.get('period') for m in todays_moods if m.get('period')]
             # --- END Mood Fetch ---
 
+            # --- Fetch Academic Info for this Child ---
+            academic_info = academic_info_collection.find_one({'child_id': child_id_obj})
+            # --- END Academic Info Fetch ---
+
             # Append all data for this child
             child_dashboard_data.append({
                 '_id': str(child_id_obj),
@@ -461,7 +472,8 @@ def personal_dashboard():
                     'missed_count': weekly_missed_count,
                     'penalty_incurred': weekly_penalty_incurred
                 },
-                'today_moods_logged': logged_periods
+                'today_moods_logged': logged_periods,
+                'academic_info': academic_info  # *** ADDED ACADEMIC INFO ***
             })
 
         # Convert ObjectIds to strings for remaining processing
@@ -471,6 +483,47 @@ def personal_dashboard():
         pending_events = list(events_collection.find({'family_id': family_oid, 'status': 'completed'}).sort('completed_at', DESCENDING))
         available_rewards = list(store_rewards_collection.find({'family_id': family_oid}).sort('cost', ASCENDING))
         pending_rewards = list(rewards_collection.find({'family_id': family_oid, 'status': 'pending'}).sort('requested_at', DESCENDING))
+        
+        # Fetch pending excuse requests
+        pending_excuses = list(excuse_requests_collection.find({
+            'family_id': family_oid,
+            'status': 'pending'
+        }).sort('requested_at', DESCENDING))
+        
+        # Enrich excuse requests with child and event information
+        for excuse in pending_excuses:
+            child = users_collection.find_one({'_id': excuse['child_id']})
+            excuse['child_username'] = child.get('username', 'Unknown') if child else 'Unknown'
+            
+            event = events_collection.find_one({'_id': excuse['event_id']})
+            if event:
+                excuse['task_name'] = event.get('name', 'Unknown Task')
+                excuse['task_type'] = event.get('type', 'chore')
+                excuse['task_points'] = event.get('points', 0)
+                excuse['missed_at'] = event.get('missed_at')
+            else:
+                excuse['task_name'] = excuse.get('task_name', 'Unknown Task')
+                excuse['task_type'] = 'chore'
+                excuse['task_points'] = excuse.get('task_points', 0)
+            
+            # Format requested_at for display
+            if excuse.get('requested_at'):
+                delta = now - excuse['requested_at'].astimezone(TIMEZONE)
+                if delta.days > 0:
+                    excuse['requested_at_pretty'] = f"{delta.days}d ago"
+                elif (h := delta.seconds // 3600) > 0:
+                    excuse['requested_at_pretty'] = f"{h}h ago"
+                else:
+                    excuse['requested_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
+            
+            # Convert ObjectId to string for template
+            excuse['_id'] = str(excuse['_id'])
+        
+        # --- Fetch Rules (Up to 10) ---
+        family_rules = list(rules_collection.find({'family_id': family_oid}).sort('order', ASCENDING))
+        # Convert ObjectIds to strings for template rendering
+        for rule in family_rules:
+            rule['_id'] = str(rule['_id'])
 
         # Populate usernames for pending rewards
         user_ids_for_rewards = [r['requested_by_id'] for r in pending_rewards]
@@ -516,7 +569,9 @@ def personal_dashboard():
             child_dashboard_data=child_dashboard_data, # Contains all child stats including moods
             pending_events=pending_events,
             pending_rewards=pending_rewards,
+            pending_excuses=pending_excuses,
             available_rewards=available_rewards,
+            family_rules=family_rules,      # Rules for the family
             timers=timers,                 # *** ADDED TIMERS ***
             now=now,                       # *** ADDED NOW ***
             TIMEZONE=TIMEZONE_NAME,        # Pass timezone name string
@@ -545,11 +600,36 @@ def personal_dashboard():
         todays_events = []
         for event in todays_events_cursor:
             event['can_checkin'] = False
+            event['can_request_excuse'] = False
+            event['has_pending_excuse'] = False
+            
             if event.get('type') == 'habit' and event.get('status') not in ['missed', 'forgiven']:
                 last_completed = event.get('last_completed')
                 last_completed_date = last_completed.astimezone(TIMEZONE).date() if last_completed else None
                 if not last_completed_date or last_completed_date != today:
                     event['can_checkin'] = True
+            
+            # Check if task is missed and eligible for excuse request (24-48 hours window)
+            if event.get('status') == 'missed' and event.get('missed_at'):
+                missed_at = event['missed_at']
+                if isinstance(missed_at, datetime):
+                    if missed_at.tzinfo is None:
+                        missed_at = pytz.utc.localize(missed_at).astimezone(TIMEZONE)
+                    else:
+                        missed_at = missed_at.astimezone(TIMEZONE)
+                    hours_since_missed = (now - missed_at).total_seconds() / 3600
+                    # Check if within 24-48 hour window
+                    if 24 <= hours_since_missed <= 48:
+                        # Check if there's already a pending excuse request
+                        existing_excuse = excuse_requests_collection.find_one({
+                            'event_id': event['_id'],
+                            'status': 'pending'
+                        })
+                        if not existing_excuse:
+                            event['can_request_excuse'] = True
+                        else:
+                            event['has_pending_excuse'] = True
+            
             todays_events.append(event)
         available_rewards = list(store_rewards_collection.find({'family_id': family_oid}).sort('cost', ASCENDING))
         rewards = list(rewards_collection.find({'requested_by_id': current_user_oid}))
@@ -600,6 +680,19 @@ def personal_dashboard():
             })
         # --- End Fetch Timers ---
 
+        # --- Fetch Rules (for display to children) ---
+        family_rules = list(rules_collection.find({'family_id': family_oid}).sort('order', ASCENDING))
+        # Convert ObjectIds to strings for template rendering
+        for rule in family_rules:
+            rule['_id'] = str(rule['_id'])
+        # --- End Fetch Rules ---
+
+        # --- Fetch Academic Info ---
+        academic_info = academic_info_collection.find_one({'child_id': current_user_oid})
+        if academic_info:
+            academic_info['_id'] = str(academic_info['_id'])
+        # --- End Fetch Academic Info ---
+
         return render_template(
             'dashboard_child.html',
             todays_events=todays_events,
@@ -609,6 +702,8 @@ def personal_dashboard():
             available_rewards=available_rewards,
             challenges=challenges,
             timers=timers,                 # *** ADDED TIMERS ***
+            family_rules=family_rules,    # *** ADDED RULES ***
+            academic_info=academic_info,   # *** ADDED ACADEMIC INFO ***
             now=now,                       # *** ADDED NOW ***
             parent=parent,
             TIMEZONE=TIMEZONE_NAME,
@@ -675,17 +770,16 @@ def family_dashboard():
 
         timers.append({'_id': str(t['_id']), 'name': t['name'], 'end_date': end_date_aware.strftime('%b %d, %Y'), 'creator_id': str(t.get('created_by')), 'creator_name': member_map.get(str(t.get('created_by')), "Unknown"), 'time_left': time_left})
 
+    # --- Fetch Rules (for display to all family members) ---
+    family_rules = list(rules_collection.find({'family_id': fam_oid}).sort('order', ASCENDING))
+    # Convert ObjectIds to strings for template rendering
+    for rule in family_rules:
+        rule['_id'] = str(rule['_id'])
+    # --- End Fetch Rules ---
+
     # Assuming family_dashboard.html template exists
-    return render_template('family_dashboard.html', stats=stats, family_members=family_members, recent_events=recent_events, timers=timers, now=now_est())
+    return render_template('family_dashboard.html', stats=stats, family_members=family_members, recent_events=recent_events, timers=timers, family_rules=family_rules, now=now_est())
 
-
-@app.route('/calendar-focus')
-@login_required
-def calendar_focus():
-    family_members = list(users_collection.find({'family_id': current_user.family_id}))
-    for member in family_members: member['_id'] = str(member['_id'])
-    # Assuming calendar_focus.html template exists
-    return render_template('calendar_focus.html', family_members=family_members)
 
 @app.route('/mood-dashboard/personal')
 @login_required
@@ -827,6 +921,95 @@ def delete_store_reward(reward_id):
         flash("Reward removed from the store.", "success")
     else:
         flash("Could not find the reward to delete.", "error")
+    return redirect(url_for('personal_dashboard'))
+
+################################################################################
+# 9.5. RULES MANAGEMENT ROUTES (Parent Only - Up to 10 Rules)
+################################################################################
+
+@app.route('/rule/add', methods=['POST'])
+@login_required
+def add_rule():
+    if current_user.role != 'parent':
+        flash("Only parents can manage rules.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    family_oid = ObjectId(current_user.family_id)
+    
+    # Check if we already have 10 rules
+    rule_count = rules_collection.count_documents({'family_id': family_oid})
+    if rule_count >= 10:
+        flash("Maximum of 10 rules allowed. Please delete a rule before adding a new one.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    name = request.form.get('name', '').strip()
+    consequence = request.form.get('consequence', '').strip()
+    
+    if not name or not consequence:
+        flash("Rule name and consequence are required.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    rules_collection.insert_one({
+        'name': name,
+        'consequence': consequence,
+        'family_id': family_oid,
+        'created_at': now_est(),
+        'order': rule_count  # Order for display
+    })
+    flash(f"Rule '{name}' added successfully.", "success")
+    return redirect(url_for('personal_dashboard'))
+
+@app.route('/rule/edit/<rule_id>', methods=['POST'])
+@login_required
+def edit_rule(rule_id):
+    if current_user.role != 'parent':
+        flash("Only parents can manage rules.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    try:
+        rule_oid = ObjectId(rule_id)
+        family_oid = ObjectId(current_user.family_id)
+    except:
+        flash("Invalid rule ID format.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    name = request.form.get('name', '').strip()
+    consequence = request.form.get('consequence', '').strip()
+    
+    if not name or not consequence:
+        flash("Rule name and consequence are required.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    result = rules_collection.update_one(
+        {'_id': rule_oid, 'family_id': family_oid},
+        {'$set': {'name': name, 'consequence': consequence, 'updated_at': now_est()}}
+    )
+    
+    if result.modified_count > 0:
+        flash(f"Rule '{name}' updated successfully.", "success")
+    else:
+        flash("Could not find the rule to update.", "error")
+    return redirect(url_for('personal_dashboard'))
+
+@app.route('/rule/delete/<rule_id>')
+@login_required
+def delete_rule(rule_id):
+    if current_user.role != 'parent':
+        flash("Only parents can manage rules.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    try:
+        rule_oid = ObjectId(rule_id)
+        family_oid = ObjectId(current_user.family_id)
+    except:
+        flash("Invalid rule ID format.", "error")
+        return redirect(url_for('personal_dashboard'))
+    
+    result = rules_collection.delete_one({'_id': rule_oid, 'family_id': family_oid})
+    if result.deleted_count > 0:
+        flash("Rule deleted successfully.", "success")
+    else:
+        flash("Could not find the rule to delete.", "error")
     return redirect(url_for('personal_dashboard'))
 
 ################################################################################
@@ -1749,15 +1932,22 @@ def api_events():
     cursor = events_collection.find(query)
     calendar_events = []
     today = today_est()
+    now = now_est()
     for e in cursor:
         assigned_to_id_str = str(e.get('assigned_to'))
         can_checkin = False
         due_date_est = e.get('due_date').astimezone(TIMEZONE).date() if e.get('due_date') else None
         is_due_today = (due_date_est == today) if due_date_est else False
-        if e.get('type') == 'habit' and is_due_today and e.get('status') not in ['missed', 'forgiven']: # Added forgiven check
+        
+        # Allow checkin for habits (if not already checked in today)
+        if e.get('type') == 'habit' and is_due_today and e.get('status') not in ['missed', 'forgiven']:
             last_completed_date_est = e.get('last_completed').astimezone(TIMEZONE).date() if e.get('last_completed') else None
             if not (last_completed_date_est and last_completed_date_est == today):
                 can_checkin = True
+        # Allow checkin for chores/tasks when assigned (can checkin even if not due today)
+        elif e.get('type') == 'chore' and e.get('status') == 'assigned':
+            can_checkin = True
+        
         start_iso = e.get('due_date').isoformat() if e.get('due_date') else None
         
         # Determine status color/display for calendar
@@ -1783,6 +1973,51 @@ def api_events():
                 'streak': e.get('streak', 0) if e.get('type') == 'habit' else None
             }
         })
+    
+    # Add timers to calendar events
+    timers_query = {'family_id': fam_oid}
+    if start_param and end_param:
+        try:
+            start_date_utc = datetime.fromisoformat(start_param.replace('Z', '+00:00')).astimezone(pytz.utc)
+            end_date_utc = datetime.fromisoformat(end_param.replace('Z', '+00:00')).astimezone(pytz.utc)
+            timers_query['end_date'] = {'$gte': start_date_utc, '$lt': end_date_utc}
+        except ValueError: pass
+    
+    for t in timers_collection.find(timers_query).sort('end_date', ASCENDING):
+        end_date_aware = t['end_date'].astimezone(TIMEZONE)
+        delta = end_date_aware - now
+        time_left = "Timer ended"
+        if delta.total_seconds() >= 0:
+            days_left = delta.days
+            if days_left >= 1:
+                time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
+            else:
+                seconds_remaining_today = (end_date_aware.replace(hour=23, minute=59, second=59) - now).total_seconds()
+                if seconds_remaining_today < 0: seconds_remaining_today = 0
+                hours, rem = divmod(seconds_remaining_today, 3600)
+                minutes, _ = divmod(rem, 60)
+                hours, minutes = int(hours), int(minutes)
+                if hours > 0: time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
+                elif minutes > 0: time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
+                else: time_left = "Less than a minute left"
+        
+        creator_id_str = str(t.get('created_by'))
+        timer_start = end_date_aware.date()
+        timer_start_iso = datetime.combine(timer_start, datetime.min.time()).astimezone(TIMEZONE).isoformat()
+        
+        calendar_events.append({
+            'id': f"timer_{str(t['_id'])}", 'title': f"⏱️ {t['name']}",
+            'start': timer_start_iso, 'allDay': True, 'color': '#3b82f6',  # Blue color for timers
+            'extendedProps': {
+                '_id': str(t['_id']), 'type': 'timer', 'description': f"Timer ends on {end_date_aware.strftime('%b %d, %Y')}",
+                'points': None, 'status': 'active',
+                'assignee_name': member_map.get(creator_id_str, 'N/A'),
+                'assigned_to': creator_id_str, 'can_checkin': False,
+                'time_left': time_left, 'end_date': end_date_aware.isoformat(),
+                'creator_name': member_map.get(creator_id_str, 'Unknown')
+            }
+        })
+    
     return jsonify(calendar_events)
 
 @app.route('/api/child-day/<child_id>')
@@ -2267,6 +2502,57 @@ def reset_child_points(child_id):
     return redirect(request.referrer or url_for('personal_dashboard'))
 
 # --- NEW ROUTE ---
+@app.route('/academic/update', methods=['POST'])
+@login_required
+def update_academic_info():
+    """Allow children to self-report their academic information."""
+    if current_user.role != 'child':
+        flash("Only children can update their academic information.", 'error')
+        return redirect(url_for('personal_dashboard'))
+    
+    current_grade = request.form.get('current_grade', '').strip()
+    school_name = request.form.get('school_name', '').strip()
+    class_names = request.form.getlist('class_names[]')
+    teacher_emails = request.form.getlist('teacher_emails[]')
+    
+    # Build classes array from paired inputs
+    classes = []
+    for i in range(len(class_names)):
+        class_name = class_names[i].strip() if i < len(class_names) else ''
+        teacher_email = teacher_emails[i].strip() if i < len(teacher_emails) else ''
+        if class_name:  # Only add if class name is provided
+            classes.append({
+                'name': class_name,
+                'teacher_email': teacher_email if teacher_email else None
+            })
+    
+    # Prepare academic info document
+    academic_data = {
+        'child_id': ObjectId(current_user.id),
+        'current_grade': current_grade if current_grade else None,
+        'school_name': school_name if school_name else None,
+        'classes': classes,
+        'updated_at': now_est()
+    }
+    
+    # Check if academic info already exists
+    existing = academic_info_collection.find_one({'child_id': ObjectId(current_user.id)})
+    
+    if existing:
+        # Update existing record
+        academic_info_collection.update_one(
+            {'child_id': ObjectId(current_user.id)},
+            {'$set': academic_data}
+        )
+        flash("Academic information updated successfully! ✅", 'success')
+    else:
+        # Create new record
+        academic_data['created_at'] = now_est()
+        academic_info_collection.insert_one(academic_data)
+        flash("Academic information saved successfully! ✅", 'success')
+    
+    return redirect(url_for('personal_dashboard'))
+
 @app.route('/child/forgive-missed/<string:child_id>', methods=['POST'])
 @login_required
 def forgive_child_missed_tasks(child_id):
@@ -2311,6 +2597,257 @@ def forgive_child_missed_tasks(child_id):
     # 5. Redirect back to the previous page
     return redirect(request.referrer or url_for('personal_dashboard'))
 # --- END NEW ROUTE ---
+
+################################################################################
+# EXCUSE REQUEST ROUTES
+################################################################################
+
+@app.route('/excuse/request', methods=['POST'])
+@login_required
+def request_excuse():
+    """
+    Allows a child to request an excuse for a missed task.
+    Must be within 24-48 hours of the task being marked as missed.
+    """
+    if current_user.role != 'child':
+        flash('Only children can request excuses.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    event_id = request.form.get('event_id')
+    explanation = request.form.get('explanation', '').strip()
+    
+    if not event_id or not explanation:
+        flash('Please provide an explanation for why you missed the task.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    try:
+        event_oid = ObjectId(event_id)
+        user_oid = ObjectId(current_user.id)
+    except:
+        flash('Invalid event ID.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Find the event and verify it belongs to the child
+    event = events_collection.find_one({
+        '_id': event_oid,
+        'assigned_to': user_oid,
+        'status': 'missed'
+    })
+    
+    if not event:
+        flash('Task not found or not eligible for excuse request.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Check if task was missed within the last 48 hours
+    if not event.get('missed_at'):
+        flash('Unable to determine when task was missed.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    missed_at = event['missed_at']
+    
+    # Ensure missed_at is timezone-aware datetime
+    if isinstance(missed_at, datetime):
+        if missed_at.tzinfo is None:
+            # Assume it's in UTC if naive
+            missed_at = pytz.utc.localize(missed_at).astimezone(TIMEZONE)
+        else:
+            missed_at = missed_at.astimezone(TIMEZONE)
+    else:
+        flash('Unable to determine when task was missed.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    now = now_est()
+    hours_since_missed = (now - missed_at).total_seconds() / 3600
+    
+    # Check if within 24-48 hour window (allow 24 hours minimum, 48 hours maximum)
+    if hours_since_missed < 24:
+        flash('You can request an excuse starting 24 hours after a task is marked as missed.', 'info')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    if hours_since_missed > 48:
+        flash('The excuse request window has expired. You can only request excuses within 48 hours of a task being marked as missed.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Check if there's already a pending excuse request for this event
+    existing_request = excuse_requests_collection.find_one({
+        'event_id': event_oid,
+        'status': 'pending'
+    })
+    
+    if existing_request:
+        flash('You have already submitted an excuse request for this task. Please wait for a parent to review it.', 'info')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Create the excuse request
+    excuse_request = {
+        'event_id': event_oid,
+        'child_id': user_oid,
+        'family_id': ObjectId(current_user.family_id),
+        'explanation': explanation,
+        'status': 'pending',
+        'requested_at': now_est(),
+        'task_name': event.get('name', 'Unknown Task'),
+        'task_points': event.get('points', 0)
+    }
+    
+    excuse_requests_collection.insert_one(excuse_request)
+    flash('Excuse request submitted successfully! A parent will review it shortly.', 'success')
+    
+    return redirect(request.referrer or url_for('personal_dashboard'))
+
+@app.route('/excuse/pending')
+@login_required
+def view_pending_excuses():
+    """
+    Allows parents to view pending excuse requests.
+    """
+    if current_user.role != 'parent':
+        flash('Only parents can view excuse requests.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    family_oid = ObjectId(current_user.family_id)
+    
+    # Get all pending excuse requests for this family
+    pending_excuses = list(excuse_requests_collection.find({
+        'family_id': family_oid,
+        'status': 'pending'
+    }).sort('requested_at', DESCENDING))
+    
+    # Enrich with child and event information
+    for excuse in pending_excuses:
+        child = users_collection.find_one({'_id': excuse['child_id']})
+        excuse['child_username'] = child.get('username', 'Unknown') if child else 'Unknown'
+        
+        event = events_collection.find_one({'_id': excuse['event_id']})
+        if event:
+            excuse['task_type'] = event.get('type', 'chore')
+            excuse['due_date'] = event.get('due_date')
+            excuse['missed_at'] = event.get('missed_at')
+    
+    return jsonify({
+        'status': 'success',
+        'excuses': json.loads(json_util.dumps(pending_excuses))
+    })
+
+@app.route('/excuse/approve/<string:excuse_id>', methods=['POST'])
+@login_required
+def approve_excuse(excuse_id):
+    """
+    Allows a parent to approve an excuse request.
+    This will:
+    1. Mark the task as 'forgiven'
+    2. Restore the points that were deducted as penalty
+    3. Update the excuse request status to 'approved'
+    """
+    if current_user.role != 'parent':
+        flash('Only parents can approve excuse requests.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    try:
+        excuse_oid = ObjectId(excuse_id)
+    except:
+        flash('Invalid excuse request ID.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Find the excuse request
+    excuse = excuse_requests_collection.find_one({
+        '_id': excuse_oid,
+        'family_id': ObjectId(current_user.family_id),
+        'status': 'pending'
+    })
+    
+    if not excuse:
+        flash('Excuse request not found or already processed.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Find the associated event
+    event = events_collection.find_one({'_id': excuse['event_id']})
+    
+    if not event:
+        flash('Associated task not found.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Check if task is still marked as missed
+    if event.get('status') != 'missed':
+        flash('Task is no longer marked as missed.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Calculate the penalty that was deducted
+    task_points = event.get('points', 0)
+    penalty_deducted = math.floor(task_points * MISSED_TASK_PENALTY_FACTOR)
+    
+    # Update the task to 'forgiven'
+    events_collection.update_one(
+        {'_id': excuse['event_id']},
+        {'$set': {'status': 'forgiven', 'forgiven_at': now_est()}}
+    )
+    
+    # Restore the points that were deducted
+    if penalty_deducted > 0:
+        users_collection.update_one(
+            {'_id': excuse['child_id']},
+            {'$inc': {'points': penalty_deducted}}
+        )
+    
+    # Update the excuse request status
+    excuse_requests_collection.update_one(
+        {'_id': excuse_oid},
+        {'$set': {
+            'status': 'approved',
+            'approved_at': now_est(),
+            'approved_by': ObjectId(current_user.id)
+        }}
+    )
+    
+    child = users_collection.find_one({'_id': excuse['child_id']})
+    child_name = child.get('username', 'the child') if child else 'the child'
+    
+    flash(f'Excuse approved for {child_name}! Task forgiven and {penalty_deducted} points restored.', 'success')
+    return redirect(request.referrer or url_for('personal_dashboard'))
+
+@app.route('/excuse/deny/<string:excuse_id>', methods=['POST'])
+@login_required
+def deny_excuse(excuse_id):
+    """
+    Allows a parent to deny an excuse request.
+    This will update the excuse request status to 'denied' but leave the task as 'missed'.
+    """
+    if current_user.role != 'parent':
+        flash('Only parents can deny excuse requests.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    try:
+        excuse_oid = ObjectId(excuse_id)
+    except:
+        flash('Invalid excuse request ID.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Find the excuse request
+    excuse = excuse_requests_collection.find_one({
+        '_id': excuse_oid,
+        'family_id': ObjectId(current_user.family_id),
+        'status': 'pending'
+    })
+    
+    if not excuse:
+        flash('Excuse request not found or already processed.', 'error')
+        return redirect(request.referrer or url_for('personal_dashboard'))
+    
+    # Update the excuse request status
+    excuse_requests_collection.update_one(
+        {'_id': excuse_oid},
+        {'$set': {
+            'status': 'denied',
+            'denied_at': now_est(),
+            'denied_by': ObjectId(current_user.id)
+        }}
+    )
+    
+    child = users_collection.find_one({'_id': excuse['child_id']})
+    child_name = child.get('username', 'the child') if child else 'the child'
+    
+    flash(f'Excuse request from {child_name} has been denied.', 'info')
+    return redirect(request.referrer or url_for('personal_dashboard'))
 
 ################################################################################
 # 13. MAIN EXECUTION

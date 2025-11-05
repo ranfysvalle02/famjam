@@ -235,3 +235,29 @@ tr.fc-list-event:hover {
 .fc-daygrid-day-number {
   color: white !important;
 }
+
+/* Timer event styling */
+.fc-event-timer {
+  border-left: 3px solid #3b82f6 !important;
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+.fc-event-timer .fc-event-title {
+  font-weight: 600;
+}
+
+/* Collapsible Sections */
+.collapse-section .section-content {
+  transition: max-height 0.3s ease-out;
+  overflow: hidden;
+}
+
+.collapse-section .section-content.collapsed {
+  max-height: 0 !important;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.collapse-section .section-icon {
+  transition: transform 0.3s ease;
+}

@@ -671,4 +671,214 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     } // end suggestBtn check
 
+    // --- Calendar Modal Initialization ---
+    const calendarModal = document.getElementById('calendar-modal');
+    const calendarContainer = document.getElementById('calendar-container');
+    const calendarEventModal = document.getElementById('calendar-event-details-modal');
+    const calendarCloseBtn = document.getElementById('calendar-modal-close-btn');
+    const calendarApplyFiltersBtn = document.getElementById('calendar-apply-filters');
+    
+    let calendarInstance = null;
+
+    // Function to initialize calendar when modal opens
+    function initializeCalendar() {
+        if (!calendarContainer || calendarInstance) return; // Already initialized
+        
+        const getEventSourceUrl = () => {
+            const params = new URLSearchParams({
+                search: document.getElementById('calendar-filter-search')?.value || '',
+                member: document.getElementById('calendar-filter-member')?.value || '',
+                type: document.getElementById('calendar-filter-type')?.value || ''
+            });
+            return `/api/events?${params.toString()}`;
+        };
+
+        calendarInstance = new FullCalendar.Calendar(calendarContainer, {
+            initialView: 'dayGridMonth',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,listWeek'
+            },
+            events: getEventSourceUrl(),
+            editable: false,
+            selectable: false,
+            dayMaxEvents: true,
+            height: 'auto',
+            aspectRatio: 1.8,
+            progressiveEventRendering: true,
+
+            eventClassNames: function(arg) {
+                const status = arg.event.extendedProps.status;
+                const eventType = arg.event.extendedProps.type;
+                let classes = [];
+                if (status === 'approved') {
+                    classes.push('event-strikethrough');
+                }
+                if (eventType === 'habit') {
+                    classes.push('fc-event-habit');
+                } else if (eventType === 'timer') {
+                    classes.push('fc-event-timer');
+                } else {
+                    classes.push('fc-event-chore');
+                }
+                return classes;
+            },
+
+            eventClick: function(info) {
+                const eProps = info.event.extendedProps;
+                const modalTitle = document.getElementById('calendar-modal-title');
+                const modalDesc = document.getElementById('calendar-modal-description');
+                const modalAssignee = document.getElementById('calendar-modal-assignee');
+                const modalPoints = document.getElementById('calendar-modal-points');
+                const modalStatus = document.getElementById('calendar-modal-status');
+                const modalExtra = document.getElementById('calendar-modal-extra-info');
+                const modalActions = document.getElementById('calendar-modal-actions');
+
+                if (!modalTitle || !modalDesc || !modalAssignee || !modalPoints || !modalStatus || !modalExtra || !modalActions) return;
+
+                modalTitle.innerText = info.event.title || 'Event Details';
+                
+                // Handle timer events differently
+                if (eProps.type === 'timer') {
+                    modalDesc.innerText = eProps.description || 'No description provided.';
+                    modalAssignee.innerHTML = `<strong>Created by:</strong> ${eProps.creator_name || 'N/A'}`;
+                    modalPoints.innerHTML = `<strong>Time Left:</strong> <span class="font-semibold text-blue-600 dark:text-blue-400">${eProps.time_left || 'N/A'}</span>`;
+                    modalStatus.innerHTML = `<strong>Ends on:</strong> ${eProps.description ? eProps.description.split('ends on ')[1] : 'N/A'}`;
+                    modalExtra.innerHTML = `<strong>Type:</strong> ⏱️ Timer`;
+                    modalActions.innerHTML = '';
+                    
+                    if (calendarEventModal) {
+                        calendarEventModal.classList.remove('hidden');
+                    }
+                    return;
+                }
+
+                // Regular event handling
+                modalDesc.innerText = eProps.description || 'No description provided.';
+                modalAssignee.innerHTML = `<strong>Assigned to:</strong> ${eProps.assignee_name || 'N/A'}`;
+                modalPoints.innerHTML = `<strong>Points:</strong> ${eProps.points || 0}`;
+                modalExtra.innerHTML = `<strong>Type:</strong> ${eProps.type ? eProps.type.charAt(0).toUpperCase() + eProps.type.slice(1) : 'N/A'}`;
+
+                // Status Badge
+                const statusColors = {
+                    assigned: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                    completed: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300',
+                    approved: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                    missed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+                    forgiven: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+                    active: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                };
+                const statusText = eProps.status ? eProps.status.charAt(0).toUpperCase() + eProps.status.slice(1) : 'Unknown';
+                modalStatus.innerHTML = `<strong>Status:</strong> <span class="px-2 py-0.5 ml-1 rounded-full text-xs font-semibold ${statusColors[eProps.status] || 'bg-gray-100 text-gray-800'}">${statusText}</span>`;
+
+                // Action Buttons
+                modalActions.innerHTML = '';
+                if (typeof USER_ROLE !== 'undefined' && USER_ROLE === 'parent') {
+                    if (eProps.status === 'completed') {
+                        modalActions.innerHTML += `<a href="/event/approve/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition focus:outline-none focus:ring-1 focus:ring-green-500">Approve</a>`;
+                    }
+                    modalActions.innerHTML += `<a href="/manage-plan#event-${eProps._id}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition">Manage</a>`;
+                } else if (typeof USER_ROLE !== 'undefined' && USER_ROLE === 'child' && typeof currentUserId !== 'undefined' && eProps.assigned_to === currentUserId) {
+                    // Show checkin button for chores/tasks when they can checkin
+                    if (eProps.type === 'chore' && eProps.can_checkin) {
+                        modalActions.innerHTML += `<a href="/event/complete/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-1 focus:ring-blue-500">Check-in</a>`;
+                    } else if (eProps.type === 'chore' && eProps.status === 'assigned') {
+                        modalActions.innerHTML += `<a href="/event/complete/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition focus:outline-none focus:ring-1 focus:ring-blue-500">Mark as Done</a>`;
+                    } else if (eProps.type === 'habit' && eProps.can_checkin) {
+                        modalActions.innerHTML += `<a href="/event/habit/checkin/${eProps._id}" class="px-4 py-2 text-sm font-semibold text-white bg-green-500 rounded-lg hover:bg-green-600 transition focus:outline-none focus:ring-1 focus:ring-green-500">Check-in Today</a>`;
+                    }
+                }
+
+                if (calendarEventModal) {
+                    calendarEventModal.classList.remove('hidden');
+                }
+            }
+        });
+
+        calendarInstance.render();
+    }
+
+    // Function to destroy calendar when modal closes
+    function destroyCalendar() {
+        if (calendarInstance) {
+            calendarInstance.destroy();
+            calendarInstance = null;
+            if (calendarContainer) {
+                calendarContainer.innerHTML = '';
+            }
+        }
+    }
+
+    // Function to refresh calendar with filters
+    function refreshCalendar() {
+        if (!calendarInstance) return;
+        const getEventSourceUrl = () => {
+            const params = new URLSearchParams({
+                search: document.getElementById('calendar-filter-search')?.value || '',
+                member: document.getElementById('calendar-filter-member')?.value || '',
+                type: document.getElementById('calendar-filter-type')?.value || ''
+            });
+            return `/api/events?${params.toString()}`;
+        };
+        calendarInstance.removeAllEventSources();
+        calendarInstance.addEventSource(getEventSourceUrl());
+        calendarInstance.refetchEvents();
+    }
+
+    // Open calendar modal handler
+    if (calendarModal) {
+        const originalOpenModal = window.openModal;
+        window.openCalendarModal = function() {
+            openModal('calendar-modal');
+            // Initialize calendar after modal opens
+            setTimeout(() => {
+                if (!calendarInstance) {
+                    initializeCalendar();
+                }
+            }, 100);
+        };
+
+        // Close calendar modal handler
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    const target = mutation.target;
+                    if (target === calendarModal && target.classList.contains('hidden')) {
+                        destroyCalendar();
+                        if (calendarEventModal) {
+                            calendarEventModal.classList.add('hidden');
+                        }
+                    }
+                }
+            });
+        });
+        observer.observe(calendarModal, { attributes: true });
+    }
+
+    // Close event details modal
+    if (calendarCloseBtn) {
+        calendarCloseBtn.addEventListener('click', () => {
+            if (calendarEventModal) {
+                calendarEventModal.classList.add('hidden');
+            }
+        });
+    }
+
+    // Close event details modal when clicking outside
+    if (calendarEventModal) {
+        calendarEventModal.addEventListener('click', (e) => {
+            if (e.target === calendarEventModal) {
+                calendarEventModal.classList.add('hidden');
+            }
+        });
+    }
+
+    // Apply filters button
+    if (calendarApplyFiltersBtn) {
+        calendarApplyFiltersBtn.addEventListener('click', () => {
+            refreshCalendar();
+        });
+    }
+
 }); // End DOMContentLoaded

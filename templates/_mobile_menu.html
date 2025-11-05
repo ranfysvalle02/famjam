@@ -57,10 +57,10 @@
              class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
              {% if current_user.role == 'parent' %}Manage Tasks{% else %}My Day{% endif %}
           </a>
-          <a href="{{ url_for('calendar_focus') }}" onclick="closeModal('mobileMenu')"
-             class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+          <button onclick="closeModal('mobileMenu'); setTimeout(() => openCalendarModal(), 300);"
+             class="block w-full text-left px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
            Calendar
-          </a>
+          </button>
           <a href="{{ url_for('mood_dashboard_personal') }}" onclick="closeModal('mobileMenu')"
              class="block px-3 py-3 rounded-md text-lg font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
            Mood Tracker
