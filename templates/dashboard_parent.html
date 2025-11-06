@@ -912,6 +912,77 @@
 
 {% block scripts %}
 <script>
+    // --- Collapsible Sections Logic - Define toggleSection BEFORE DOMContentLoaded ---
+    window.toggleSection = function(button) {
+        if (!button) {
+            console.warn('toggleSection called without button');
+            return;
+        }
+        
+        const section = button.closest('.collapse-section');
+        if (!section) {
+            console.warn('toggleSection: button is not inside a .collapse-section', button);
+            return;
+        }
+        
+        const content = section.querySelector('.section-content');
+        const icon = button.querySelector('.section-icon');
+        
+        if (!content) {
+            console.warn('toggleSection: Could not find .section-content in section', section);
+            return;
+        }
+        
+        if (!icon) {
+            console.warn('toggleSection: Could not find .section-icon in button', button);
+            return;
+        }
+        
+        // Check if collapsed by checking class, max-height, or computed style
+        const isCollapsed = content.classList.contains('collapsed') || 
+                           content.style.maxHeight === '0px' ||
+                           (content.style.maxHeight === '' && content.classList.contains('collapsed')) ||
+                           (content.style.maxHeight === '' && window.getComputedStyle(content).maxHeight === '0px');
+        
+        if (isCollapsed) {
+            // Expand section
+            // First, remove collapsed class and clear inline maxHeight to get accurate scrollHeight
+            content.classList.remove('collapsed');
+            content.style.maxHeight = '';
+            // Force a reflow to ensure content is measured correctly
+            void content.offsetHeight;
+            const targetHeight = content.scrollHeight;
+            // Set the target height for animation
+            if (targetHeight > 0) {
+                content.style.maxHeight = targetHeight + 'px';
+            } else {
+                // If still 0, try setting to auto temporarily to measure
+                content.style.maxHeight = 'auto';
+                void content.offsetHeight;
+                const actualHeight = content.scrollHeight || 1000; // Fallback to 1000px if still 0
+                content.style.maxHeight = '0px';
+                void content.offsetHeight;
+                content.style.maxHeight = actualHeight + 'px';
+            }
+            icon.style.transform = 'rotate(180deg)';
+            // Remove max-height after transition to allow content to grow dynamically
+            setTimeout(() => {
+                if (!content.classList.contains('collapsed')) {
+                    content.style.maxHeight = '';
+                }
+            }, 350);
+        } else {
+            // Collapse section
+            const currentHeight = content.scrollHeight;
+            content.style.maxHeight = currentHeight + 'px';
+            // Force reflow to ensure transition works
+            void content.offsetHeight;
+            content.style.maxHeight = '0px';
+            content.classList.add('collapsed');
+            icon.style.transform = 'rotate(0deg)';
+        }
+    };
+
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- Mood Logger Logic ---
@@ -1660,59 +1731,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    // --- Collapsible Sections Logic (same as child dashboard) ---
-    window.toggleSection = function(button) {
-        if (!button) return;
-        
-        const section = button.closest('.collapse-section');
-        if (!section) return;
-        
-        const content = section.querySelector('.section-content');
-        const icon = button.querySelector('.section-icon');
-        
-        if (!content || !icon) {
-            console.error('Could not find content or icon', { content, icon });
-            return;
-        }
-        
-        // Check if collapsed by checking class or max-height
-        const isCollapsed = content.classList.contains('collapsed') || 
-                           content.style.maxHeight === '0px' ||
-                           (content.style.maxHeight === '' && content.classList.contains('collapsed'));
-        
-        if (isCollapsed) {
-            // Expand section
-            content.style.maxHeight = content.scrollHeight + 'px';
-            content.classList.remove('collapsed');
-            icon.style.transform = 'rotate(180deg)';
-            // Remove max-height after transition to allow content to grow dynamically
-            setTimeout(() => {
-                if (!content.classList.contains('collapsed')) {
-                    content.style.maxHeight = 'none';
-                }
-            }, 350);
-        } else {
-            // Collapse section
-            const currentHeight = content.scrollHeight;
-            content.style.maxHeight = currentHeight + 'px';
-            // Force reflow to ensure transition works
-            void content.offsetHeight;
-            content.style.maxHeight = '0px';
-            content.classList.add('collapsed');
-            icon.style.transform = 'rotate(0deg)';
-        }
-    };
-
+    // --- Collapsible Sections Logic - Initialize all sections (toggleSection is defined above) ---
     // Initialize all sections as collapsed by default (except first one)
     document.querySelectorAll('.collapse-section').forEach((section, index) => {
         const content = section.querySelector('.section-content');
-        if (!content) return;
+        if (!content) {
+            console.warn('No .section-content found in collapse-section', section);
+            return;
+        }
         
         const button = section.querySelector('button[onclick*="toggleSection"]');
-        if (!button) return;
+        if (!button) {
+            console.warn('No toggle button found in collapse-section', section);
+            return;
+        }
         
         const icon = button.querySelector('.section-icon');
-        if (!icon) return;
+        if (!icon) {
+            console.warn('No .section-icon found in toggle button', button);
+            return;
+        }
         
         if (index > 0) {
             // Keep first section (mood logger) open, collapse others
