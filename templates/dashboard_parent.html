@@ -335,19 +335,19 @@
 
       {# Pending Approvals Card #}
       <section role="region" aria-labelledby="approvals-heading" class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-xl collapse-section">
-        <button onclick="toggleSection(this)" class="w-full flex justify-between items-center mb-4 focus:outline-none">
-          <h3 id="approvals-heading" class="text-xl font-bold text-gray-900 dark:text-gray-100">Pending Approvals ({{ pending_events|length }})</h3>
-          <div class="flex items-center gap-2">
-            {% if pending_events %}
-            <button id="approve-all-btn" onclick="event.stopPropagation()" class="px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded-full hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500">
-              Approve All
-            </button>
-            {% endif %}
-            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform section-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="flex justify-between items-center mb-4">
+          <button onclick="toggleSection(this)" class="flex-1 flex justify-between items-center focus:outline-none">
+            <h3 id="approvals-heading" class="text-xl font-bold text-gray-900 dark:text-gray-100">Pending Approvals ({{ pending_events|length }})</h3>
+            <svg class="w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform section-icon ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
-          </div>
-        </button>
+          </button>
+          {% if pending_events %}
+          <button id="approve-all-btn" onclick="event.stopPropagation()" class="px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded-full hover:bg-green-700 transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 ml-2">
+            Approve All
+          </button>
+          {% endif %}
+        </div>
         <div class="section-content">
         <div id="pending-approvals-container">
           {% if pending_events %}
@@ -928,14 +928,32 @@
         // Try multiple ways to find the content
         let content = section.querySelector('.section-content');
         if (!content) {
-            // Fallback: look for direct child div after button
+            // Fallback 1: look for direct child div after button
             if (button.nextElementSibling && button.nextElementSibling.classList.contains('section-content')) {
                 content = button.nextElementSibling;
             }
         }
+        if (!content) {
+            // Fallback 2: look for any div with section-content class as sibling
+            let sibling = button.nextElementSibling;
+            while (sibling) {
+                if (sibling.classList && sibling.classList.contains('section-content')) {
+                    content = sibling;
+                    break;
+                }
+                sibling = sibling.nextElementSibling;
+            }
+        }
+        if (!content) {
+            // Fallback 3: look inside the section for any element with section-content class
+            const allElements = section.getElementsByClassName('section-content');
+            if (allElements.length > 0) {
+                content = allElements[0];
+            }
+        }
         
         if (!content) {
-            console.warn('toggleSection: Could not find .section-content in section', section, 'Children:', Array.from(section.children).map(c => c.tagName + '.' + c.className));
+            console.warn('toggleSection: Could not find .section-content in section', section, 'HTML:', section.innerHTML.substring(0, 500));
             return;
         }
         
@@ -1744,15 +1762,36 @@ document.addEventListener('DOMContentLoaded', () => {
         // Try multiple ways to find the content
         let content = section.querySelector('.section-content');
         if (!content) {
-            // Fallback: look for direct child div after button
+            // Fallback 1: look for direct child div after button
             const button = section.querySelector('button[onclick*="toggleSection"]');
             if (button && button.nextElementSibling && button.nextElementSibling.classList.contains('section-content')) {
                 content = button.nextElementSibling;
             }
         }
+        if (!content) {
+            // Fallback 2: look for any div with section-content class as sibling of button
+            const button = section.querySelector('button[onclick*="toggleSection"]');
+            if (button) {
+                let sibling = button.nextElementSibling;
+                while (sibling) {
+                    if (sibling.classList && sibling.classList.contains('section-content')) {
+                        content = sibling;
+                        break;
+                    }
+                    sibling = sibling.nextElementSibling;
+                }
+            }
+        }
+        if (!content) {
+            // Fallback 3: look inside the section for any element with section-content class
+            const allElements = section.getElementsByClassName('section-content');
+            if (allElements.length > 0) {
+                content = allElements[0];
+            }
+        }
         
         if (!content) {
-            console.warn('No .section-content found in collapse-section', section, 'Children:', Array.from(section.children).map(c => c.tagName + '.' + c.className));
+            console.warn('No .section-content found in collapse-section', section, 'HTML:', section.innerHTML.substring(0, 500));
             return;
         }
         
