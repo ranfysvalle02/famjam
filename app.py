@@ -532,12 +532,22 @@ def personal_dashboard():
             reward_req['username'] = users_for_rewards.get(str(reward_req.get('requested_by_id')), 'Unknown')
 
         # --- Fetch Timers ---
-        timers = []
+        active_timers = []
+        expired_timers = []
+        current_user_oid = ObjectId(current_user.id)
+        unseen_expired_count = 0
+        
         for t in timers_collection.find({'family_id': family_oid}).sort('end_date', ASCENDING):
             end_date_aware = t['end_date'].astimezone(TIMEZONE) # Ensure it's in EST for display and calc
             delta = end_date_aware - now
+            is_expired = delta.total_seconds() < 0
+            
+            # Check if user has seen this expired timer
+            seen_by = t.get('seen_by', [])
+            user_seen = str(current_user_oid) in [str(sid) for sid in seen_by]
+            
             time_left = "Timer ended"
-            if delta.total_seconds() >= 0:
+            if not is_expired:
                 days_left = delta.days
                 if days_left >= 1:
                     time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
@@ -550,14 +560,26 @@ def personal_dashboard():
                     if hours > 0: time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
                     elif minutes > 0: time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
                     else: time_left = "Less than a minute left"
-            timers.append({
+            
+            timer_data = {
                 '_id': str(t['_id']), 'name': t['name'],
                 'end_date': end_date_aware.strftime('%b %d, %Y'),
                 'creator_id': str(t.get('created_by')),
                 'creator_name': member_map.get(str(t.get('created_by')), "Unknown"),
                 'time_left': time_left,
-                'end_datetime': end_date_aware # For sorting if needed, though already sorted by query
-            })
+                'end_datetime': end_date_aware,
+                'is_expired': is_expired,
+                'seen': user_seen if is_expired else True
+            }
+            
+            if is_expired:
+                expired_timers.append(timer_data)
+                if not user_seen:
+                    unseen_expired_count += 1
+            else:
+                active_timers.append(timer_data)
+        
+        timers = active_timers + expired_timers  # Keep for backward compatibility
         # --- End Fetch Timers ---
 
 
@@ -573,6 +595,9 @@ def personal_dashboard():
             available_rewards=available_rewards,
             family_rules=family_rules,      # Rules for the family
             timers=timers,                 # *** ADDED TIMERS ***
+            active_timers=active_timers,   # Active timers only
+            expired_timers=expired_timers, # Expired timers only
+            unseen_expired_count=unseen_expired_count, # Count of unseen expired timers
             now=now,                       # *** ADDED NOW ***
             TIMEZONE=TIMEZONE_NAME,        # Pass timezone name string
             TIMEZONE_OBJ=TIMEZONE,         # Pass pytz object for filters if needed
@@ -652,12 +677,21 @@ def personal_dashboard():
                 else: c['completed_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
 
         # --- Fetch Timers ---
-        timers = []
+        active_timers = []
+        expired_timers = []
+        unseen_expired_count = 0
+        
         for t in timers_collection.find({'family_id': family_oid}).sort('end_date', ASCENDING):
             end_date_aware = t['end_date'].astimezone(TIMEZONE) # Ensure it's in EST for display and calc
             delta = end_date_aware - now
+            is_expired = delta.total_seconds() < 0
+            
+            # Check if user has seen this expired timer
+            seen_by = t.get('seen_by', [])
+            user_seen = str(current_user_oid) in [str(sid) for sid in seen_by]
+            
             time_left = "Timer ended"
-            if delta.total_seconds() >= 0:
+            if not is_expired:
                 days_left = delta.days
                 if days_left >= 1:
                     time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
@@ -670,14 +704,26 @@ def personal_dashboard():
                     if hours > 0: time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
                     elif minutes > 0: time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
                     else: time_left = "Less than a minute left"
-            timers.append({
+            
+            timer_data = {
                 '_id': str(t['_id']), 'name': t['name'],
                 'end_date': end_date_aware.strftime('%b %d, %Y'),
                 'creator_id': str(t.get('created_by')),
                 'creator_name': member_map.get(str(t.get('created_by')), "Unknown"),
                 'time_left': time_left,
-                'end_datetime': end_date_aware # For sorting if needed
-            })
+                'end_datetime': end_date_aware,
+                'is_expired': is_expired,
+                'seen': user_seen if is_expired else True
+            }
+            
+            if is_expired:
+                expired_timers.append(timer_data)
+                if not user_seen:
+                    unseen_expired_count += 1
+            else:
+                active_timers.append(timer_data)
+        
+        timers = active_timers + expired_timers  # Keep for backward compatibility
         # --- End Fetch Timers ---
 
         # --- Fetch Rules (for display to children) ---
@@ -702,6 +748,9 @@ def personal_dashboard():
             available_rewards=available_rewards,
             challenges=challenges,
             timers=timers,                 # *** ADDED TIMERS ***
+            active_timers=active_timers,   # Active timers only
+            expired_timers=expired_timers, # Expired timers only
+            unseen_expired_count=unseen_expired_count, # Count of unseen expired timers
             family_rules=family_rules,    # *** ADDED RULES ***
             academic_info=academic_info,   # *** ADDED ACADEMIC INFO ***
             now=now,                       # *** ADDED NOW ***
@@ -744,14 +793,25 @@ def family_dashboard():
             elif (h := delta.seconds // 3600) > 0: ev['approved_at_pretty'] = f"{h}h ago"
             else: ev['approved_at_pretty'] = f"{max(1, delta.seconds // 60)}m ago"
         recent_events.append(ev)
-    timers = []
+    # --- Fetch Timers ---
+    active_timers = []
+    expired_timers = []
+    current_user_oid = ObjectId(current_user.id)
+    unseen_expired_count = 0
+    
     for t in timers_collection.find({'family_id': fam_oid}).sort('end_date', ASCENDING):
         # Assuming end_date in DB is already timezone-aware (e.g., stored as UTC or localized EST)
         # If it's naive, it needs localization first. start_of_day_est handles this if passed a date object.
         end_date_aware = t['end_date'].astimezone(TIMEZONE) # Ensure it's in EST for display and calc
         delta = end_date_aware - now
+        is_expired = delta.total_seconds() < 0
+        
+        # Check if user has seen this expired timer
+        seen_by = t.get('seen_by', [])
+        user_seen = str(current_user_oid) in [str(sid) for sid in seen_by]
+        
         time_left = "Timer ended"
-        if delta.total_seconds() >= 0:
+        if not is_expired:
             days_left = delta.days
             if days_left >= 1:
                 time_left = f"{days_left} day{'s' if days_left != 1 else ''} left"
@@ -767,8 +827,27 @@ def family_dashboard():
                 if hours > 0: time_left = f"{hours} hour{'s' if hours != 1 else ''} left"
                 elif minutes > 0: time_left = f"{minutes} minute{'s' if minutes != 1 else ''} left"
                 else: time_left = "Less than a minute left"
-
-        timers.append({'_id': str(t['_id']), 'name': t['name'], 'end_date': end_date_aware.strftime('%b %d, %Y'), 'creator_id': str(t.get('created_by')), 'creator_name': member_map.get(str(t.get('created_by')), "Unknown"), 'time_left': time_left})
+        
+        timer_data = {
+            '_id': str(t['_id']), 'name': t['name'],
+            'end_date': end_date_aware.strftime('%b %d, %Y'),
+            'creator_id': str(t.get('created_by')),
+            'creator_name': member_map.get(str(t.get('created_by')), "Unknown"),
+            'time_left': time_left,
+            'end_datetime': end_date_aware,
+            'is_expired': is_expired,
+            'seen': user_seen if is_expired else True
+        }
+        
+        if is_expired:
+            expired_timers.append(timer_data)
+            if not user_seen:
+                unseen_expired_count += 1
+        else:
+            active_timers.append(timer_data)
+    
+    timers = active_timers + expired_timers  # Keep for backward compatibility
+    # --- End Fetch Timers ---
 
     # --- Fetch Rules (for display to all family members) ---
     family_rules = list(rules_collection.find({'family_id': fam_oid}).sort('order', ASCENDING))
@@ -778,7 +857,16 @@ def family_dashboard():
     # --- End Fetch Rules ---
 
     # Assuming family_dashboard.html template exists
-    return render_template('family_dashboard.html', stats=stats, family_members=family_members, recent_events=recent_events, timers=timers, family_rules=family_rules, now=now_est())
+    return render_template('family_dashboard.html', 
+                         stats=stats, 
+                         family_members=family_members, 
+                         recent_events=recent_events, 
+                         timers=timers,
+                         active_timers=active_timers,
+                         expired_timers=expired_timers,
+                         unseen_expired_count=unseen_expired_count,
+                         family_rules=family_rules, 
+                         now=now_est())
 
 
 @app.route('/mood-dashboard/personal')
@@ -1724,6 +1812,46 @@ def delete_timer(timer_id):
         flash("You don't have permission to delete this timer.", "error")
     return redirect(url_for('family_dashboard'))
 
+@app.route('/timer/mark-seen', methods=['POST'])
+@login_required
+def mark_timers_seen():
+    """Mark expired timers as seen by the current user"""
+    try:
+        data = request.get_json()
+        timer_ids = data.get('timer_ids', [])
+        if not timer_ids:
+            return jsonify({'success': True, 'message': 'No timers to mark'})
+        
+        current_user_oid = ObjectId(current_user.id)
+        fam_oid = ObjectId(current_user.family_id)
+        
+        # Convert timer IDs to ObjectIds
+        timer_oids = []
+        for tid in timer_ids:
+            try:
+                timer_oids.append(ObjectId(tid))
+            except:
+                continue
+        
+        if not timer_oids:
+            return jsonify({'success': False, 'message': 'Invalid timer IDs'}), 400
+        
+        # Update timers: add current user to seen_by array if not already present
+        result = timers_collection.update_many(
+            {
+                '_id': {'$in': timer_oids},
+                'family_id': fam_oid,
+                'seen_by': {'$ne': current_user_oid}
+            },
+            {
+                '$addToSet': {'seen_by': current_user_oid}
+            }
+        )
+        
+        return jsonify({'success': True, 'count': result.modified_count})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/account/delete', methods=['GET'])
 @login_required
 def delete_account():
@@ -2228,6 +2356,140 @@ def suggest_rewards():
     except Exception as e:
         print(f"Error generating suggestions: {e}")
         return jsonify({"error": f"Failed to generate reward suggestions: {str(e)}"}), 500
+
+@app.route('/api/rule/suggest', methods=['POST'])
+@login_required
+def suggest_rules():
+    if current_user.role != 'parent' or not openai_client:
+        return jsonify({"error": "Not authorized or AI not configured."}), 403
+
+    theme = request.get_json().get('theme', 'general family rules with appropriate consequences')
+    children = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}, {'username': 1, '_id': 0}))
+    child_names = [c['username'] for c in children]
+    child_info = f"for children named {', '.join(child_names)}" if child_names else "for children"
+    
+    # Check existing rules to avoid duplicates
+    family_oid = ObjectId(current_user.family_id)
+    existing_rules = list(rules_collection.find({'family_id': family_oid}, {'name': 1, '_id': 0}))
+    existing_rule_names = [r['name'].lower() for r in existing_rules]
+    existing_info = f"Existing rules: {', '.join([r['name'] for r in existing_rules])}" if existing_rules else "No existing rules yet."
+
+    system_prompt = f"""
+    You are an expert in child development, family dynamics, and neurodivergent support. 
+    Generate a JSON object containing ONLY a key "suggested_rules".
+    This key MUST hold an array of 5-7 clear, age-appropriate family rules with corresponding consequences {child_info}.
+    The theme for the rules is: "{theme}".
+    {existing_info}
+    Each rule object in the array MUST have ONLY two keys:
+    1. "name": A clear, concise rule description (e.g., "No screens after 8pm"). Max 60 chars.
+    2. "consequence": A specific, fair consequence that teaches responsibility (e.g., "Lose 30 minutes of screen time tomorrow"). Max 100 chars.
+    Rules should be:
+    - Clear and specific (not vague)
+    - Age-appropriate
+    - Fair and proportional
+    - Supportive of neurodivergent children
+    - Focused on teaching responsibility rather than punishment
+    Avoid suggesting rules that are too similar to existing ones.
+    Ensure the output is ONLY a valid JSON object starting with {{ and ending with }}. Do not include any text before or after the JSON object.
+    """
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "Generate the rule suggestions with appropriate consequences."}
+            ]
+        )
+        content = response.choices[0].message.content
+        suggestions = json.loads(content)
+        if "suggested_rules" not in suggestions or not isinstance(suggestions["suggested_rules"], list):
+            raise ValueError("AI response missing 'suggested_rules' array.")
+        # Minimal validation on content types
+        for rule in suggestions["suggested_rules"]:
+            if not isinstance(rule.get('name'), str) or not isinstance(rule.get('consequence'), str):
+                raise ValueError("Invalid rule structure in AI response.")
+            if len(rule.get('name', '')) > 60:
+                rule['name'] = rule['name'][:60]
+            if len(rule.get('consequence', '')) > 100:
+                rule['consequence'] = rule['consequence'][:100]
+
+        return jsonify(suggestions)
+    except json.JSONDecodeError:
+        print(f"AI Response (Invalid JSON): {content}")
+        return jsonify({"error": "AI generated invalid JSON response."}), 500
+    except Exception as e:
+        print(f"Error generating rule suggestions: {e}")
+        return jsonify({"error": f"Failed to generate rule suggestions: {str(e)}"}), 500
+
+@app.route('/api/rule/example', methods=['POST'])
+@login_required
+def generate_rule_example():
+    """Generate a concrete, kid-friendly example for a rule/consequence combo"""
+    if not openai_client:
+        return jsonify({"error": "AI not configured."}), 503
+    
+    data = request.get_json()
+    rule_name = data.get('rule_name', '').strip()
+    consequence = data.get('consequence', '').strip()
+    
+    if not rule_name or not consequence:
+        return jsonify({"error": "Rule name and consequence are required."}), 400
+    
+    # Get child names for context
+    children = list(users_collection.find({'family_id': current_user.family_id, 'role': 'child'}, {'username': 1, '_id': 0}))
+    child_names = [c['username'] for c in children]
+    child_context = f"for children named {', '.join(child_names)}" if child_names else "for children"
+    
+    system_prompt = f"""
+    You are helping children understand family rules through concrete, relatable examples.
+    Generate a JSON object containing ONLY a key "example".
+    This key MUST hold a short, kid-friendly story/scenario (2-3 sentences) that shows:
+    1. A specific situation where the rule might be broken
+    2. How the consequence would be applied
+    3. Make it relatable and age-appropriate {child_context}
+    
+    Rule: "{rule_name}"
+    Consequence: "{consequence}"
+    
+    The example should be:
+    - Concrete and specific (not abstract)
+    - Age-appropriate and relatable
+    - Clear about what happens when the rule is broken
+    - Helpful for neurodivergent children to understand
+    - Written in a friendly, supportive tone
+    - Maximum 150 words
+    
+    Ensure the output is ONLY a valid JSON object starting with {{ and ending with }}. Do not include any text before or after the JSON object.
+    """
+    
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Generate an example for the rule: {rule_name} with consequence: {consequence}"}
+            ]
+        )
+        content = response.choices[0].message.content
+        example_data = json.loads(content)
+        
+        if "example" not in example_data or not isinstance(example_data["example"], str):
+            raise ValueError("AI response missing 'example' string.")
+        
+        # Limit example length
+        if len(example_data["example"]) > 200:
+            example_data["example"] = example_data["example"][:200] + "..."
+        
+        return jsonify(example_data)
+    except json.JSONDecodeError:
+        print(f"AI Response (Invalid JSON): {content}")
+        return jsonify({"error": "AI generated invalid JSON response."}), 500
+    except Exception as e:
+        print(f"Error generating rule example: {e}")
+        return jsonify({"error": f"Failed to generate rule example: {str(e)}"}), 500
 
 @app.route('/api/famjam/suggest', methods=['POST'])
 @login_required

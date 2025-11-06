@@ -6,12 +6,37 @@
       <div class="flex items-center justify-between mb-8">
         <svg class="w-8 h-8" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
            <style>
+              /* Keyframe animations for mobile menu logo SVG */
+              @keyframes rotate_outer {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              @keyframes rotate_inner {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(-360deg); }
+              }
+              @keyframes dash_flow {
+                0% { stroke-dashoffset: 1000; }
+                100% { stroke-dashoffset: 0; }
+              }
+              @keyframes color_shift {
+                0% { stop-color: #818cf8; }
+                33% { stop-color: #60a5fa; }
+                66% { stop-color: #34d399; }
+                100% { stop-color: #818cf8; }
+              }
+              @keyframes color_shift2 {
+                0% { stop-color: #f472b6; }
+                33% { stop-color: #c084fc; }
+                66% { stop-color: #fb923c; }
+                100% { stop-color: #f472b6; }
+              }
               /* Scoped styles for the mobile menu logo SVG */
-              #mobileMenu svg .logo-group-outer { animation: rotate_outer 12s linear infinite; transform-origin: center; }
-              #mobileMenu svg .logo-group-inner { animation: rotate_inner 10s linear infinite; transform-origin: center; }
-              #mobileMenu svg .logo-path { stroke-dasharray: 500; animation: dash_flow 8s ease-in-out infinite alternate; }
-              #mobileMenu svg #stop1Mobile { animation: color_shift 6s linear infinite; }
-              #mobileMenu svg #stop2Mobile { animation: color_shift2 6s linear infinite; }
+              .logo-group-outer { animation: rotate_outer 12s linear infinite; transform-origin: center; }
+              .logo-group-inner { animation: rotate_inner 10s linear infinite; transform-origin: center; }
+              .logo-path { stroke-dasharray: 500; animation: dash_flow 8s ease-in-out infinite alternate; }
+              #stop1Mobile { animation: color_shift 6s linear infinite; }
+              #stop2Mobile { animation: color_shift2 6s linear infinite; }
             </style>
           <defs>
             <linearGradient id="fluidGradientMobile" gradientTransform="rotate(45)">
