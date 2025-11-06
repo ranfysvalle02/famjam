@@ -925,16 +925,23 @@
             return;
         }
         
-        const content = section.querySelector('.section-content');
-        const icon = button.querySelector('.section-icon');
+        // Try multiple ways to find the content
+        let content = section.querySelector('.section-content');
+        if (!content) {
+            // Fallback: look for direct child div after button
+            if (button.nextElementSibling && button.nextElementSibling.classList.contains('section-content')) {
+                content = button.nextElementSibling;
+            }
+        }
         
         if (!content) {
-            console.warn('toggleSection: Could not find .section-content in section', section);
+            console.warn('toggleSection: Could not find .section-content in section', section, 'Children:', Array.from(section.children).map(c => c.tagName + '.' + c.className));
             return;
         }
         
+        const icon = button.querySelector('.section-icon');
         if (!icon) {
-            console.warn('toggleSection: Could not find .section-icon in button', button);
+            console.warn('toggleSection: Could not find .section-icon in button', button, 'Children:', Array.from(button.children).map(c => c.tagName + '.' + c.className));
             return;
         }
         
@@ -1734,9 +1741,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Collapsible Sections Logic - Initialize all sections (toggleSection is defined above) ---
     // Initialize all sections as collapsed by default (except first one)
     document.querySelectorAll('.collapse-section').forEach((section, index) => {
-        const content = section.querySelector('.section-content');
+        // Try multiple ways to find the content
+        let content = section.querySelector('.section-content');
         if (!content) {
-            console.warn('No .section-content found in collapse-section', section);
+            // Fallback: look for direct child div after button
+            const button = section.querySelector('button[onclick*="toggleSection"]');
+            if (button && button.nextElementSibling && button.nextElementSibling.classList.contains('section-content')) {
+                content = button.nextElementSibling;
+            }
+        }
+        
+        if (!content) {
+            console.warn('No .section-content found in collapse-section', section, 'Children:', Array.from(section.children).map(c => c.tagName + '.' + c.className));
             return;
         }
         
@@ -1748,7 +1764,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const icon = button.querySelector('.section-icon');
         if (!icon) {
-            console.warn('No .section-icon found in toggle button', button);
+            console.warn('No .section-icon found in toggle button', button, 'Children:', Array.from(button.children).map(c => c.tagName + '.' + c.className));
             return;
         }
         
