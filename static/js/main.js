@@ -6,7 +6,51 @@
 // const USER_DATA = {...};
 
 // --- MODAL & UI HELPER FUNCTIONS ---
-function openModal(modalId) {
+
+/**
+ * Smoothly scrolls to an element with optional focus
+ * @param {HTMLElement|string} element - Element or selector to scroll to
+ * @param {Object} options - Options for scrolling
+ * @param {boolean} options.focus - Whether to focus the element after scrolling
+ * @param {number} options.offset - Offset in pixels from the top
+ * @param {string} options.focusSelector - Selector for element to focus within the target
+ */
+window.smoothScrollTo = function smoothScrollTo(element, options = {}) {
+  const { focus = false, offset = 0, focusSelector = null } = options;
+  
+  const targetElement = typeof element === 'string' 
+    ? document.querySelector(element) 
+    : element;
+  
+  if (!targetElement) return;
+  
+  const elementPosition = targetElement.getBoundingClientRect().top + window.pageYOffset;
+  const offsetPosition = elementPosition - offset;
+  
+  window.scrollTo({
+    top: offsetPosition,
+    behavior: 'smooth'
+  });
+  
+  // Focus after scroll completes
+  if (focus || focusSelector) {
+    setTimeout(() => {
+      if (focusSelector) {
+        const focusElement = targetElement.querySelector(focusSelector);
+        if (focusElement) {
+          focusElement.focus();
+          // Scroll the focused element into view if needed
+          focusElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      } else if (focus) {
+        targetElement.focus();
+      }
+    }, 500); // Wait for smooth scroll to complete
+  }
+}
+
+function openModal(modalId, options = {}) {
+  const { scrollTo = false, focusSelector = null } = options;
   const modal = document.getElementById(modalId);
   if (!modal) return;
   modal.classList.remove('hidden');
@@ -21,6 +65,17 @@ function openModal(modalId) {
     items.forEach((item, index) => {
         item.style.animationDelay = `${150 + index * 100}ms`;
     });
+
+    // Smooth scroll to modal if requested
+    if (scrollTo) {
+      setTimeout(() => {
+        smoothScrollTo(modal, { 
+          offset: 20, 
+          focus: !!focusSelector, 
+          focusSelector: focusSelector 
+        });
+      }, 100); // Small delay to ensure modal is visible
+    }
 
     // If the personal modal is being opened, fetch the messages
     if (modalId === 'personalStuffModal') {
@@ -53,7 +108,10 @@ function openEditModal(childId, username) {
   if (form) {
       form.action = `/child/edit/${childId}`;
   }
-  openModal('edit-child-modal');
+  openModal('edit-child-modal', { 
+    scrollTo: true, 
+    focusSelector: '#edit-username' 
+  });
 }
 
 function openResetChildPasswordModal(childId, childUsername) {
@@ -66,7 +124,10 @@ function openResetChildPasswordModal(childId, childUsername) {
     form.action = `/child/reset-password/${childId}`;
     form.reset(); // Clear password field from previous use
   }
-  openModal('reset-child-password-modal');
+  openModal('reset-child-password-modal', { 
+    scrollTo: true, 
+    focusSelector: '#new-child-password' 
+  });
 }
 
 function openEditTaskModal(taskJsonString) {
@@ -100,7 +161,10 @@ function openEditTaskModal(taskJsonString) {
         }
         if (assignedToSelect) assignedToSelect.value = task.assigned_to || '';
 
-        openModal('edit-task-modal');
+        openModal('edit-task-modal', { 
+          scrollTo: true, 
+          focusSelector: '#edit-task-name' 
+        });
     } catch (e) {
         console.error("Error parsing task JSON or setting form values:", e);
         alert("Could not load task details for editing.");
@@ -578,7 +642,18 @@ document.addEventListener("DOMContentLoaded", function() {
         const composeContainer = document.getElementById('compose-message-form-container');
 
         if (composeBtn && composeContainer && cancelBtn) {
-            const toggleCompose = () => composeContainer.classList.toggle('hidden');
+            const toggleCompose = () => {
+                composeContainer.classList.toggle('hidden');
+                // If opening, smoothly scroll to the form and focus the textarea
+                if (!composeContainer.classList.contains('hidden')) {
+                    setTimeout(() => {
+                        smoothScrollTo(composeContainer, { 
+                            offset: 20, 
+                            focusSelector: 'textarea[name="message_content"]' 
+                        });
+                    }, 100);
+                }
+            };
             composeBtn.addEventListener('click', toggleCompose);
             cancelBtn.addEventListener('click', toggleCompose);
         }

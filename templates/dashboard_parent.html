@@ -618,7 +618,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {# Add New Reward Form #}
       <div class="lg:col-span-1">
-        <form action="{{ url_for('add_store_reward') }}" method="POST" class="space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+        <form id="add-reward-form" action="{{ url_for('add_store_reward') }}" method="POST" class="space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
           <h4 class="font-semibold text-gray-800 dark:text-gray-100">Add a New Reward</h4>
             <div>
               <label for="reward-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Reward Name</label>
@@ -682,7 +682,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {# Add New Rule Form #}
       <div class="lg:col-span-1">
-        <form action="{{ url_for('add_rule') }}" method="POST" class="space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+        <form id="add-rule-form" action="{{ url_for('add_rule') }}" method="POST" class="space-y-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
           <h4 class="font-semibold text-gray-800 dark:text-gray-100">Add a New Rule</h4>
           <div>
             <label for="rule-name" class="block text-sm font-medium text-gray-700 dark:text-gray-200">Rule Name</label>
@@ -1456,7 +1456,10 @@ document.addEventListener('DOMContentLoaded', () => {
         suggestRewardsBtn.addEventListener('click', () => {
              document.getElementById('reward-theme-input').value = '';
              setSuggestRewardsModalState('start');
-             openModal('suggest-rewards-modal');
+             openModal('suggest-rewards-modal', { 
+                 scrollTo: true, 
+                 focusSelector: '#reward-theme-input' 
+             });
         });
     }
 
@@ -1502,6 +1505,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                         suggestionsContainer.appendChild(rewardEl);
                     });
+                    // Smooth scroll to results section after suggestions are loaded
+                    setTimeout(() => {
+                        const resultsSection = document.getElementById('suggest-rewards-results');
+                        if (resultsSection) {
+                            smoothScrollTo(resultsSection, { offset: 20 });
+                        }
+                    }, 100);
                 } else {
                     suggestionsContainer.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 py-4">The AI could not generate suggestions based on that theme. Try being more general or specific.</p>';
                 }
@@ -1556,7 +1566,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nameInput) nameInput.value = ruleName || '';
         if (consequenceInput) consequenceInput.value = ruleConsequence || '';
         
-        openModal('edit-rule-modal');
+        openModal('edit-rule-modal', { 
+            scrollTo: true, 
+            focusSelector: '#edit-rule-name' 
+        });
     };
     // --- END Edit Rule Modal Logic ---
 
@@ -1566,7 +1579,10 @@ document.addEventListener('DOMContentLoaded', () => {
         suggestRulesBtn.addEventListener('click', () => {
              document.getElementById('rule-theme-input').value = '';
              setSuggestRulesModalState('start');
-             openModal('suggest-rules-modal');
+             openModal('suggest-rules-modal', { 
+                 scrollTo: true, 
+                 focusSelector: '#rule-theme-input' 
+             });
         });
     }
 
@@ -1616,6 +1632,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         `;
                         suggestionsContainer.appendChild(ruleEl);
                     });
+                    // Smooth scroll to results section after suggestions are loaded
+                    setTimeout(() => {
+                        const resultsSection = document.getElementById('suggest-rules-results');
+                        if (resultsSection) {
+                            smoothScrollTo(resultsSection, { offset: 20 });
+                        }
+                    }, 100);
                 } else {
                     suggestionsContainer.innerHTML = '<p class="text-center text-gray-500 dark:text-gray-400 py-4">The AI could not generate suggestions based on that theme. Try being more general or specific.</p>';
                 }
@@ -1691,6 +1714,18 @@ document.addEventListener('DOMContentLoaded', () => {
           button.classList.remove('bg-green-600', 'hover:bg-green-700');
           button.classList.add('bg-gray-400', 'cursor-not-allowed', 'dark:bg-gray-600');
 
+          // Close modal and smoothly scroll to the rule form
+          closeModal('suggest-rules-modal');
+          setTimeout(() => {
+              const ruleForm = document.getElementById('add-rule-form');
+              if (ruleForm) {
+                  smoothScrollTo(ruleForm, { 
+                      offset: 20, 
+                      focusSelector: '#rule-name' 
+                  });
+              }
+          }, 300); // Wait for modal close animation
+
       } catch (error) {
           console.error('Error adding suggested rule:', error);
           button.innerHTML = 'Error';
@@ -1740,6 +1775,18 @@ document.addEventListener('DOMContentLoaded', () => {
           button.innerHTML = 'Added!';
           button.classList.remove('bg-green-600', 'hover:bg-green-700');
           button.classList.add('bg-gray-400', 'cursor-not-allowed', 'dark:bg-gray-600');
+
+          // Close modal and smoothly scroll to the reward form
+          closeModal('suggest-rewards-modal');
+          setTimeout(() => {
+              const rewardForm = document.getElementById('add-reward-form');
+              if (rewardForm) {
+                  smoothScrollTo(rewardForm, { 
+                      offset: 20, 
+                      focusSelector: '#reward-name' 
+                  });
+              }
+          }, 300); // Wait for modal close animation
 
       } catch (error) {
           console.error('Error adding suggested reward:', error);

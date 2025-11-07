@@ -7,6 +7,7 @@ html {
    * setting a dark base color for the entire page.
   */
   background-color: #1f2937; /* Base color from your gradient */
+  scroll-behavior: smooth; /* Enable smooth scrolling */
 }
 
 body {
